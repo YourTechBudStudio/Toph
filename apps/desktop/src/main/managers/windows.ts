@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { BrowserWindow, screen } from 'electron';
 
 import {
+  DEFAULT_APP_SETTINGS,
   DESKTOP_IPC_CHANNELS,
   OVERLAY_WINDOW_GEOMETRY,
   type AppState,
@@ -16,6 +17,8 @@ export interface WindowManager {
   showSettings: () => void;
   hideSettings: () => void;
   showOverlay: () => void;
+  setHideFromScreenCapture: (enabled: boolean) => void;
+  withOverlayHidden: <T>(operation: () => Promise<T>) => Promise<T>;
   resizeOverlay: (size: OverlaySize) => void;
   sendState: (state: AppState) => void;
   emitSound: (kind: SoundEventKind) => void;
@@ -25,6 +28,11 @@ export interface WindowManager {
 const mainBundleDir = dirname(fileURLToPath(import.meta.url));
 const preloadPath = join(mainBundleDir, '../preload/index.mjs');
 const overlayCursorFollowIntervalMs = 250;
+const overlayCaptureHideDelayMs = 80;
+
+function wait(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
 
 function getRendererPath(page: 'index.html' | 'overlay.html') {
   if (process.env.ELECTRON_RENDERER_URL) {
@@ -50,6 +58,12 @@ export function createWindowManager(options: {
 }): WindowManager {
   let settingsWindow: BrowserWindow | null = null;
   let overlayWindow: BrowserWindow | null = null;
+  let hideFromScreenCapture = DEFAULT_APP_SETTINGS.privacy.hideFromScreenCapture;
+
+  const applyContentProtection = () => {
+    settingsWindow?.setContentProtection(hideFromScreenCapture);
+    overlayWindow?.setContentProtection(hideFromScreenCapture);
+  };
 
   const keepOverlayOnCurrentSpace = () => {
     if (!overlayWindow) {
@@ -150,6 +164,7 @@ export function createWindowManager(options: {
         sandbox: false,
       },
     });
+    applyContentProtection();
 
     settingsWindow.on('close', (event) => {
       if (options.isQuitting()) {
@@ -192,6 +207,7 @@ export function createWindowManager(options: {
         sandbox: false,
       },
     });
+    applyContentProtection();
 
     keepOverlayOnCurrentSpace();
     overlayWindow.setAlwaysOnTop(true, 'screen-saver', 1);
@@ -224,6 +240,38 @@ export function createWindowManager(options: {
 
     showOverlay() {
       ensureOverlayVisible();
+    },
+
+    setHideFromScreenCapture(enabled) {
+      hideFromScreenCapture = enabled;
+      applyContentProtection();
+    },
+
+    async withOverlayHidden(operation) {
+      const currentOverlayWindow = overlayWindow;
+      const shouldRestore =
+        !!currentOverlayWindow &&
+        !currentOverlayWindow.isDestroyed() &&
+        currentOverlayWindow.isVisible();
+
+      if (shouldRestore) {
+        currentOverlayWindow.hide();
+        // Let the compositor publish one frame without the overlay before
+        // desktopCapturer samples the active display.
+        await wait(overlayCaptureHideDelayMs);
+      }
+
+      try {
+        return await operation();
+      } finally {
+        if (
+          shouldRestore &&
+          overlayWindow === currentOverlayWindow &&
+          !currentOverlayWindow.isDestroyed()
+        ) {
+          ensureOverlayVisible();
+        }
+      }
     },
 
     resizeOverlay(size) {

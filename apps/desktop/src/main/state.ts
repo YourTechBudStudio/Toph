@@ -9,12 +9,14 @@ import {
   type AppSettings,
   type DashboardStats,
   type DictationSessionRecord,
+  type DictationPromptState,
   type DictationPhase,
   type PasteAttempt,
   type PasteSupport,
   type PermissionState,
   type PolishState,
   type ProviderState,
+  type ScreenshotContextState,
   type ShortcutChord,
   type ShortcutRegistrationState,
   type VadRuntimeStatus,
@@ -43,6 +45,8 @@ export interface DesktopStateStore {
   setProviders: (providers: ProviderState) => void;
   setSettings: (settings: AppSettings) => void;
   setPolish: (polish: PolishState) => void;
+  setScreenshotContext: (context: ScreenshotContextState) => void;
+  setDictationPrompt: (context: DictationPromptState) => void;
   setPermissions: (permissions: PermissionState) => void;
   setVadRuntimeStatus: (status: VadRuntimeStatus) => void;
   setPasteSupport: (pasteSupport: PasteSupport) => void;
@@ -109,8 +113,19 @@ function createInitialState(): AppState {
         {
           id: 'openai-sub',
           label: 'OpenAI (ChatGPT Plus/Pro subscription)',
-          description: 'Use your ChatGPT subscription to transcribe recordings.',
+          description: 'Use your ChatGPT subscription to transcribe recordings and polish output.',
           billingMode: PROVIDER_BILLING_MODES['openai-sub'],
+          status: 'missing',
+          accountId: null,
+          expires: null,
+          error: null,
+        },
+        {
+          id: 'antigravity',
+          label: 'Google Antigravity OAuth',
+          description:
+            'Use unofficial Antigravity OAuth for Gemini transcription and polish inference.',
+          billingMode: PROVIDER_BILLING_MODES.antigravity,
           status: 'missing',
           accountId: null,
           expires: null,
@@ -127,6 +142,21 @@ function createInitialState(): AppState {
     polish: {
       rulePresets: [],
       dictionary: [],
+    },
+    context: {
+      screenshots: {
+        enabled: false,
+        status: 'disabled',
+        detail: 'Screenshot context is off.',
+        action: 'none',
+        capturedCount: 0,
+      },
+      dictationPrompt: {
+        enabled: false,
+        status: 'disabled',
+        detail: 'Dictation Prompt is off.',
+        capturedDurationMs: 0,
+      },
     },
     permissions: {
       ready: process.platform !== 'darwin',
@@ -247,6 +277,18 @@ export function createDesktopStateStore(): DesktopStateStore {
       });
     },
 
+    setScreenshotContext(context) {
+      commit((draft) => {
+        draft.context.screenshots = context;
+      });
+    },
+
+    setDictationPrompt(context) {
+      commit((draft) => {
+        draft.context.dictationPrompt = context;
+      });
+    },
+
     setPermissions(permissions) {
       commit((draft) => {
         draft.permissions = permissions;
@@ -268,7 +310,8 @@ export function createDesktopStateStore(): DesktopStateStore {
     setRecentSessions(sessions) {
       commit((draft) => {
         draft.recentSessions = sessions.slice(0, 8);
-        draft.lastTranscript = sessions.find((session) => session.selectedOutput)?.selectedOutput?.text ?? null;
+        draft.lastTranscript =
+          sessions.find((session) => session.selectedOutput)?.selectedOutput?.text ?? null;
       });
     },
 

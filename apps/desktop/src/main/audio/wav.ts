@@ -1,3 +1,4 @@
+import { closeSync, openSync, writeSync } from 'node:fs';
 import { open, mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
 
@@ -13,6 +14,12 @@ export interface PcmWavFile {
   bitsPerSample: number;
   pcm: Buffer;
   durationMs: number;
+}
+
+export interface Pcm16MonoWavWriterResult {
+  outputPath: string;
+  durationMs: number;
+  bytesWritten: number;
 }
 
 function writeWavHeader(dataBytes: number) {
@@ -84,6 +91,49 @@ export async function readPcm16MonoWav(filePath: string): Promise<PcmWavFile> {
 export async function writePcm16MonoWav(filePath: string, pcm: Buffer): Promise<void> {
   await mkdir(dirname(filePath), { recursive: true });
   await writeFile(filePath, Buffer.concat([writeWavHeader(pcm.length), pcm]));
+}
+
+export class Pcm16MonoWavWriter {
+  private readonly fd: number;
+  private readonly outputPath: string;
+  private dataBytes = 0;
+  private finalized = false;
+
+  constructor(outputPath: string) {
+    this.outputPath = outputPath;
+    this.fd = openSync(outputPath, 'w');
+    const header = writeWavHeader(0);
+    writeSync(this.fd, header, 0, header.length, 0);
+  }
+
+  write(chunk: Buffer) {
+    if (this.finalized) {
+      throw new Error('WAV writer has already been finalized.');
+    }
+
+    writeSync(this.fd, chunk, 0, chunk.length, wavHeaderBytes + this.dataBytes);
+    this.dataBytes += chunk.length;
+  }
+
+  finalize(): Pcm16MonoWavWriterResult {
+    if (this.finalized) {
+      return this.result();
+    }
+
+    const header = writeWavHeader(this.dataBytes);
+    writeSync(this.fd, header, 0, header.length, 0);
+    closeSync(this.fd);
+    this.finalized = true;
+    return this.result();
+  }
+
+  private result(): Pcm16MonoWavWriterResult {
+    return {
+      outputPath: this.outputPath,
+      bytesWritten: this.dataBytes + wavHeaderBytes,
+      durationMs: Math.round((this.dataBytes / 2 / expectedSampleRate) * 1000),
+    };
+  }
 }
 
 export async function readPcm16MonoWavRanges(options: {

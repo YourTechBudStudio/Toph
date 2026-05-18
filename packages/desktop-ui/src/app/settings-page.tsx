@@ -1,13 +1,20 @@
 import { useState } from 'react';
 
-import { type AppState, type DesktopApi, type ProviderId } from '@toph/desktop-contracts';
+import {
+  TRANSCRIPTION_PROVIDER_IDS,
+  type AppState,
+  type DesktopApi,
+  type ProviderId,
+} from '@toph/desktop-contracts';
 
 import { AppBackdrop } from '../components/app-backdrop';
 import { Button } from '../components/button';
 import { DiagnosticsSection } from '../components/settings/diagnostics-section';
 import { PolishSection } from '../components/settings/polish-section';
+import { PrivacySection } from '../components/settings/privacy-section';
 import { ProviderSection } from '../components/settings/provider-section';
 import { RoutingSection } from '../components/settings/routing-section';
+import { ScreenshotContextSection } from '../components/settings/screenshot-context-section';
 import { ShortcutSection } from '../components/settings/shortcut-section';
 import { WindowDragRegion } from '../components/window-drag-region';
 
@@ -20,25 +27,33 @@ export function SettingsPage({
   client: DesktopApi;
   onBack: () => void;
 }) {
-  const [busyProvider, setBusyProvider] = useState<string | null>(null);
+  const [busyProvider, setBusyProvider] = useState<ProviderId | null>(null);
   const [busyPolish, setBusyPolish] = useState(false);
+  const [busyScreenshotContext, setBusyScreenshotContext] = useState(false);
+  const [busyDictationPrompt, setBusyDictationPrompt] = useState(false);
+  const [busyPrivacy, setBusyPrivacy] = useState(false);
+  const [busyDiagnostics, setBusyDiagnostics] = useState(false);
   const [busySettings, setBusySettings] = useState(false);
-  const provider = state.providers.providers[0];
   const settingsEditable = state.phase === 'idle';
 
-  const providerItems = state.providers.providers.map((item) => ({
+  const inferenceProviderItems = state.providers.providers.map((item) => ({
     value: item.id,
     label: item.label,
   }));
+  const diagnosticsProvider =
+    state.providers.providers.find((item) => item.id === state.settings.inference.providerId) ??
+    state.providers.providers[0];
+  const transcriptionProviderItems = state.providers.providers
+    .filter((item) => TRANSCRIPTION_PROVIDER_IDS.includes(item.id))
+    .map((item) => ({
+      value: item.id,
+      label: item.label,
+    }));
 
-  const connectProvider = async () => {
-    if (!provider) {
-      return;
-    }
-
-    setBusyProvider(provider.id);
+  const connectProvider = async (providerId: ProviderId) => {
+    setBusyProvider(providerId);
     try {
-      await client.connectProvider(provider.id);
+      await client.connectProvider(providerId);
     } catch {
       // Main process publishes provider errors into AppState.
     } finally {
@@ -46,14 +61,10 @@ export function SettingsPage({
     }
   };
 
-  const removeProvider = async () => {
-    if (!provider) {
-      return;
-    }
-
-    setBusyProvider(provider.id);
+  const removeProvider = async (providerId: ProviderId) => {
+    setBusyProvider(providerId);
     try {
-      await client.removeProvider(provider.id);
+      await client.removeProvider(providerId);
     } finally {
       setBusyProvider(null);
     }
@@ -65,6 +76,42 @@ export function SettingsPage({
       await client.setPolishEnabled(enabled);
     } finally {
       setBusyPolish(false);
+    }
+  };
+
+  const setScreenshotContextEnabled = async (enabled: boolean) => {
+    setBusyScreenshotContext(true);
+    try {
+      await client.setScreenshotContextEnabled(enabled);
+    } finally {
+      setBusyScreenshotContext(false);
+    }
+  };
+
+  const setDictationPromptEnabled = async (enabled: boolean) => {
+    setBusyDictationPrompt(true);
+    try {
+      await client.setDictationPromptEnabled(enabled);
+    } finally {
+      setBusyDictationPrompt(false);
+    }
+  };
+
+  const setDiagnosticsEnabled = async (enabled: boolean) => {
+    setBusyDiagnostics(true);
+    try {
+      await client.setDiagnosticsEnabled(enabled);
+    } finally {
+      setBusyDiagnostics(false);
+    }
+  };
+
+  const setHideFromScreenCapture = async (enabled: boolean) => {
+    setBusyPrivacy(true);
+    try {
+      await client.setHideFromScreenCapture(enabled);
+    } finally {
+      setBusyPrivacy(false);
     }
   };
 
@@ -106,14 +153,15 @@ export function SettingsPage({
         </header>
 
         <ProviderSection
-          provider={provider}
-          busy={busyProvider !== null}
-          onConnect={() => void connectProvider()}
-          onRemove={() => void removeProvider()}
+          providers={state.providers.providers}
+          busyProvider={busyProvider}
+          onConnect={(providerId) => void connectProvider(providerId)}
+          onRemove={(providerId) => void removeProvider(providerId)}
         />
 
         <RoutingSection
-          providerItems={providerItems}
+          transcriptionProviderItems={transcriptionProviderItems}
+          inferenceProviderItems={inferenceProviderItems}
           transcriptionProviderId={state.settings.transcription.providerId}
           transcriptionModel={state.settings.transcription.model}
           inferenceProviderId={state.settings.inference.providerId}
@@ -147,9 +195,30 @@ export function SettingsPage({
           }
         />
 
+        <ScreenshotContextSection
+          screenshots={state.context.screenshots}
+          dictationPrompt={state.context.dictationPrompt}
+          platform={state.environment.platform}
+          disabled={!settingsEditable || busyScreenshotContext}
+          busy={busyScreenshotContext}
+          dictationPromptBusy={busyDictationPrompt}
+          client={client}
+          onEnabledChange={(enabled) => void setScreenshotContextEnabled(enabled)}
+          onDictationPromptEnabledChange={(enabled) => void setDictationPromptEnabled(enabled)}
+        />
+
+        <PrivacySection
+          hideFromScreenCapture={state.settings.privacy.hideFromScreenCapture}
+          disabled={!settingsEditable || busyPrivacy}
+          busy={busyPrivacy}
+          onHideFromScreenCaptureChange={(enabled) => void setHideFromScreenCapture(enabled)}
+        />
+
         <ShortcutSection
           shortcut={state.shortcut.chord}
           ruleSwitcherShortcut={state.ruleSwitcherShortcut.chord}
+          screenshotContextEnabled={state.settings.context.screenshots.enabled}
+          dictationPromptEnabled={state.settings.context.dictationPrompt.enabled}
           platform={state.environment.platform}
           registered={state.shortcut.registered}
           ruleSwitcherRegistered={state.ruleSwitcherShortcut.registered}
@@ -168,7 +237,11 @@ export function SettingsPage({
         />
 
         <DiagnosticsSection
-          providerLabel={provider?.label ?? null}
+          enabled={state.settings.diagnostics.enabled}
+          disabled={!settingsEditable || busyDiagnostics}
+          busy={busyDiagnostics}
+          onEnabledChange={(enabled) => void setDiagnosticsEnabled(enabled)}
+          providerLabel={diagnosticsProvider?.label ?? null}
           currentDesktop={state.environment.currentDesktop}
           sessionType={state.environment.sessionType}
           platform={state.environment.platform}
@@ -178,6 +251,8 @@ export function SettingsPage({
           permissionsReady={state.permissions.ready}
           pasteHelper={state.pasteSupport.helper}
           pasteDetail={state.pasteSupport.detail}
+          screenshotContextStatus={state.context.screenshots.status}
+          screenshotContextDetail={state.context.screenshots.detail}
         />
 
         <div className="flex justify-end border-t border-white/6 pt-5">

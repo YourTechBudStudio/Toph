@@ -76,6 +76,7 @@ const providerPricingMappings: Record<ProviderId, Record<string, ModelPricingMap
       },
     },
   },
+  antigravity: {},
 };
 
 export interface PricingService {

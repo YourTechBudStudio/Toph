@@ -10,6 +10,13 @@ import {
 
 export interface SessionTranscriptionCoordinator {
   onBatchReady: (batchId: string) => Promise<void>;
+  transcribeAudio: (input: {
+    sessionId: string;
+    audioPath: string;
+    durationMs: number;
+    label: string;
+    signal?: AbortSignal;
+  }) => Promise<TranscriptionProviderResult>;
   cancelSession: (sessionId: string) => Promise<void>;
   waitForSession: (sessionId: string) => Promise<SessionTranscriptionOutcome>;
   dispose: () => Promise<void>;
@@ -158,6 +165,38 @@ export function createSessionTranscriptionCoordinator(options: {
     failedBatchIds.add(batch.id);
   };
 
+  const transcribeAudioWithRetries = async (input: {
+    batchId: string;
+    audioPath: string;
+    durationMs: number;
+    initialAttempt?: number;
+    signal?: AbortSignal;
+  }) => {
+    let attempt = input.initialAttempt ?? 0;
+    let lastError: unknown = null;
+    while (attempt < maxAttempts) {
+      attempt += 1;
+
+      try {
+        return await options.provider.transcribeBatch({
+          batchId: input.batchId,
+          audioPath: input.audioPath,
+          durationMs: input.durationMs,
+          signal: input.signal,
+        });
+      } catch (error) {
+        lastError = error;
+        if (!isTransientTranscriptionProviderError(error) || attempt >= maxAttempts) {
+          break;
+        }
+
+        await sleep(retryDelayMs * attempt, input.signal);
+      }
+    }
+
+    throw lastError instanceof Error ? lastError : new Error(describeError(lastError));
+  };
+
   const transcribeBatch = async (batch: TranscriptionBatch, abortController: AbortController) => {
     if (!batch.derivedAudioPath) {
       await markFailed(batch, batch.transcriptionAttempts, 'Batch audio was not generated.');
@@ -229,6 +268,15 @@ export function createSessionTranscriptionCoordinator(options: {
 
       batchTasks.set(batchId, task);
       rememberTask(batch, task);
+    },
+
+    async transcribeAudio(input) {
+      return transcribeAudioWithRetries({
+        batchId: `${input.sessionId}:${input.label}`,
+        audioPath: input.audioPath,
+        durationMs: input.durationMs,
+        signal: input.signal,
+      });
     },
 
     async cancelSession(sessionId) {

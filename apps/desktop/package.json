@@ -16,10 +16,13 @@
     "pack": "pnpm run build && electron-builder --dir",
     "preview": "pnpm --workspace-root run icons:app && TOPH_DATA_DIRECTORY=../../.toph ELECTRON_DISABLE_SANDBOX=1 electron-vite preview",
     "rebuild:native": "electron-rebuild -f -w better-sqlite3",
+    "test:context": "node --experimental-strip-types --test test/context/*.test.ts",
+    "test:inference": "node --experimental-strip-types --test test/inference/*.test.ts",
     "test:polish": "node --experimental-strip-types --test test/polish/*.test.ts",
     "test:segmentation": "node --experimental-strip-types --test test/segmentation/*.test.ts",
     "test:settings": "node --experimental-strip-types --test test/settings/*.test.ts",
     "test:shortcuts": "node --experimental-strip-types --test test/shortcuts/*.test.ts",
+    "test:transcription": "node --experimental-strip-types --test test/transcription/*.test.ts",
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {

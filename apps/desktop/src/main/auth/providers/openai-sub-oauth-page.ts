@@ -256,20 +256,29 @@ function renderOpenAiSubOAuthPage(options: {
 </html>`;
 }
 
-export function renderOpenAiSubOAuthSuccessPage() {
+export function renderProviderOAuthSuccessPage(message: string) {
   return renderOpenAiSubOAuthPage({
     status: 'success',
     title: 'Authorization Successful',
-    message:
-      'Your provider is connected and ready to transcribe. You can close this window and return to Toph.',
+    message,
   });
 }
 
-export function renderOpenAiSubOAuthErrorPage(detail: string) {
+export function renderProviderOAuthErrorPage(detail: string) {
   return renderOpenAiSubOAuthPage({
     status: 'error',
     title: 'Authorization Failed',
     message: 'Something went wrong while connecting your provider. You may need to try again.',
     errorDetail: detail,
   });
+}
+
+export function renderOpenAiSubOAuthSuccessPage() {
+  return renderProviderOAuthSuccessPage(
+    'Your provider is connected and ready to transcribe. You can close this window and return to Toph.',
+  );
+}
+
+export function renderOpenAiSubOAuthErrorPage(detail: string) {
+  return renderProviderOAuthErrorPage(detail);
 }

@@ -40,6 +40,7 @@ export function SettingsRow({
   children,
   className = '',
   tone = 'default',
+  layout = 'inline',
 }: {
   label: string;
   description?: ReactNode;
@@ -47,24 +48,37 @@ export function SettingsRow({
   children?: ReactNode;
   className?: string;
   tone?: 'default' | 'danger';
+  layout?: 'inline' | 'stacked';
 }) {
   const labelClass = tone === 'danger' ? 'text-accent-red' : 'text-text-primary';
   const descriptionClass = tone === 'danger' ? 'text-accent-red' : 'text-text-secondary';
+  const rowClass =
+    layout === 'stacked'
+      ? `flex min-h-12 flex-col items-stretch gap-3 border-b border-white/5 px-4 py-3 last:border-b-0 ${className}`
+      : `flex min-h-12 items-center justify-between gap-4 border-b border-white/5 px-4 py-3 last:border-b-0 ${className}`;
 
   return (
-    <div
-      className={`flex min-h-12 items-center justify-between gap-4 border-b border-white/5 px-4 py-3 last:border-b-0 ${className}`}
-    >
+    <div className={rowClass}>
       <div className="flex min-w-0 flex-1 items-center gap-3">
         {icon}
         <div className="min-w-0">
-          <div className={`truncate text-sm font-semibold ${labelClass}`}>{label}</div>
+          <div className={`text-sm font-semibold wrap-break-word ${labelClass}`}>{label}</div>
           {description && (
             <div className={`text-xs leading-relaxed ${descriptionClass}`}>{description}</div>
           )}
         </div>
       </div>
-      {children && <div className="flex shrink-0 items-center gap-2">{children}</div>}
+      {children && (
+        <div
+          className={
+            layout === 'stacked'
+              ? 'flex w-full min-w-0 flex-col items-stretch gap-2'
+              : 'flex min-w-0 shrink-0 items-center gap-2'
+          }
+        >
+          {children}
+        </div>
+      )}
     </div>
   );
 }

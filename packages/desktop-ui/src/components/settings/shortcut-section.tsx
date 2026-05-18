@@ -5,6 +5,8 @@ import {
   normalizeDomShortcutKey,
   normalizeDomShortcutModifier,
   normalizeShortcutModifiers,
+  resolveDefaultDictationPromptShortcutChord,
+  resolveDefaultScreenshotContextShortcutChord,
   validateShortcutCandidate,
   type ShortcutCandidate,
   type ShortcutChord,
@@ -318,6 +320,8 @@ function ShortcutRecorderModal({
 export function ShortcutSection({
   shortcut,
   ruleSwitcherShortcut,
+  screenshotContextEnabled,
+  dictationPromptEnabled,
   platform,
   registered,
   ruleSwitcherRegistered,
@@ -336,6 +340,8 @@ export function ShortcutSection({
 }: {
   shortcut: ShortcutChord;
   ruleSwitcherShortcut: ShortcutChord;
+  screenshotContextEnabled: boolean;
+  dictationPromptEnabled: boolean;
   platform: NodeJS.Platform;
   registered: boolean;
   ruleSwitcherRegistered: boolean;
@@ -356,7 +362,16 @@ export function ShortcutSection({
   const [opening, setOpening] = useState(false);
   const shortcutLabels = formatShortcutChordKeys(shortcut, platform);
   const ruleSwitcherShortcutLabels = formatShortcutChordKeys(ruleSwitcherShortcut, platform);
+  const screenshotContextShortcutLabels = formatShortcutChordKeys(
+    resolveDefaultScreenshotContextShortcutChord(platform),
+    platform,
+  );
+  const dictationPromptShortcutLabels = formatShortcutChordKeys(
+    resolveDefaultDictationPromptShortcutChord(platform),
+    platform,
+  );
   const activeShortcut = open === 'ruleSwitcher' ? ruleSwitcherShortcut : shortcut;
+  const shortcutFooter = Array.from(new Set([detail, ruleSwitcherDetail])).join(' ');
 
   const openRecorder = async (kind: 'dictation' | 'ruleSwitcher') => {
     setOpening(true);
@@ -372,8 +387,8 @@ export function ShortcutSection({
     <>
       <SettingsSection
         eyebrow="Keyboard Shortcuts"
-        description="Configure the global shortcuts for capture and quick rule switching."
-        footer={`${detail} ${ruleSwitcherDetail}`}
+        description="Configure global dictation shortcuts and see context helper shortcuts."
+        footer={shortcutFooter}
       >
         <SettingsRow label="Registration">
           <StatusBadge
@@ -410,6 +425,40 @@ export function ShortcutSection({
               {opening ? 'Opening...' : 'Change'}
             </span>
           </button>
+        </SettingsRow>
+
+        <SettingsRow
+          label="Capture screenshot context"
+          description={
+            screenshotContextEnabled
+              ? 'Capture the active display while listening. Registered only for Screenshot Context.'
+              : 'Enable Screenshot Context to register this shortcut. It only captures while listening.'
+          }
+        >
+          <ShortcutKeyChips labels={screenshotContextShortcutLabels} />
+          <StatusBadge
+            active={screenshotContextEnabled}
+            activeLabel="On"
+            inactiveLabel="Off"
+            inactiveTone="muted"
+          />
+        </SettingsRow>
+
+        <SettingsRow
+          label="Toggle Dictation Prompt"
+          description={
+            dictationPromptEnabled
+              ? 'Toggle while listening. Prompt speech becomes polish instructions and can refer to screenshots.'
+              : 'Enable Dictation Prompt to register this shortcut. It only works while listening.'
+          }
+        >
+          <ShortcutKeyChips labels={dictationPromptShortcutLabels} />
+          <StatusBadge
+            active={dictationPromptEnabled}
+            activeLabel="On"
+            inactiveLabel="Off"
+            inactiveTone="muted"
+          />
         </SettingsRow>
 
         <SettingsRow label="Backend">

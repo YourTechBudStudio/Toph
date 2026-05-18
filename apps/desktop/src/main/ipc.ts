@@ -77,6 +77,10 @@ export function registerDesktopIpc(options: {
   setInferenceModel: (model: string) => Promise<void>;
   setPolishEnabled: (enabled: boolean) => Promise<void>;
   setTypingWpm: (typingWpm: number) => Promise<void>;
+  setDiagnosticsEnabled: (enabled: boolean) => Promise<void>;
+  setHideFromScreenCapture: (enabled: boolean) => Promise<void>;
+  setScreenshotContextEnabled: (enabled: boolean) => Promise<void>;
+  setDictationPromptEnabled: (enabled: boolean) => Promise<void>;
   setActivePolishRulePreset: (rulePresetId: string) => Promise<void>;
   createPolishRulePreset: (draft: PolishRulePresetDraft) => Promise<void>;
   updatePolishRulePreset: (id: string, draft: PolishRulePresetDraft) => Promise<void>;
@@ -247,6 +251,43 @@ export function registerDesktopIpc(options: {
 
     await options.setTypingWpm(Math.round(typingWpm));
   });
+  ipcMain.handle(DESKTOP_IPC_CHANNELS.setDiagnosticsEnabled, async (_event, enabled: unknown) => {
+    if (typeof enabled !== 'boolean') {
+      throw new Error('Invalid diagnostics setting.');
+    }
+
+    await options.setDiagnosticsEnabled(enabled);
+  });
+  ipcMain.handle(
+    DESKTOP_IPC_CHANNELS.setHideFromScreenCapture,
+    async (_event, enabled: unknown) => {
+      if (typeof enabled !== 'boolean') {
+        throw new Error('Invalid screen capture privacy setting.');
+      }
+
+      await options.setHideFromScreenCapture(enabled);
+    },
+  );
+  ipcMain.handle(
+    DESKTOP_IPC_CHANNELS.setScreenshotContextEnabled,
+    async (_event, enabled: unknown) => {
+      if (typeof enabled !== 'boolean') {
+        throw new Error('Invalid screenshot context setting.');
+      }
+
+      await options.setScreenshotContextEnabled(enabled);
+    },
+  );
+  ipcMain.handle(
+    DESKTOP_IPC_CHANNELS.setDictationPromptEnabled,
+    async (_event, enabled: unknown) => {
+      if (typeof enabled !== 'boolean') {
+        throw new Error('Invalid Dictation Prompt setting.');
+      }
+
+      await options.setDictationPromptEnabled(enabled);
+    },
+  );
   ipcMain.handle(
     DESKTOP_IPC_CHANNELS.setActivePolishRulePreset,
     async (_event, rulePresetId: unknown) => {
@@ -374,6 +415,11 @@ export function registerDesktopIpc(options: {
     ipcMain.removeHandler(DESKTOP_IPC_CHANNELS.setInferenceProvider);
     ipcMain.removeHandler(DESKTOP_IPC_CHANNELS.setInferenceModel);
     ipcMain.removeHandler(DESKTOP_IPC_CHANNELS.setPolishEnabled);
+    ipcMain.removeHandler(DESKTOP_IPC_CHANNELS.setTypingWpm);
+    ipcMain.removeHandler(DESKTOP_IPC_CHANNELS.setDiagnosticsEnabled);
+    ipcMain.removeHandler(DESKTOP_IPC_CHANNELS.setHideFromScreenCapture);
+    ipcMain.removeHandler(DESKTOP_IPC_CHANNELS.setScreenshotContextEnabled);
+    ipcMain.removeHandler(DESKTOP_IPC_CHANNELS.setDictationPromptEnabled);
     ipcMain.removeHandler(DESKTOP_IPC_CHANNELS.setActivePolishRulePreset);
     ipcMain.removeHandler(DESKTOP_IPC_CHANNELS.createPolishRulePreset);
     ipcMain.removeHandler(DESKTOP_IPC_CHANNELS.updatePolishRulePreset);

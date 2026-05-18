@@ -89,7 +89,12 @@ function inspectMacAccessibility(): PermissionRequirement {
 }
 
 async function openMacPermissionSettings(permissionId: PermissionRequirementId) {
-  const path = permissionId === 'microphone' ? 'Privacy_Microphone' : 'Privacy_Accessibility';
+  const path =
+    permissionId === 'microphone'
+      ? 'Privacy_Microphone'
+      : permissionId === 'screen'
+        ? 'Privacy_ScreenCapture'
+        : 'Privacy_Accessibility';
   await shell.openExternal(`x-apple.systempreferences:com.apple.preference.security?${path}`);
 }
 
@@ -104,6 +109,11 @@ function createMacPermissionManager(): PermissionManager {
     },
 
     async performPermissionAction(permissionId) {
+      if (permissionId === 'screen') {
+        await openMacPermissionSettings(permissionId);
+        return inspectMacPermissions();
+      }
+
       if (permissionId === 'microphone') {
         const microphone = inspectMacMicrophone();
         if (microphone.status === 'promptable') {

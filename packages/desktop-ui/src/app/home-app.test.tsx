@@ -66,7 +66,10 @@ const baseState: AppState = {
     transcription: { providerId: 'openai-sub', model: 'chatgpt-backend-transcribe' },
     inference: { providerId: 'openai-sub', model: 'gpt-5.4-mini' },
     polish: { enabled: true, rulePresetId: 'general' },
+    context: { screenshots: { enabled: false }, dictationPrompt: { enabled: false } },
     dashboard: { typingWpm: 50 },
+    privacy: { hideFromScreenCapture: true },
+    diagnostics: { enabled: false },
   },
   polish: {
     rulePresets: [
@@ -96,6 +99,21 @@ const baseState: AppState = {
       },
     ],
     dictionary: [],
+  },
+  context: {
+    screenshots: {
+      enabled: false,
+      status: 'disabled',
+      detail: 'Screenshot context is off.',
+      action: 'none',
+      capturedCount: 0,
+    },
+    dictationPrompt: {
+      enabled: false,
+      status: 'disabled',
+      detail: 'Dictation Prompt is off.',
+      capturedDurationMs: 0,
+    },
   },
   permissions: {
     ready: true,
@@ -154,6 +172,10 @@ function createClient(state: AppState, overrides: Partial<DesktopApi> = {}): Des
     setInferenceModel: async () => {},
     setPolishEnabled: async () => {},
     setTypingWpm: async () => {},
+    setDiagnosticsEnabled: async () => {},
+    setHideFromScreenCapture: async () => {},
+    setScreenshotContextEnabled: async () => {},
+    setDictationPromptEnabled: async () => {},
     setActivePolishRulePreset: async () => {},
     createPolishRulePreset: async () => {},
     updatePolishRulePreset: async () => {},
@@ -184,6 +206,138 @@ describe('HomeApp', () => {
     expect(screen.getByText('28 days')).toBeTruthy();
     expect(screen.getByText('time saved')).toBeTruthy();
   });
+
+  it('renders and updates the screenshot context setting', async () => {
+    const setScreenshotContextEnabled = vi.fn<DesktopApi['setScreenshotContextEnabled']>(
+      async () => {},
+    );
+
+    render(
+      <HomeApp
+        client={createClient(baseState, {
+          setScreenshotContextEnabled,
+        })}
+      />,
+    );
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Settings' }));
+
+    await screen.findByText('Screenshot Context');
+    expect(screen.getAllByText('Screenshot context is off.').length).toBeGreaterThan(0);
+    expect(screen.getByText('Capture screenshot context')).toBeTruthy();
+    expect(
+      screen.getByText(
+        'Enable Screenshot Context to register this shortcut. It only captures while listening.',
+      ),
+    ).toBeTruthy();
+    expect(screen.getAllByText('Off').length).toBeGreaterThan(0);
+
+    fireEvent.click(screen.getByRole('switch', { name: 'Screenshot Context' }));
+
+    await waitFor(() => expect(setScreenshotContextEnabled).toHaveBeenCalledWith(true));
+  });
+
+  it('renders and updates the Dictation Prompt setting', async () => {
+    const setDictationPromptEnabled = vi.fn<DesktopApi['setDictationPromptEnabled']>(
+      async () => {},
+    );
+
+    render(
+      <HomeApp
+        client={createClient(baseState, {
+          setDictationPromptEnabled,
+        })}
+      />,
+    );
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Settings' }));
+
+    await screen.findByText('Dictation Prompt');
+    expect(screen.getByText('Toggle Dictation Prompt')).toBeTruthy();
+    expect(
+      screen.getByText(
+        'Enable Dictation Prompt to register this shortcut. It only works while listening.',
+      ),
+    ).toBeTruthy();
+
+    fireEvent.click(screen.getByRole('switch', { name: 'Dictation Prompt' }));
+
+    await waitFor(() => expect(setDictationPromptEnabled).toHaveBeenCalledWith(true));
+  });
+
+  it('renders screenshot context permission request action', async () => {
+    const performPermissionAction = vi.fn<DesktopApi['performPermissionAction']>(async () => {});
+    const state = {
+      ...baseState,
+      settings: {
+        ...baseState.settings,
+        context: { screenshots: { enabled: true }, dictationPrompt: { enabled: false } },
+      },
+      context: {
+        screenshots: {
+          enabled: true,
+          status: 'permission-needed' as const,
+          detail:
+            'Screen Recording access is needed before screenshots can be captured. Request it here.',
+          action: 'request' as const,
+          capturedCount: 0,
+        },
+        dictationPrompt: baseState.context.dictationPrompt,
+      },
+    };
+
+    render(<HomeApp client={createClient(state, { performPermissionAction })} />);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Settings' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Request Access' }));
+
+    expect(performPermissionAction).toHaveBeenCalledWith('screen');
+  });
+
+  it('renders and updates the diagnostics setting', async () => {
+    const setDiagnosticsEnabled = vi.fn<DesktopApi['setDiagnosticsEnabled']>(async () => {});
+
+    render(
+      <HomeApp
+        client={createClient(baseState, {
+          setDiagnosticsEnabled,
+        })}
+      />,
+    );
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Settings' }));
+
+    await screen.findByText('Diagnostics');
+    expect(screen.queryByText('Provider status')).toBeNull();
+
+    fireEvent.click(screen.getByRole('switch', { name: 'Diagnostics' }));
+
+    await waitFor(() => expect(setDiagnosticsEnabled).toHaveBeenCalledWith(true));
+  });
+
+  it('renders and updates the screen recording privacy setting', async () => {
+    const setHideFromScreenCapture = vi.fn<DesktopApi['setHideFromScreenCapture']>(
+      async () => {},
+    );
+
+    render(
+      <HomeApp
+        client={createClient(baseState, {
+          setHideFromScreenCapture,
+        })}
+      />,
+    );
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Settings' }));
+
+    await screen.findByText('Hide Toph in screen recordings');
+    expect(screen.getByText('Hidden')).toBeTruthy();
+
+    fireEvent.click(screen.getByRole('switch', { name: 'Hide Toph in screen recordings' }));
+
+    await waitFor(() => expect(setHideFromScreenCapture).toHaveBeenCalledWith(false));
+  });
+
 
   it('rounds positive usage cost up to the nearest cent', async () => {
     render(
@@ -250,6 +404,60 @@ describe('HomeApp', () => {
     expect(screen.queryByText('Ctrl+Alt+Space')).toBeNull();
   });
 
+  it('shows the screenshot shortcut on the home screen when screenshot context is enabled', async () => {
+    render(
+      <HomeApp
+        client={createClient({
+          ...baseState,
+          settings: {
+            ...baseState.settings,
+            context: { screenshots: { enabled: true }, dictationPrompt: { enabled: false } },
+          },
+          context: {
+            screenshots: {
+              ...baseState.context.screenshots,
+              enabled: true,
+              status: 'ready',
+              detail: 'Screenshot context is ready.',
+            },
+            dictationPrompt: baseState.context.dictationPrompt,
+          },
+        })}
+      />,
+    );
+
+    await screen.findByRole('heading', { name: 'Toph' });
+    expect(screen.getByText('screenshot')).toBeTruthy();
+    expect(screen.getByLabelText('Alt + S')).toBeTruthy();
+  });
+
+  it('shows the Dictation Prompt shortcut on the home screen when enabled', async () => {
+    render(
+      <HomeApp
+        client={createClient({
+          ...baseState,
+          settings: {
+            ...baseState.settings,
+            context: { screenshots: { enabled: false }, dictationPrompt: { enabled: true } },
+          },
+          context: {
+            screenshots: baseState.context.screenshots,
+            dictationPrompt: {
+              enabled: true,
+              status: 'ready',
+              detail: 'Ready.',
+              capturedDurationMs: 0,
+            },
+          },
+        })}
+      />,
+    );
+
+    await screen.findByRole('heading', { name: 'Toph' });
+    expect(screen.getByText('prompt')).toBeTruthy();
+    expect(screen.getByLabelText('Alt + A')).toBeTruthy();
+  });
+
   it('renders recent sessions when present', async () => {
     const writeText = vi.fn<() => Promise<void>>().mockResolvedValue(undefined);
     Object.defineProperty(navigator, 'clipboard', {
@@ -258,6 +466,10 @@ describe('HomeApp', () => {
     });
     const stateWithSessions: AppState = {
       ...baseState,
+      settings: {
+        ...baseState.settings,
+        diagnostics: { enabled: true },
+      },
       recentSessions: [
         {
           id: 'session-1',
@@ -276,6 +488,38 @@ describe('HomeApp', () => {
           },
           pasteStatus: 'success',
           pasteDetail: 'Pasted via ydotool.',
+          dictationPromptText: 'Use the visible message and keep the answer concise.',
+          screenshots: [
+            {
+              path: '/tmp/toph/session/screenshots/context-01.jpg',
+              mimeType: 'image/jpeg',
+              detail: 'high',
+              capturedAt: Date.now() - 119_000,
+              width: 1280,
+              height: 720,
+              byteSize: 82_944,
+              duplicateReferences: [
+                {
+                  capturedAt: Date.now() - 114_000,
+                  referencePath: '/tmp/toph/session/screenshots/context-01.jpg',
+                  meanAbsoluteDifference: 0.004,
+                  changedPixelRatio: 0.01,
+                },
+              ],
+            },
+          ],
+          diagnostics: {
+            sessionId: 'session-1',
+            outputId: 'conv-1',
+            outputKind: 'polished',
+            sessionStartedAt: Date.now() - 130_000,
+            sessionEndedAt: Date.now() - 120_000,
+            sessionDurationMs: 10_000,
+            dictationPromptTextPath: '/tmp/toph/session/dictation-prompt.txt',
+            dictationPromptCharacterCount: 48,
+            screenshotCount: 1,
+            screenshotDirectory: '/tmp/toph/session/screenshots',
+          },
         },
         {
           id: 'session-2',
@@ -303,17 +547,41 @@ describe('HomeApp', () => {
     expect(screen.getByLabelText('Copy debug report')).toBeTruthy();
     expect(screen.queryByText('Pasted via ydotool.')).toBeNull();
     expect(screen.queryByText('ydotool timed out.')).toBeNull();
+    expect(screen.getAllByAltText('Screenshot context 1').length).toBeGreaterThan(0);
 
     fireEvent.click(screen.getByText('This is a test dictation result from the mock flow.'));
 
     expect(screen.getByText(/Polished with the/)).toBeTruthy();
     expect(screen.getByText('Engineer')).toBeTruthy();
     expect(screen.queryByText(/hash/)).toBeNull();
+    expect(screen.getByText('Screenshot diagnostics')).toBeTruthy();
+    expect(screen.getByText('Dictation Prompt transcript')).toBeTruthy();
+    expect(
+      screen.getAllByText('Use the visible message and keep the answer concise.'),
+    ).toHaveLength(2);
+    expect(screen.getAllByText('prompt chars').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('/tmp/toph/session/dictation-prompt.txt').length).toBeGreaterThan(0);
+    expect(screen.getByText('context-01')).toBeTruthy();
+    expect(screen.getByText('similar skips')).toBeTruthy();
+    expect(screen.getByText('similar sample 1')).toBeTruthy();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Preview screenshot context 1' }));
+
+    expect(screen.getByRole('dialog', { name: 'Screenshot context 1' })).toBeTruthy();
+    expect(screen.getByAltText('Screenshot context 1 enlarged')).toBeTruthy();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }));
+
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog', { name: 'Screenshot context 1' })).toBeNull();
+    });
 
     fireEvent.click(screen.getByLabelText('Copy debug report'));
     await waitFor(() => {
       expect(writeText).toHaveBeenCalledWith(
-        expect.stringContaining('Error: OpenAI-sub transcription failed: HTTP 500 provider exploded.'),
+        expect.stringContaining(
+          'Error: OpenAI-sub transcription failed: HTTP 500 provider exploded.',
+        ),
       );
     });
   });

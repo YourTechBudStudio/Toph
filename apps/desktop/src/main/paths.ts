@@ -2,14 +2,15 @@ import { mkdir } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 
 const dataDirectoryEnvVar = 'TOPH_DATA_DIRECTORY';
+const productionDataDirectoryName = '.toph';
 
-function resolveDefaultDataDirectory() {
+function resolveDefaultDataDirectory(directoryName = productionDataDirectoryName) {
   const homeDirectory = process.env.HOME;
   if (!homeDirectory) {
     throw new Error('Unable to resolve Toph data directory because $HOME is not available.');
   }
 
-  return join(homeDirectory, '.toph');
+  return join(homeDirectory, directoryName);
 }
 
 export interface TophDataPaths {
@@ -22,11 +23,11 @@ export interface TophDataPaths {
   recordingsDirectory: string;
 }
 
-export async function resolveTophDataPaths() {
+export async function resolveTophDataPaths(options: { defaultDataDirectoryName?: string } = {}) {
   const configuredDirectory = process.env[dataDirectoryEnvVar];
   const dataDirectory = configuredDirectory
     ? resolve(configuredDirectory)
-    : resolveDefaultDataDirectory();
+    : resolveDefaultDataDirectory(options.defaultDataDirectoryName);
 
   const paths: TophDataPaths = {
     dataDirectory,
