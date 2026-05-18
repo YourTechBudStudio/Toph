@@ -1,7 +1,7 @@
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { BrowserWindow, screen } from 'electron';
+import { BrowserWindow, app, screen } from 'electron';
 
 import {
   DESKTOP_IPC_CHANNELS,
@@ -10,6 +10,8 @@ import {
   type OverlaySize,
   type SoundEventKind,
 } from '@toph/desktop-contracts';
+
+import { isPackagedDevApp } from '../app-identity';
 
 export interface WindowManager {
   create: () => Promise<void>;
@@ -25,6 +27,10 @@ export interface WindowManager {
 const mainBundleDir = dirname(fileURLToPath(import.meta.url));
 const preloadPath = join(mainBundleDir, '../preload/index.mjs');
 const overlayCursorFollowIntervalMs = 250;
+
+function shouldProtectWindowContent() {
+  return app.isPackaged && !process.env.ELECTRON_RENDERER_URL && !isPackagedDevApp();
+}
 
 function getRendererPath(page: 'index.html' | 'overlay.html') {
   if (process.env.ELECTRON_RENDERER_URL) {
@@ -50,6 +56,7 @@ export function createWindowManager(options: {
 }): WindowManager {
   let settingsWindow: BrowserWindow | null = null;
   let overlayWindow: BrowserWindow | null = null;
+  const contentProtectionEnabled = shouldProtectWindowContent();
 
   const keepOverlayOnCurrentSpace = () => {
     if (!overlayWindow) {
@@ -150,6 +157,7 @@ export function createWindowManager(options: {
         sandbox: false,
       },
     });
+    settingsWindow.setContentProtection(contentProtectionEnabled);
 
     settingsWindow.on('close', (event) => {
       if (options.isQuitting()) {
@@ -192,6 +200,7 @@ export function createWindowManager(options: {
         sandbox: false,
       },
     });
+    overlayWindow.setContentProtection(contentProtectionEnabled);
 
     keepOverlayOnCurrentSpace();
     overlayWindow.setAlwaysOnTop(true, 'screen-saver', 1);

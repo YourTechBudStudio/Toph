@@ -1,6 +1,6 @@
 import { chmod, readFile, writeFile } from 'node:fs/promises';
 
-import type { ProviderId } from '@toph/desktop-contracts';
+import { PROVIDER_IDS, type ProviderId } from '@toph/desktop-contracts';
 
 export type OAuthProviderCredential = {
   type: 'oauth';
@@ -8,6 +8,8 @@ export type OAuthProviderCredential = {
   refresh: string;
   expires: number;
   accountId?: string;
+  email?: string;
+  projectId?: string;
 };
 
 export type ProviderAuthStorage = Partial<Record<ProviderId, OAuthProviderCredential>>;
@@ -26,7 +28,9 @@ export function isOAuthProviderCredential(value: unknown): value is OAuthProvide
     typeof value.access === 'string' &&
     typeof value.refresh === 'string' &&
     typeof value.expires === 'number' &&
-    (value.accountId === undefined || typeof value.accountId === 'string')
+    (value.accountId === undefined || typeof value.accountId === 'string') &&
+    (value.email === undefined || typeof value.email === 'string') &&
+    (value.projectId === undefined || typeof value.projectId === 'string')
   );
 }
 
@@ -55,8 +59,10 @@ export async function readProviderAuthStorage(authPath: string): Promise<Provide
   }
 
   const storage: ProviderAuthStorage = {};
-  if (isOAuthProviderCredential(parsed['openai-sub'])) {
-    storage['openai-sub'] = parsed['openai-sub'];
+  for (const providerId of PROVIDER_IDS) {
+    if (isOAuthProviderCredential(parsed[providerId])) {
+      storage[providerId] = parsed[providerId];
+    }
   }
 
   return storage;

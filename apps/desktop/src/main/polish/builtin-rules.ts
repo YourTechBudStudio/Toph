@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 
 import emailWritingRuleBody from './rules/email-writing.txt?raw';
 import engineerRuleBody from './rules/engineer.txt?raw';
+import fundraisingRuleBody from './rules/fundraising.txt?raw';
 import generalRuleBody from './rules/general.txt?raw';
 
 export const defaultPolishRulePresets = [
@@ -25,6 +26,13 @@ export const defaultPolishRulePresets = [
     description: 'Polished enough for humans with inboxes.',
     body: emailWritingRuleBody,
     bodyHash: createRulePresetHash(emailWritingRuleBody),
+  },
+  {
+    id: 'fundraising',
+    title: 'Fundraising',
+    description: 'Investor-ready without making things up.',
+    body: fundraisingRuleBody,
+    bodyHash: createRulePresetHash(fundraisingRuleBody),
   },
 ] as const;
 

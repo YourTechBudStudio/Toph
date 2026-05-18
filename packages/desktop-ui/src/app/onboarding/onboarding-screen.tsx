@@ -68,6 +68,12 @@ export function OnboardingScreen({
     setSelectedRulePresetId(activeRulePresetId);
   }, [activeRulePresetId]);
 
+  useEffect(() => {
+    if (providers.selectedProviderId) {
+      setSelectedProviderId(providers.selectedProviderId);
+    }
+  }, [providers.selectedProviderId]);
+
   const performAction = async (permissionId: PermissionRequirementId) => {
     onSetupAction();
     setBusyPermission(permissionId);
@@ -78,11 +84,30 @@ export function OnboardingScreen({
     }
   };
 
+  const applyProviderRouting = async (providerId: ProviderId) => {
+    await Promise.all([
+      client.setTranscriptionProvider(providerId),
+      client.setInferenceProvider(providerId),
+    ]);
+  };
+
+  const selectProvider = async (providerId: ProviderId) => {
+    onSetupAction();
+    setSelectedProviderId(providerId);
+    setBusyProvider(providerId);
+    try {
+      await applyProviderRouting(providerId);
+    } finally {
+      setBusyProvider(null);
+    }
+  };
+
   const connectProvider = async () => {
     onSetupAction();
     setBusyProvider(selectedProviderId);
     try {
       await client.connectProvider(selectedProviderId);
+      await applyProviderRouting(selectedProviderId);
     } catch {
       // Main process publishes the actionable provider error in AppState.
     } finally {
@@ -95,6 +120,7 @@ export function OnboardingScreen({
     setBusyProvider('manual');
     try {
       await client.submitProviderAuthorization(selectedProviderId, manualInput);
+      await applyProviderRouting(selectedProviderId);
       setManualInput('');
     } catch {
       // Main process publishes the actionable provider error in AppState.
@@ -206,7 +232,7 @@ export function OnboardingScreen({
                   selectedProviderId={selectedProviderId}
                   busy={busyProvider !== null}
                   manualInput={manualInput}
-                  onSelectProvider={setSelectedProviderId}
+                  onSelectProvider={(providerId) => void selectProvider(providerId)}
                   onManualInputChange={setManualInput}
                   onConnect={() => void connectProvider()}
                   onSubmitManual={() => void submitManualAuthorization()}

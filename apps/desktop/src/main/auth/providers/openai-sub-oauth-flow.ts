@@ -14,6 +14,8 @@ const tokenUrl = 'https://auth.openai.com/oauth/token';
 const redirectUri = 'http://localhost:1455/auth/callback';
 const callbackPort = 1455;
 const jwtClaimPath = 'https://api.openai.com/auth';
+const callbackTimeoutMs = 120_000;
+const tokenRequestTimeoutMs = 30_000;
 
 export interface OpenAiSubOAuthTokens {
   access: string;
@@ -41,6 +43,43 @@ function createPkce() {
 
 function createState() {
   return base64UrlEncode(randomBytes(32));
+}
+
+async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: string): Promise<T> {
+  let timer: NodeJS.Timeout | null = null;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<T>((_, reject) => {
+        timer = setTimeout(() => reject(new Error(message)), timeoutMs);
+      }),
+    ]);
+  } finally {
+    if (timer) {
+      clearTimeout(timer);
+    }
+  }
+}
+
+async function fetchToken(
+  init: RequestInit,
+  timeoutMessage = 'OpenAI provider token request timed out. Try connecting again.',
+) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), tokenRequestTimeoutMs);
+  try {
+    return await fetch(tokenUrl, {
+      ...init,
+      signal: controller.signal,
+    });
+  } catch (error) {
+    if ((error as Error).name === 'AbortError') {
+      throw new Error(timeoutMessage, { cause: error });
+    }
+    throw error;
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 function parseAuthorizationInput(input: string) {
@@ -136,7 +175,7 @@ async function exchangeAuthorizationCode(options: {
   code: string;
   verifier: string;
 }): Promise<OpenAiSubOAuthTokens> {
-  const response = await fetch(tokenUrl, {
+  const response = await fetchToken({
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({
@@ -184,15 +223,18 @@ async function exchangeAuthorizationCode(options: {
 export async function refreshOpenAiSubOAuthToken(
   refreshToken: string,
 ): Promise<OpenAiSubOAuthTokens> {
-  const response = await fetch(tokenUrl, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({
-      grant_type: 'refresh_token',
-      refresh_token: refreshToken,
-      client_id: clientId,
-    }),
-  });
+  const response = await fetchToken(
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        grant_type: 'refresh_token',
+        refresh_token: refreshToken,
+        client_id: clientId,
+      }),
+    },
+    'OpenAI provider token refresh timed out. Reconnect the provider to continue.',
+  );
 
   if (!response.ok) {
     throw new Error(
@@ -327,7 +369,12 @@ export async function createOpenAiSubOAuthFlow(): Promise<PendingOpenAiSubOAuthF
     authorizationUrl,
     exchangeAuthorizationInput,
     async waitForCallback() {
-      return exchangeAuthorizationInput(await callbackInput);
+      const input = await withTimeout(
+        callbackInput,
+        callbackTimeoutMs,
+        'OpenAI provider login timed out. Try connecting again.',
+      );
+      return exchangeAuthorizationInput(input);
     },
     async dispose() {
       rejectCallback?.(new Error('Provider login was cancelled.'));

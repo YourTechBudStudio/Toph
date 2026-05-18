@@ -29,5 +29,8 @@ export class TransientTranscriptionProviderError extends Error {
 export function isTransientTranscriptionProviderError(
   error: unknown,
 ): error is TransientTranscriptionProviderError {
-  return error instanceof TransientTranscriptionProviderError;
+  return (
+    error instanceof TransientTranscriptionProviderError ||
+    (error instanceof Error && error.name === 'TransientTranscriptionProviderError')
+  );
 }

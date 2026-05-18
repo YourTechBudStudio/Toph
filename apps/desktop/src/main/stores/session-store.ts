@@ -953,7 +953,10 @@ export async function createRecordingSessionStore(options: {
       }
 
       const outputId = row.output?.id ?? null;
-      await clearSessionGeneratedArtifacts(row.session, outputId ? { keepOutputId: outputId } : undefined);
+      await clearSessionGeneratedArtifacts(
+        row.session,
+        outputId ? { keepOutputId: outputId } : undefined,
+      );
       db.update(recordingSessions)
         .set({
           status: 'recorded',

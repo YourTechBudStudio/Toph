@@ -4,6 +4,8 @@ import type { AppSettings, ProviderId, ShortcutChord } from '@toph/desktop-contr
 
 import {
   defaultAppSettings,
+  getDefaultInferenceModel,
+  getDefaultTranscriptionModel,
   normalizeAppSettings,
   parseAppSettingsFile,
 } from './app-settings-schema';
@@ -21,6 +23,9 @@ export interface AppSettingsStore {
   setInferenceModel: (model: string) => Promise<AppSettings>;
   setPolishEnabled: (enabled: boolean) => Promise<AppSettings>;
   setTypingWpm: (typingWpm: number) => Promise<AppSettings>;
+  setDiagnosticsEnabled: (enabled: boolean) => Promise<AppSettings>;
+  setScreenshotContextEnabled: (enabled: boolean) => Promise<AppSettings>;
+  setDictationPromptEnabled: (enabled: boolean) => Promise<AppSettings>;
   setPolishRulePreset: (rulePresetId: string) => Promise<AppSettings>;
 }
 
@@ -156,6 +161,7 @@ export async function createAppSettingsStore(options: {
     setTranscriptionProvider(providerId) {
       return commit((draft) => {
         draft.transcription.providerId = providerId;
+        draft.transcription.model = getDefaultTranscriptionModel(providerId);
       });
     },
 
@@ -168,6 +174,7 @@ export async function createAppSettingsStore(options: {
     setInferenceProvider(providerId) {
       return commit((draft) => {
         draft.inference.providerId = providerId;
+        draft.inference.model = getDefaultInferenceModel(providerId);
       });
     },
 
@@ -186,6 +193,24 @@ export async function createAppSettingsStore(options: {
     setTypingWpm(typingWpm) {
       return commit((draft) => {
         draft.dashboard.typingWpm = typingWpm;
+      });
+    },
+
+    setDiagnosticsEnabled(enabled) {
+      return commit((draft) => {
+        draft.diagnostics.enabled = enabled;
+      });
+    },
+
+    setScreenshotContextEnabled(enabled) {
+      return commit((draft) => {
+        draft.context.screenshots.enabled = enabled;
+      });
+    },
+
+    setDictationPromptEnabled(enabled) {
+      return commit((draft) => {
+        draft.context.dictationPrompt.enabled = enabled;
       });
     },
 

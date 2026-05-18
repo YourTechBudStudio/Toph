@@ -7,7 +7,7 @@ import type { RecordingSessionStore } from '../stores/session-store';
 export interface SessionOutputService {
   createRawConcatOutput: (
     sessionId: string,
-    options?: { outputId?: string },
+    options?: { outputId?: string; allowEmpty?: boolean },
   ) => Promise<{ id: string; text: string; createdAt: number }>;
   createPolishedOutput: (options: {
     sessionId: string;
@@ -59,7 +59,7 @@ export function createSessionOutputService(options: {
       const text = assembleRawText(
         await options.sessionStore.listOrderedBatchTranscriptTexts(sessionId),
       );
-      if (!text) {
+      if (!text && !createOptions?.allowEmpty) {
         throw new Error(`Session ${sessionId} does not have batch transcripts to assemble.`);
       }
 

@@ -18,6 +18,7 @@ export interface SessionSegmentationService {
   segmentRecordedSession: (options: {
     sessionId: string;
     generateBatchAudio: boolean;
+    audioPath?: string;
     preserveSelectedOutput?: boolean;
   }) => Promise<SegmentationOutcome>;
 }
@@ -57,7 +58,12 @@ export function createSessionSegmentationService(options: {
       });
     },
 
-    async segmentRecordedSession({ sessionId, generateBatchAudio, preserveSelectedOutput }) {
+    async segmentRecordedSession({
+      sessionId,
+      generateBatchAudio,
+      audioPath,
+      preserveSelectedOutput,
+    }) {
       try {
         const session = await options.sessionStore.getSession(sessionId);
         if (!session) {
@@ -72,7 +78,7 @@ export function createSessionSegmentationService(options: {
 
         const pipeline = await createSegmentationPipelineSession({
           sessionId,
-          rawAudioPath: session.rawAudioPath,
+          rawAudioPath: audioPath ?? session.rawAudioPath,
           createdLive: false,
           generateBatchAudio,
           analyzer: vadRuntime,
@@ -81,7 +87,7 @@ export function createSessionSegmentationService(options: {
 
         try {
           await streamPcm16MonoWav({
-            filePath: session.rawAudioPath,
+            filePath: audioPath ?? session.rawAudioPath,
             onChunk: pipeline.processPcmChunk,
           });
           const outcome = await pipeline.flush();

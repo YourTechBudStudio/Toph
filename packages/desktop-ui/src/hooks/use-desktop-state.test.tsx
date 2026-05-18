@@ -65,7 +65,9 @@ const baseState: AppState = {
     transcription: { providerId: 'openai-sub', model: 'chatgpt-backend-transcribe' },
     inference: { providerId: 'openai-sub', model: 'gpt-5.4-mini' },
     polish: { enabled: true, rulePresetId: 'general' },
+    context: { screenshots: { enabled: false }, dictationPrompt: { enabled: false } },
     dashboard: { typingWpm: 50 },
+    diagnostics: { enabled: false },
   },
   polish: {
     rulePresets: [
@@ -79,6 +81,21 @@ const baseState: AppState = {
       },
     ],
     dictionary: [],
+  },
+  context: {
+    screenshots: {
+      enabled: false,
+      status: 'disabled',
+      detail: 'Screenshot context is off.',
+      action: 'none',
+      capturedCount: 0,
+    },
+    dictationPrompt: {
+      enabled: false,
+      status: 'disabled',
+      detail: 'Dictation Prompt is off.',
+      capturedDurationMs: 0,
+    },
   },
   permissions: {
     ready: true,
@@ -136,6 +153,9 @@ function createClient(
     setInferenceModel: async () => {},
     setPolishEnabled: async () => {},
     setTypingWpm: async () => {},
+    setDiagnosticsEnabled: async () => {},
+    setScreenshotContextEnabled: async () => {},
+    setDictationPromptEnabled: async () => {},
     setActivePolishRulePreset: async () => {},
     createPolishRulePreset: async () => {},
     updatePolishRulePreset: async () => {},

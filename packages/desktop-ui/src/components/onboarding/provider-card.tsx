@@ -44,12 +44,12 @@ export function ProviderCard({
   return (
     <article className="rounded-[1.375rem] border border-white/6 bg-white/2 px-7 py-6 transition-[transform,border-color,background-color] duration-300 ease-out hover:-translate-y-px hover:border-white/10 hover:bg-white/3 max-[640px]:px-5">
       <p className="mt-0 mb-4 text-sm leading-relaxed text-text-secondary">
-        Pick the transcription engine that powers Toph.
+        Connect the providers Toph needs for dictation and polish.
       </p>
       <div className="flex flex-wrap items-center gap-3">
         <div className="min-w-56 flex-1">
           <DropdownSelect
-            ariaLabel="Transcription provider"
+            ariaLabel="Provider"
             items={providers.map((provider) => ({
               value: provider.id,
               label: provider.label,

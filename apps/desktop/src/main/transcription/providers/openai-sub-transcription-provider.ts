@@ -3,7 +3,10 @@ import { basename } from 'node:path';
 
 import { PROVIDER_BILLING_MODES } from '@toph/desktop-contracts';
 
-import type { ProviderAuthService } from '../../auth/provider-auth-service';
+import type {
+  ProviderAuthService,
+  ProviderCredentials,
+} from '../../auth/provider-auth-service';
 import type { PricingService } from '../../pricing/pricing-service';
 import type { AppSettingsStore } from '../../settings/app-settings-store';
 import {
@@ -16,11 +19,25 @@ const providerId = 'openai-sub';
 const endpoint = 'https://chatgpt.com/backend-api/transcribe';
 
 function isRetryableFailure(status: number, body: unknown) {
-  if (status === 403 && typeof body === 'string' && /<html|<meta\s+http-equiv=/i.test(body)) {
+  if (isOpenAiAuthRefreshPage(status, body)) {
     return true;
   }
 
   return status === 429 || status === 500 || status === 502 || status === 503 || status === 504;
+}
+
+function isOpenAiAuthRefreshPage(status: number, body: unknown) {
+  return status === 403 && typeof body === 'string' && /<html|<meta\s+http-equiv=/i.test(body);
+}
+
+function formatResponseBodyForError(status: number, body: unknown) {
+  if (isOpenAiAuthRefreshPage(status, body)) {
+    return 'ChatGPT returned an auth refresh page. Reconnect OpenAI if retrying does not recover.';
+  }
+
+  return String(JSON.stringify(body) ?? body)
+    .replace(/\s+/g, ' ')
+    .slice(0, 2000);
 }
 
 function readTranscriptText(body: unknown) {
@@ -51,7 +68,7 @@ async function readResponseBody(response: Response) {
 }
 
 export function createOpenAiSubTranscriptionProvider(options: {
-  auth: Pick<ProviderAuthService, 'resolveCredentials'>;
+  auth: Pick<ProviderAuthService, 'resolveCredentials' | 'refreshCredentials'>;
   pricing: Pick<PricingService, 'estimateCost'>;
   settingsStore: Pick<AppSettingsStore, 'getSettings'>;
 }): TranscriptionProvider {
@@ -59,36 +76,47 @@ export function createOpenAiSubTranscriptionProvider(options: {
     id: providerId,
 
     async transcribeBatch(input): Promise<TranscriptionProviderResult> {
-      const credentials = await options.auth.resolveCredentials(providerId);
+      let credentials = await options.auth.resolveCredentials(providerId);
       const model = options.settingsStore.getSettings().transcription.model;
       const audio = await readFile(input.audioPath);
-      const form = new FormData();
-      form.set('file', new Blob([audio], { type: 'audio/wav' }), basename(input.audioPath));
-      form.set('duration_ms', String(input.durationMs));
-      form.set('model', model);
 
-      const headers: Record<string, string> = {
-        Accept: '*/*',
-        Authorization: `Bearer ${credentials.accessToken}`,
-        Origin: 'https://chatgpt.com',
-        Referer: 'https://chatgpt.com/',
-        'User-Agent': 'Toph (openai-sub transcription)',
-        'oai-language': 'en-US',
-        'x-openai-target-path': '/backend-api/transcribe',
-        'x-openai-target-route': '/backend-api/transcribe',
+      const createForm = () => {
+        const form = new FormData();
+        form.set('file', new Blob([audio], { type: 'audio/wav' }), basename(input.audioPath));
+        form.set('duration_ms', String(input.durationMs));
+        form.set('model', model);
+        return form;
       };
-      if (credentials.accountId) {
-        headers['chatgpt-account-id'] = credentials.accountId;
-      }
+
+      const createHeaders = (resolvedCredentials: ProviderCredentials) => {
+        const headers: Record<string, string> = {
+          Accept: '*/*',
+          Authorization: `Bearer ${resolvedCredentials.accessToken}`,
+          Origin: 'https://chatgpt.com',
+          Referer: 'https://chatgpt.com/',
+          'User-Agent': 'Toph (openai-sub transcription)',
+          'oai-language': 'en-US',
+          'x-openai-target-path': '/backend-api/transcribe',
+          'x-openai-target-route': '/backend-api/transcribe',
+        };
+        if (resolvedCredentials.accountId) {
+          headers['chatgpt-account-id'] = resolvedCredentials.accountId;
+        }
+        return headers;
+      };
+
+      const sendRequest = async (resolvedCredentials: ProviderCredentials) => {
+        return fetch(endpoint, {
+          method: 'POST',
+          headers: createHeaders(resolvedCredentials),
+          body: createForm(),
+          signal: input.signal,
+        });
+      };
 
       let response: Response;
       try {
-        response = await fetch(endpoint, {
-          method: 'POST',
-          headers,
-          body: form,
-          signal: input.signal,
-        });
+        response = await sendRequest(credentials);
       } catch (error) {
         if (input.signal?.aborted) {
           throw error;
@@ -97,11 +125,28 @@ export function createOpenAiSubTranscriptionProvider(options: {
           `OpenAI-sub transcription request failed: ${String(error)}`,
         );
       }
+      let body = await readResponseBody(response);
+      if (!response.ok && isOpenAiAuthRefreshPage(response.status, body)) {
+        try {
+          credentials = await options.auth.refreshCredentials(providerId);
+          response = await sendRequest(credentials);
+          body = await readResponseBody(response);
+        } catch (error) {
+          if (input.signal?.aborted) {
+            throw error;
+          }
+          throw new TransientTranscriptionProviderError(
+            `OpenAI-sub transcription auth refresh failed: ${String(error)}`,
+          );
+        }
+      }
       const requestId = response.headers.get('x-request-id') ?? response.headers.get('request-id');
-      const body = await readResponseBody(response);
 
       if (!response.ok) {
-        const message = `OpenAI-sub transcription failed: HTTP ${response.status} ${JSON.stringify(body).slice(0, 2000)}`;
+        const message = `OpenAI-sub transcription failed: HTTP ${response.status} ${formatResponseBodyForError(
+          response.status,
+          body,
+        )}`;
         if (isRetryableFailure(response.status, body)) {
           throw new TransientTranscriptionProviderError(message);
         }

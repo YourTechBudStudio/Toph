@@ -217,6 +217,8 @@ test('production manager installs rule switcher shortcut while preserving dictat
     },
     onDictationTrigger: () => {},
     onRuleSwitcherTrigger: () => {},
+    onScreenshotContextTrigger: () => {},
+    onDictationPromptTrigger: () => {},
     persistDictationShortcut: async () => {},
     persistRuleSwitcherShortcut: async (chord) => {
       persistedRuleSwitcher.push(chord);
@@ -233,6 +235,86 @@ test('production manager installs rule switcher shortcut while preserving dictat
   assert.equal(shortcutApi.getUnregisters(), 1);
 });
 
+test('production manager registers screenshot shortcut only when screenshot context is enabled', async () => {
+  const stateStore = createStateStore();
+  const shortcutApi = createGlobalShortcutApi([true, true, true, true, true]);
+  let screenshotContextEnabled = false;
+  const manager = createShortcutManager({
+    stateStore,
+    config: {
+      launcherScriptPath: '/tmp/toph-desktop.sh',
+      toggleCaptureFlag: '--toggle-capture',
+      ruleSwitcherFlag: '--rule-switcher',
+    },
+    onDictationTrigger: () => {},
+    onRuleSwitcherTrigger: () => {},
+    onScreenshotContextTrigger: () => {},
+    onDictationPromptTrigger: () => {},
+    isScreenshotContextEnabled: () => screenshotContextEnabled,
+    persistDictationShortcut: async () => {},
+    persistRuleSwitcherShortcut: async () => {},
+    shortcutApi,
+  });
+
+  await manager.registerSavedShortcuts({
+    dictation: defaultChord,
+    ruleSwitcher: ruleSwitcherChord,
+  });
+  screenshotContextEnabled = true;
+  await manager.registerSavedShortcuts({
+    dictation: defaultChord,
+    ruleSwitcher: ruleSwitcherChord,
+  });
+
+  assert.deepEqual(shortcutApi.getRegistrations(), [
+    'Control+Option+Space',
+    'Control+Space',
+    'Control+Option+Space',
+    'Control+Space',
+    'Option+S',
+  ]);
+});
+
+test('production manager registers Dictation Prompt shortcut only when enabled', async () => {
+  const stateStore = createStateStore();
+  const shortcutApi = createGlobalShortcutApi([true, true, true, true, true]);
+  let dictationPromptEnabled = false;
+  const manager = createShortcutManager({
+    stateStore,
+    config: {
+      launcherScriptPath: '/tmp/toph-desktop.sh',
+      toggleCaptureFlag: '--toggle-capture',
+      ruleSwitcherFlag: '--rule-switcher',
+    },
+    onDictationTrigger: () => {},
+    onRuleSwitcherTrigger: () => {},
+    onScreenshotContextTrigger: () => {},
+    onDictationPromptTrigger: () => {},
+    isDictationPromptEnabled: () => dictationPromptEnabled,
+    persistDictationShortcut: async () => {},
+    persistRuleSwitcherShortcut: async () => {},
+    shortcutApi,
+  });
+
+  await manager.registerSavedShortcuts({
+    dictation: defaultChord,
+    ruleSwitcher: ruleSwitcherChord,
+  });
+  dictationPromptEnabled = true;
+  await manager.registerSavedShortcuts({
+    dictation: defaultChord,
+    ruleSwitcher: ruleSwitcherChord,
+  });
+
+  assert.deepEqual(shortcutApi.getRegistrations(), [
+    'Control+Option+Space',
+    'Control+Space',
+    'Control+Option+Space',
+    'Control+Space',
+    'Option+A',
+  ]);
+});
+
 test('production manager restores both shortcuts when one registration fails', async () => {
   const stateStore = createStateStore();
   const shortcutApi = createGlobalShortcutApi([true, false, true, true]);
@@ -246,6 +328,8 @@ test('production manager restores both shortcuts when one registration fails', a
     },
     onDictationTrigger: () => {},
     onRuleSwitcherTrigger: () => {},
+    onScreenshotContextTrigger: () => {},
+    onDictationPromptTrigger: () => {},
     persistDictationShortcut: async () => {},
     persistRuleSwitcherShortcut: async (chord) => {
       persistedRuleSwitcher.push(chord);
@@ -278,6 +362,8 @@ test('production manager restores both shortcuts when persistence fails', async 
     },
     onDictationTrigger: () => {},
     onRuleSwitcherTrigger: () => {},
+    onScreenshotContextTrigger: () => {},
+    onDictationPromptTrigger: () => {},
     persistDictationShortcut: async () => {},
     persistRuleSwitcherShortcut: async () => {
       throw new Error('settings write failed');

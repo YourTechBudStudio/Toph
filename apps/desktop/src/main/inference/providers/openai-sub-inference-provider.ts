@@ -5,9 +5,14 @@ import type { PricingService } from '../../pricing/pricing-service';
 import type { AppSettingsStore } from '../../settings/app-settings-store';
 import {
   TransientInferenceProviderError,
+  UnsupportedInferenceImageInputError,
   type InferenceProvider,
   type InferenceProviderResult,
 } from '../inference-provider';
+import {
+  createOpenAiSubResponsesPayload,
+  readOpenAiSubImageInput,
+} from './openai-sub-payload';
 
 const providerId = 'openai-sub';
 const endpoint = 'https://chatgpt.com/backend-api/codex/responses';
@@ -18,6 +23,15 @@ function isRetryableFailure(status: number, body: string) {
   }
 
   return status === 429 || status === 500 || status === 502 || status === 503 || status === 504;
+}
+
+function isImageInputRejection(status: number, body: string) {
+  return (
+    status === 400 &&
+    /(?:image|input_image|multimodal|vision).*(?:unsupported|invalid|not supported)|(?:unsupported|invalid).*(?:image|input_image|multimodal|vision)/i.test(
+      body,
+    )
+  );
 }
 
 function parseSseEvents(text: string) {
@@ -174,6 +188,14 @@ export function createOpenAiSubInferenceProvider(options: {
     async inferText(input): Promise<InferenceProviderResult> {
       const credentials = await options.auth.resolveCredentials(providerId);
       const model = options.settingsStore.getSettings().inference.model;
+      let imageInputs: Awaited<ReturnType<typeof readOpenAiSubImageInput>>[];
+      try {
+        imageInputs = await Promise.all((input.images ?? []).map(readOpenAiSubImageInput));
+      } catch (error) {
+        throw new UnsupportedInferenceImageInputError(
+          `OpenAI-sub image input could not be prepared: ${String(error)}`,
+        );
+      }
       const headers: Record<string, string> = {
         Authorization: `Bearer ${credentials.accessToken}`,
         'Content-Type': 'application/json',
@@ -190,19 +212,14 @@ export function createOpenAiSubInferenceProvider(options: {
         response = await fetch(endpoint, {
           method: 'POST',
           headers,
-          body: JSON.stringify({
-            model,
-            reasoning: { effort: 'low' },
-            instructions: input.instructions,
-            input: [
-              {
-                role: 'user',
-                content: [{ type: 'input_text', text: input.inputText }],
-              },
-            ],
-            stream: true,
-            store: false,
-          }),
+          body: JSON.stringify(
+            createOpenAiSubResponsesPayload({
+              model,
+              instructions: input.instructions,
+              inputText: input.inputText,
+              imageInputs,
+            }),
+          ),
           signal: input.signal,
         });
       } catch (error) {
@@ -218,6 +235,9 @@ export function createOpenAiSubInferenceProvider(options: {
       const body = await response.text();
       if (!response.ok) {
         const message = `OpenAI-sub inference failed: HTTP ${response.status} ${body.slice(0, 2000)}`;
+        if (imageInputs.length > 0 && isImageInputRejection(response.status, body)) {
+          throw new UnsupportedInferenceImageInputError(message);
+        }
         if (isRetryableFailure(response.status, body)) {
           throw new TransientInferenceProviderError(message);
         }

@@ -23,18 +23,30 @@ function dictionaryEntry(id: string, enabled: boolean): DictionaryEntry {
 test('normalizes and bounds custom rule presets', () => {
   const normalized = normalizeRulePresetDraft({
     title: '  My rules  ',
+    description: '  Custom dictation polish rules.  ',
     body: '  - Keep it crisp.  ',
   });
 
   assert.equal(normalized.title, 'My rules');
+  assert.equal(normalized.description, 'Custom dictation polish rules.');
   assert.equal(normalized.body, '- Keep it crisp.');
   assert.match(normalized.bodyHash, /^[a-f0-9]{64}$/);
   assert.throws(
-    () => normalizeRulePresetDraft({ title: 'x'.repeat(81), body: 'body' }),
+    () =>
+      normalizeRulePresetDraft({
+        title: 'x'.repeat(81),
+        description: 'Description',
+        body: 'body',
+      }),
     /80 characters/,
   );
   assert.throws(
-    () => normalizeRulePresetDraft({ title: 'Title', body: 'x'.repeat(4_001) }),
+    () =>
+      normalizeRulePresetDraft({
+        title: 'Title',
+        description: 'Description',
+        body: 'x'.repeat(4_001),
+      }),
     /4000 characters/,
   );
 });
