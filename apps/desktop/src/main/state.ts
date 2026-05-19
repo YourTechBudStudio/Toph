@@ -54,6 +54,7 @@ export interface DesktopStateStore {
   startPolishing: () => void;
   completeRecording: () => void;
   noSpeechDetected: () => void;
+  cancelDictation: () => void;
   failDictation: (detail: string) => void;
   completeTranscription: (
     transcript: string,
@@ -340,6 +341,17 @@ export function createDesktopStateStore(initialStateOptions: {
           helper: draft.lastPasteAttempt.helper,
           status: 'idle',
           detail: 'No speech detected.',
+        };
+      });
+    },
+
+    cancelDictation() {
+      commit((draft) => {
+        draft.phase = 'cancelled';
+        draft.lastPasteAttempt = {
+          helper: draft.lastPasteAttempt.helper,
+          status: 'idle',
+          detail: 'Cancelled.',
         };
       });
     },

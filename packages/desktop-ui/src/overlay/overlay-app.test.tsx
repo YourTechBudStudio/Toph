@@ -213,6 +213,33 @@ describe('OverlayApp', () => {
     expect(cancelCapture).toHaveBeenCalledOnce();
   });
 
+  it('cancels active dictation with Escape when the overlay is focused', async () => {
+    const cancelCapture = vi.fn<() => Promise<void>>(async () => {});
+    render(
+      <OverlayApp client={createClient(baseState, { cancelCapture })} soundsEnabled={false} />,
+    );
+
+    await screen.findByRole('heading', { name: 'Transcribing...' });
+    fireEvent.keyDown(window, { key: 'Escape' });
+
+    expect(cancelCapture).toHaveBeenCalledOnce();
+  });
+
+  it('renders and dismisses the cancelled state', async () => {
+    const cancelCapture = vi.fn<() => Promise<void>>(async () => {});
+    render(
+      <OverlayApp
+        client={createClient({ ...baseState, phase: 'cancelled' }, { cancelCapture })}
+        soundsEnabled={false}
+      />,
+    );
+
+    await screen.findByRole('heading', { name: 'Cancelled' });
+    fireEvent.click(await screen.findByRole('button', { name: 'Dismiss status' }));
+
+    expect(cancelCapture).toHaveBeenCalledOnce();
+  });
+
   it('sizes the rule switcher from content instead of the current overlay viewport', async () => {
     const selectRuleSwitcherPreset = vi.fn<DesktopApi['selectRuleSwitcherPreset']>(async () => {});
     const resizeOverlay = vi.fn<DesktopApi['resizeOverlay']>(async () => {});
@@ -275,5 +302,27 @@ describe('OverlayApp', () => {
 
     fireEvent.keyDown(window, { key: '6' });
     expect(selectRuleSwitcherPreset).toHaveBeenCalledWith('rule-6');
+  });
+
+  it('closes the rule switcher with Escape', async () => {
+    const closeRuleSwitcher = vi.fn<DesktopApi['closeRuleSwitcher']>(async () => {});
+    render(
+      <OverlayApp
+        client={createClient(
+          {
+            ...baseState,
+            phase: 'idle',
+            ruleSwitcher: { mode: 'selecting', selectedRulePresetId: null, message: null },
+          },
+          { closeRuleSwitcher },
+        )}
+        soundsEnabled={false}
+      />,
+    );
+
+    await screen.findByRole('heading', { name: 'Choose writing rule' });
+    fireEvent.keyDown(window, { key: 'Escape' });
+
+    expect(closeRuleSwitcher).toHaveBeenCalledOnce();
   });
 });

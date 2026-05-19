@@ -94,9 +94,12 @@ export function OverlayApp({
   const ruleSwitcherExpanded = ruleSwitcherVisible && !ruleSwitcherClosing;
   const ruleSwitcherSelecting = ruleSwitcherMode === 'selecting';
   const listening = phase === 'listening';
+  const transcribing = phase === 'transcribing';
   const polishing = phase === 'polishing';
   const noSpeech = phase === 'no_speech';
+  const cancelled = phase === 'cancelled';
   const failed = phase === 'failed';
+  const activeDictationVisible = phase !== 'idle';
   const activeRulePresetId = state?.settings.polish.rulePresetId ?? null;
   const renderedActiveRulePresetId = pendingRuleSelection
     ? pendingRuleSelection.previousActiveRulePresetId
@@ -230,18 +233,23 @@ export function OverlayApp({
   };
 
   useEffect(() => {
-    if (!ruleSwitcherSelecting) {
+    if (ruleSwitcherMode === 'idle' && !activeDictationVisible) {
       return;
     }
 
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         event.preventDefault();
-        void client.closeRuleSwitcher();
+        if (ruleSwitcherMode !== 'idle') {
+          void client.closeRuleSwitcher();
+          return;
+        }
+
+        cancelCapture();
         return;
       }
 
-      if (!/^[1-9]$/.test(event.key)) {
+      if (!ruleSwitcherSelecting || !/^[1-9]$/.test(event.key)) {
         return;
       }
 
@@ -258,7 +266,15 @@ export function OverlayApp({
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [client, rulePresets, ruleSwitcherSelecting, selectRulePreset]);
+  }, [
+    activeDictationVisible,
+    cancelCapture,
+    client,
+    rulePresets,
+    ruleSwitcherMode,
+    ruleSwitcherSelecting,
+    selectRulePreset,
+  ]);
 
   return (
     <main
@@ -302,7 +318,7 @@ export function OverlayApp({
             <div className="flex size-(--overlay-activity-slot-size) shrink-0 items-center justify-center">
               {failed ? (
                 <span className="size-3.5 rounded-full bg-accent-red" />
-              ) : noSpeech ? (
+              ) : noSpeech || cancelled ? (
                 <span className="size-3.5 rounded-full bg-accent-amber" />
               ) : listening ? (
                 <div className="flex h-3.5 items-center gap-0.75" aria-hidden="true">
@@ -321,18 +337,22 @@ export function OverlayApp({
                 ? 'Failed'
                 : noSpeech
                   ? 'No speech detected'
-                  : listening
-                    ? 'Listening...'
-                    : polishing
-                      ? 'Polishing...'
-                      : 'Transcribing...'}
+                  : cancelled
+                    ? 'Cancelled'
+                    : listening
+                      ? 'Listening...'
+                      : polishing
+                        ? 'Polishing...'
+                        : transcribing
+                          ? 'Transcribing...'
+                          : 'Working...'}
             </h2>
 
             {!isIdle ? (
               <button
                 type="button"
                 className="flex size-(--overlay-cancel-button-size) shrink-0 items-center justify-center rounded-full border border-white/8 bg-white/6 text-[1.05rem] leading-none text-text-secondary transition-[background-color,color,transform] duration-200 ease-out hover:scale-105 hover:bg-accent-red/18 hover:text-accent-red active:scale-95"
-                aria-label="Cancel dictation"
+                aria-label={listening || transcribing || polishing ? 'Cancel dictation' : 'Dismiss status'}
                 onClick={cancelCapture}
               >
                 &#215;

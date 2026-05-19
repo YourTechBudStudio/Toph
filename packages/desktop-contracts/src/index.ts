@@ -329,6 +329,7 @@ export type DictationPhase =
   | 'transcribing'
   | 'polishing'
   | 'no_speech'
+  | 'cancelled'
   | 'failed';
 export type PasteAttemptStatus = 'idle' | 'clipboard-only' | 'success' | 'failed';
 export type SoundEventKind = 'start' | 'stop' | 'done';
