@@ -23,7 +23,7 @@ const overlayRendererGeometry = {
       height: 44,
     },
     inputFallback: {
-      width: 512,
+      maxWidth: 512,
       height: 64,
     },
   },
@@ -42,7 +42,7 @@ const overlayGeometryStyle = {
   '--overlay-idle-height': `${overlayRendererGeometry.pill.idle.height}px`,
   '--overlay-active-min-width': `${overlayRendererGeometry.pill.active.minWidth}px`,
   '--overlay-active-height': `${overlayRendererGeometry.pill.active.height}px`,
-  '--overlay-input-fallback-width': `${overlayRendererGeometry.pill.inputFallback.width}px`,
+  '--overlay-input-fallback-max-width': `${overlayRendererGeometry.pill.inputFallback.maxWidth}px`,
   '--overlay-input-fallback-height': `${overlayRendererGeometry.pill.inputFallback.height}px`,
   '--overlay-content-padding-x': `${overlayRendererGeometry.content.paddingX}px`,
   '--overlay-content-gap': `${overlayRendererGeometry.content.gap}px`,
@@ -147,7 +147,7 @@ export function OverlayApp({
   const pillVisualClass = failed
     ? 'h-(--overlay-active-height) min-w-(--overlay-active-min-width) rounded-full border-accent-red/36 bg-[rgba(63,32,45,0.96)] shadow-[0_8px_24px_rgba(0,0,0,0.3)]'
     : activeInputFallback
-      ? 'h-(--overlay-input-fallback-height) w-(--overlay-input-fallback-width) rounded-[28px] border-accent-amber/28 bg-canvas/95 shadow-[0_8px_24px_rgba(0,0,0,0.3)]'
+      ? 'h-(--overlay-input-fallback-height) w-fit max-w-(--overlay-input-fallback-max-width) rounded-[28px] border-accent-amber/28 bg-canvas/95 shadow-[0_8px_24px_rgba(0,0,0,0.3)]'
     : audioFallbackNotice
       ? 'h-(--overlay-active-height) min-w-80 rounded-full border-accent-amber/28 bg-canvas/95 shadow-[0_8px_24px_rgba(0,0,0,0.3)]'
     : ruleSwitcherExpanded
@@ -355,9 +355,11 @@ export function OverlayApp({
           </div>
         ) : (
           <div
-            className={`flex h-full items-center gap-(--overlay-content-gap) px-(--overlay-content-padding-x) transition-[opacity,visibility] duration-200 ease-out ${isIdle && !audioFallbackNotice && !activeInputFallback ? 'invisible opacity-0 delay-0' : 'visible opacity-100 delay-150'}`}
+            className={`flex h-full items-center gap-(--overlay-content-gap) transition-[opacity,visibility] duration-200 ease-out ${activeInputFallback ? 'min-w-0 max-w-full pl-[22px] pr-[18px]' : 'px-(--overlay-content-padding-x)'} ${isIdle && !audioFallbackNotice && !activeInputFallback ? 'invisible opacity-0 delay-0' : 'visible opacity-100 delay-150'}`}
           >
-            <div className="flex size-(--overlay-activity-slot-size) shrink-0 items-center justify-center">
+            <div
+              className={`flex size-(--overlay-activity-slot-size) shrink-0 items-center justify-center ${activeInputFallback ? 'mr-1' : ''}`}
+            >
               {activeInputFallback ? (
                 <ListeningWave />
               ) : audioFallbackNotice ? (
