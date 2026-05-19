@@ -21,6 +21,7 @@ export interface DictationController {
 const toggleDebounceMs = 800;
 const failureVisibleMs = 2_000;
 const noSpeechVisibleMs = 2_000;
+const cancelledVisibleMs = 1_200;
 const maxLiveProcessingBacklog = 100;
 type DictationLifecycle = 'idle' | 'starting' | 'listening' | 'stopping' | 'cancelling';
 
@@ -66,6 +67,7 @@ export function createDictationController(options: {
 }): DictationController {
   let failureTimer: ReturnType<typeof setTimeout> | null = null;
   let noSpeechTimer: ReturnType<typeof setTimeout> | null = null;
+  let cancelledTimer: ReturnType<typeof setTimeout> | null = null;
   let lastToggleRequestAt = 0;
   let activeSession: {
     id: string;
@@ -102,6 +104,15 @@ export function createDictationController(options: {
     noSpeechTimer = null;
   };
 
+  const clearCancelledTimer = () => {
+    if (!cancelledTimer) {
+      return;
+    }
+
+    clearTimeout(cancelledTimer);
+    cancelledTimer = null;
+  };
+
   const returnToIdleAfterFailure = () => {
     clearFailureTimer();
     failureTimer = setTimeout(() => {
@@ -116,6 +127,16 @@ export function createDictationController(options: {
       noSpeechTimer = null;
       options.stateStore.setPhase('idle');
     }, noSpeechVisibleMs);
+  };
+
+  const returnToIdleAfterCancellation = () => {
+    clearCancelledTimer();
+    cancelledTimer = setTimeout(() => {
+      cancelledTimer = null;
+      if (options.stateStore.getState().phase === 'cancelled') {
+        options.stateStore.setPhase('idle');
+      }
+    }, cancelledVisibleMs);
   };
 
   const failProcessedSession = async (error: unknown) => {
@@ -211,6 +232,7 @@ export function createDictationController(options: {
 
     clearFailureTimer();
     clearNoSpeechTimer();
+    clearCancelledTimer();
     activeOperationGeneration += 1;
     const operationGeneration = activeOperationGeneration;
     lifecycle = 'stopping';
@@ -434,6 +456,7 @@ export function createDictationController(options: {
   const beginListening = async () => {
     clearFailureTimer();
     clearNoSpeechTimer();
+    clearCancelledTimer();
     liveProcessingErrorMessage = null;
     activeOperationGeneration += 1;
     const operationGeneration = activeOperationGeneration;
@@ -851,19 +874,124 @@ export function createDictationController(options: {
     }
   };
 
+  const cancelCapture = async () => {
+    clearFailureTimer();
+    clearNoSpeechTimer();
+    clearCancelledTimer();
+
+    const currentPhase = options.stateStore.getState().phase;
+    const previousLifecycle = lifecycle;
+    const session = activeSession;
+    const pipeline = activeLivePipeline;
+    const pendingLiveProcessing = liveProcessingQueue;
+    const pendingFinish = activeFinishTask;
+    const shouldStopRecorder =
+      lifecycle === 'starting' || lifecycle === 'listening' || Boolean(activeRecorderStop);
+
+    if (!session && lifecycle === 'idle') {
+      if (currentPhase === 'failed' || currentPhase === 'no_speech' || currentPhase === 'cancelled') {
+        options.stateStore.setPhase('idle');
+      }
+      return;
+    }
+
+    activePolishAbortController?.abort();
+    activePolishAbortController = null;
+    activeOperationGeneration += 1;
+    lifecycle = 'cancelling';
+    options.stateStore.cancelDictation();
+    options.windows.showOverlay();
+
+    if (previousLifecycle === 'starting' || previousLifecycle === 'cancelling') {
+      returnToIdleAfterCancellation();
+      return;
+    }
+
+    activeSession = null;
+    activeLivePipeline = null;
+    liveProcessingErrorMessage = null;
+    liveProcessingQueue = Promise.resolve();
+    liveProcessingBacklog = 0;
+    liveProcessingGeneration += 1;
+
+    if (!session) {
+      lifecycle = 'idle';
+      returnToIdleAfterCancellation();
+      return;
+    }
+
+    let stoppedRecordingDurationMs: number | undefined;
+    if (shouldStopRecorder) {
+      try {
+        stoppedRecordingDurationMs = (await stopActiveRecorder()).durationMs;
+      } catch (error) {
+        console.error('Toph could not stop the active recording while cancelling.', error);
+      }
+    }
+
+    await pendingLiveProcessing.catch((queueError: unknown) => {
+      console.error('Toph live segmentation queue failed while cancelling.', queueError);
+    });
+
+    try {
+      // A flush may schedule batches while cancel is waiting for finish cleanup;
+      // cancel both sides of that wait so no transcriptions survive cancellation.
+      await options.transcription.cancelSession(session.id);
+      await pendingFinish?.catch((finishError: unknown) => {
+        console.error('Toph finishing pipeline failed while cancelling.', finishError);
+      });
+      await options.transcription.cancelSession(session.id);
+      await pipeline?.dispose();
+      if (session.preserveArtifactsOnCancel) {
+        await options.sessionStore.clearSegmentationData(session.id, {
+          preserveSelectedOutput: true,
+        });
+        if (session.rerunOutputId) {
+          await options.outputs.selectOutput({
+            sessionId: session.id,
+            outputId: session.rerunOutputId,
+          });
+        }
+      } else {
+        await options.sessionStore.markCancelled({
+          sessionId: session.id,
+          durationMs: stoppedRecordingDurationMs,
+        });
+        await options.sessionStore.discardSessionArtifacts(session.id);
+      }
+    } catch (error) {
+      console.error('Toph could not persist the cancelled recording session.', error);
+    } finally {
+      lifecycle = 'idle';
+      await pruneSessions();
+      await refreshRecentSessionsBestEffort();
+      returnToIdleAfterCancellation();
+    }
+  };
+
   return {
     async toggleCapture() {
+      const { phase, ruleSwitcher } = options.stateStore.getState();
+      if (ruleSwitcher.mode !== 'idle') {
+        return;
+      }
+
+      if (phase === 'failed' || phase === 'no_speech' || phase === 'cancelled') {
+        await cancelCapture();
+        return;
+      }
+
+      if (phase === 'transcribing' || phase === 'polishing') {
+        await cancelCapture();
+        return;
+      }
+
       const now = Date.now();
       if (now - lastToggleRequestAt < toggleDebounceMs) {
         return;
       }
 
       lastToggleRequestAt = now;
-
-      const { phase, ruleSwitcher } = options.stateStore.getState();
-      if (ruleSwitcher.mode !== 'idle') {
-        return;
-      }
 
       if (lifecycle === 'idle' && phase === 'idle') {
         if (!(await options.ensurePermissionsReady())) {
@@ -878,88 +1006,12 @@ export function createDictationController(options: {
       if (lifecycle === 'listening' && phase === 'listening') {
         lifecycle = 'stopping';
         await runFinishListening();
-      }
-    },
-
-    async cancelCapture() {
-      clearFailureTimer();
-      clearNoSpeechTimer();
-
-      const previousLifecycle = lifecycle;
-      const session = activeSession;
-      const pipeline = activeLivePipeline;
-      const pendingLiveProcessing = liveProcessingQueue;
-      const pendingFinish = activeFinishTask;
-      const shouldStopRecorder =
-        lifecycle === 'starting' || lifecycle === 'listening' || Boolean(activeRecorderStop);
-      activePolishAbortController?.abort();
-      activePolishAbortController = null;
-      activeOperationGeneration += 1;
-      lifecycle = 'cancelling';
-      options.stateStore.setPhase('idle');
-      options.windows.showOverlay();
-
-      if (previousLifecycle === 'starting' || previousLifecycle === 'cancelling') {
         return;
       }
 
-      activeSession = null;
-      activeLivePipeline = null;
-      liveProcessingErrorMessage = null;
-      liveProcessingQueue = Promise.resolve();
-      liveProcessingBacklog = 0;
-      liveProcessingGeneration += 1;
-
-      if (!session) {
-        lifecycle = 'idle';
-        return;
-      }
-
-      let stoppedRecordingDurationMs: number | undefined;
-      if (shouldStopRecorder) {
-        try {
-          stoppedRecordingDurationMs = (await stopActiveRecorder()).durationMs;
-        } catch (error) {
-          console.error('Toph could not stop the active recording while cancelling.', error);
-        }
-      }
-
-      await pendingLiveProcessing.catch((queueError: unknown) => {
-        console.error('Toph live segmentation queue failed while cancelling.', queueError);
-      });
-
-      try {
-        // A flush may schedule batches while cancel is waiting for finish cleanup;
-        // cancel both sides of that wait so no transcriptions survive cancellation.
-        await options.transcription.cancelSession(session.id);
-        await pendingFinish?.catch((finishError: unknown) => {
-          console.error('Toph finishing pipeline failed while cancelling.', finishError);
-        });
-        await options.transcription.cancelSession(session.id);
-        await pipeline?.dispose();
-        if (session.preserveArtifactsOnCancel) {
-          await options.sessionStore.clearSegmentationData(session.id, {
-            preserveSelectedOutput: true,
-          });
-          if (session.rerunOutputId) {
-            await options.outputs.selectOutput({
-              sessionId: session.id,
-              outputId: session.rerunOutputId,
-            });
-          }
-        } else {
-          await options.sessionStore.markCancelled({
-            sessionId: session.id,
-            durationMs: stoppedRecordingDurationMs,
-          });
-          await options.sessionStore.discardSessionArtifacts(session.id);
-        }
-      } catch (error) {
-        console.error('Toph could not persist the cancelled recording session.', error);
-      } finally {
-        lifecycle = 'idle';
-      }
     },
+
+    cancelCapture,
 
     async rerunSession(sessionId) {
       await rerunRecordedWorkflow(sessionId);
@@ -968,6 +1020,7 @@ export function createDictationController(options: {
     async dispose() {
       clearFailureTimer();
       clearNoSpeechTimer();
+      clearCancelledTimer();
       const session = activeSession;
       const pipeline = activeLivePipeline;
       const pendingLiveProcessing = liveProcessingQueue;

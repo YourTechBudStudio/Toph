@@ -254,9 +254,11 @@ function HomeScreen({
                   ? 'Polishing...'
                   : state.phase === 'no_speech'
                     ? 'No speech detected'
-                    : state.phase === 'failed'
-                      ? 'Recording failed'
-                      : 'Ready'}
+                    : state.phase === 'cancelled'
+                      ? 'Cancelled'
+                      : state.phase === 'failed'
+                        ? 'Recording failed'
+                        : 'Ready'}
           </span>
         </footer>
       </section>

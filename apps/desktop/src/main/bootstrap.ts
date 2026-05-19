@@ -336,6 +336,14 @@ export async function bootstrap(options: {
     clearRuleSwitcherTimer();
     stateStore.closeRuleSwitcher();
   };
+  const handleDictationTrigger = async () => {
+    if (stateStore.getState().ruleSwitcher.mode !== 'idle') {
+      await closeRuleSwitcher();
+      return;
+    }
+
+    await dictation.toggleCapture();
+  };
   const selectRuleSwitcherPreset = async (rulePresetId: string) => {
     if (stateStore.getState().ruleSwitcher.mode !== 'selecting') {
       return;
@@ -388,7 +396,7 @@ export async function bootstrap(options: {
       ruleSwitcherFlag: options.ruleSwitcherFlag,
     },
     onDictationTrigger: () => {
-      void dictation.toggleCapture();
+      void handleDictationTrigger();
     },
     onRuleSwitcherTrigger: () => {
       void openRuleSwitcher();
@@ -417,7 +425,7 @@ export async function bootstrap(options: {
         return;
       }
 
-      void dictation.toggleCapture();
+      void handleDictationTrigger();
       return;
     }
 
@@ -448,7 +456,7 @@ export async function bootstrap(options: {
   });
   const unregisterIpc = registerDesktopIpc({
     getState: stateStore.getState,
-    toggleCapture: dictation.toggleCapture,
+    toggleCapture: handleDictationTrigger,
     cancelCapture: dictation.cancelCapture,
     resizeOverlay: windows.resizeOverlay,
     showSettings: windows.showSettings,
@@ -655,7 +663,7 @@ export async function bootstrap(options: {
 
   if (pendingToggle) {
     pendingToggle = false;
-    void dictation.toggleCapture();
+    void handleDictationTrigger();
   }
   if (pendingRuleSwitcher) {
     pendingRuleSwitcher = false;
