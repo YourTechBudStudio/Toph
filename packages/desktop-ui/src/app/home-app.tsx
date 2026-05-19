@@ -245,18 +245,22 @@ function HomeScreen({
 
         <footer className="mt-8 flex items-center justify-between gap-4 text-xs text-text-tertiary">
           <span>Audio retained for last 10 items</span>
-          <span>
-            {state.phase === 'listening'
-              ? 'Listening...'
-              : state.phase === 'transcribing'
-                ? 'Transcribing...'
-                : state.phase === 'polishing'
-                  ? 'Polishing...'
-                  : state.phase === 'no_speech'
-                    ? 'No speech detected'
-                    : state.phase === 'failed'
-                      ? 'Recording failed'
-                      : 'Ready'}
+          <span className="inline-flex items-center gap-1.5">
+            <span>
+              {state.phase === 'listening'
+                ? 'Listening...'
+                : state.phase === 'transcribing'
+                  ? 'Transcribing...'
+                  : state.phase === 'polishing'
+                    ? 'Polishing...'
+                    : state.phase === 'no_speech'
+                      ? 'No speech detected'
+                      : state.phase === 'failed'
+                        ? 'Recording failed'
+                        : 'Ready'}
+            </span>
+            <span aria-hidden="true">·</span>
+            <span className="text-text-secondary">v{state.app.version}</span>
           </span>
         </footer>
       </section>

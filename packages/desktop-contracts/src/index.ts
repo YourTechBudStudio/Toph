@@ -564,6 +564,9 @@ export type VadRuntimeStatus =
   };
 
 export interface AppState {
+  app: {
+    version: string;
+  };
   phase: DictationPhase;
   shortcut: ShortcutRegistrationState;
   ruleSwitcherShortcut: ShortcutRegistrationState;

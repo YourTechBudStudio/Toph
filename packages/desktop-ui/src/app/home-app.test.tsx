@@ -6,6 +6,9 @@ import type { AppState, DesktopApi } from '@toph/desktop-contracts';
 import { HomeApp } from './home-app';
 
 const baseState: AppState = {
+  app: {
+    version: '0.0.2',
+  },
   phase: 'idle',
   shortcut: {
     chord: { modifiers: ['control', 'alt'], key: 'Space' },
@@ -183,6 +186,18 @@ describe('HomeApp', () => {
     expect(screen.getByText('Your last 28 days. Tiny wins, conveniently quantified.')).toBeTruthy();
     expect(screen.getByText('28 days')).toBeTruthy();
     expect(screen.getByText('time saved')).toBeTruthy();
+  });
+
+  it('shows the app version on home but not settings', async () => {
+    render(<HomeApp client={createClient(baseState)} />);
+
+    await screen.findByRole('heading', { name: 'Toph' });
+    expect(screen.getByText('v0.0.2')).toBeTruthy();
+
+    fireEvent.click(screen.getByLabelText('Settings'));
+
+    await screen.findByRole('heading', { name: 'Settings' });
+    expect(screen.queryByText('v0.0.2')).toBeNull();
   });
 
   it('rounds positive usage cost up to the nearest cent', async () => {

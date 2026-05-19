@@ -6,6 +6,9 @@ import type { AppState, DesktopApi } from '@toph/desktop-contracts';
 import { OverlayApp } from './overlay-app';
 
 const baseState: AppState = {
+  app: {
+    version: '0.0.2',
+  },
   phase: 'transcribing',
   shortcut: {
     chord: { modifiers: ['control', 'alt'], key: 'Space' },

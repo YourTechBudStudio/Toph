@@ -5,6 +5,9 @@ import type { AppState, DesktopApi } from '@toph/desktop-contracts';
 import { useDesktopState, useRelativeTime } from './use-desktop-state';
 
 const baseState: AppState = {
+  app: {
+    version: '0.0.2',
+  },
   phase: 'idle',
   shortcut: {
     chord: { modifiers: ['control', 'alt'], key: 'Space' },

@@ -69,7 +69,7 @@ export interface DesktopStateStore {
   ) => void;
 }
 
-function createInitialState(): AppState {
+function createInitialState(options: { appVersion: string }): AppState {
   const defaultShortcutChord = resolveDefaultShortcutChord(process.platform);
   const defaultRuleSwitcherShortcutChord = resolveDefaultRuleSwitcherShortcutChord(
     process.platform,
@@ -86,6 +86,9 @@ function createInitialState(): AppState {
   });
 
   return {
+    app: {
+      version: options.appVersion,
+    },
     phase: 'idle',
     shortcut: toShortcutState(defaultShortcutChord, 'Inspecting dictation shortcut support...'),
     ruleSwitcherShortcut: toShortcutState(
@@ -157,8 +160,10 @@ function createInitialState(): AppState {
   };
 }
 
-export function createDesktopStateStore(): DesktopStateStore {
-  const state = createInitialState();
+export function createDesktopStateStore(initialStateOptions: {
+  appVersion: string;
+}): DesktopStateStore {
+  const state = createInitialState(initialStateOptions);
   const listeners = new Set<(state: AppState) => void>();
 
   const publish = () => {

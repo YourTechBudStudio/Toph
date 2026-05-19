@@ -99,7 +99,7 @@ export async function bootstrap(options: {
   let pendingToggle = options.shouldToggleOnLaunch;
   let pendingRuleSwitcher = options.shouldOpenRuleSwitcherOnLaunch;
 
-  const stateStore = createDesktopStateStore();
+  const stateStore = createDesktopStateStore({ appVersion: app.getVersion() });
   const windows = createWindowManager({
     appName,
     appIconPath,
