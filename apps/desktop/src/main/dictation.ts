@@ -62,6 +62,7 @@ export function createDictationController(options: {
   clipboard: ClipboardManager;
   ensurePermissionsReady: () => Promise<boolean>;
   windows: Pick<WindowManager, 'showOverlay' | 'emitSound'>;
+  onPasteSupportMayHaveChanged: () => Promise<void>;
   onDashboardStatsChanged: () => Promise<void>;
   onRecentSessionsChanged: () => Promise<void>;
 }): DictationController {
@@ -781,6 +782,7 @@ export function createDictationController(options: {
         }
 
         const pasteAttempt = await options.clipboard.copyAndPasteText(rawOutput.text);
+        void options.onPasteSupportMayHaveChanged();
         if (!isCurrentOperation(operationGeneration)) {
           return;
         }
@@ -844,6 +846,7 @@ export function createDictationController(options: {
       }
 
       const pasteAttempt = await options.clipboard.copyAndPasteText(polishedOutput.text);
+      void options.onPasteSupportMayHaveChanged();
       if (!isCurrentOperation(operationGeneration)) {
         return;
       }

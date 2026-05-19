@@ -53,8 +53,8 @@ async function commandExists(command: string): Promise<boolean> {
   }
 }
 
-async function resolveHelper(): Promise<PasteHelper | null> {
-  if (helperPromise) {
+async function resolveHelper(options: { forceRefresh?: boolean } = {}): Promise<PasteHelper | null> {
+  if (helperPromise && !options.forceRefresh) {
     return helperPromise;
   }
 
@@ -130,7 +130,7 @@ function createLinuxClipboardManager(): ClipboardManager {
       let helper: PasteHelper | null;
 
       try {
-        helper = await resolveHelper();
+        helper = await resolveHelper({ forceRefresh: true });
       } catch (error) {
         return {
           helper: null,

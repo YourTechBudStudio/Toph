@@ -248,6 +248,16 @@ export async function bootstrap(options: {
     inference: inferenceProvider,
   });
 
+  const refreshPasteSupport = async () => {
+    try {
+      stateStore.setPasteSupport(await clipboard.describePasteSupport());
+    } catch (error) {
+      stateStore.setPasteSupport({
+        helper: null,
+        detail: describeUnexpectedError('Desktop paste capabilities could not be inspected.', error),
+      });
+    }
+  };
   const ensurePermissionsReady = async () => {
     const permissionState = await permissions.inspectRequiredPermissions();
     stateStore.setPermissions(permissionState);
@@ -255,6 +265,9 @@ export async function bootstrap(options: {
       windows.showSettings();
     }
     return permissionState.ready;
+  };
+  const refreshReadiness = async () => {
+    await Promise.all([ensurePermissionsReady(), refreshPasteSupport()]);
   };
   const ensureProvidersReady = async () => {
     const providerState = await providerAuth.getState();
@@ -289,6 +302,7 @@ export async function bootstrap(options: {
       (await ensurePermissionsReady()) &&
       (await ensureWritingReady()),
     windows,
+    onPasteSupportMayHaveChanged: refreshPasteSupport,
     onDashboardStatsChanged: refreshDashboardStats,
     onRecentSessionsChanged: refreshRecentSessions,
   });
@@ -606,9 +620,10 @@ export async function bootstrap(options: {
     },
     performPermissionAction: async (permissionId) => {
       stateStore.setPermissions(await permissions.performPermissionAction(permissionId));
+      await refreshPasteSupport();
     },
     refreshPermissions: async () => {
-      await ensurePermissionsReady();
+      await refreshReadiness();
     },
     rerunSession: async (sessionId) => {
       try {
@@ -652,14 +667,7 @@ export async function bootstrap(options: {
     windows.showSettings();
   }
 
-  try {
-    stateStore.setPasteSupport(await clipboard.describePasteSupport());
-  } catch (error) {
-    stateStore.setPasteSupport({
-      helper: null,
-      detail: describeUnexpectedError('Desktop paste capabilities could not be inspected.', error),
-    });
-  }
+  await refreshPasteSupport();
 
   if (pendingToggle) {
     pendingToggle = false;

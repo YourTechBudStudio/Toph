@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import {
   formatShortcutChordKeys,
@@ -306,6 +306,7 @@ export function HomeApp({ client }: { client: DesktopApi }) {
   const state = useDesktopState(client);
   const [view, setView] = useState<ActiveView>('home');
   const [awaitingSetupContinue, setAwaitingSetupContinue] = useState(false);
+  const homeReadinessRefreshInFlight = useRef(false);
   const setupComplete = state
     ? state.providers.ready && state.permissions.ready && hasActiveWritingPreset(state)
     : false;
@@ -315,6 +316,36 @@ export function HomeApp({ client }: { client: DesktopApi }) {
       setAwaitingSetupContinue(false);
     }
   }, [setupComplete]);
+
+  useEffect(() => {
+    if (!setupComplete || awaitingSetupContinue || view !== 'home') {
+      return;
+    }
+
+    const refreshOnFocus = () => {
+      if (document.visibilityState === 'hidden') {
+        return;
+      }
+      if (homeReadinessRefreshInFlight.current) {
+        return;
+      }
+
+      homeReadinessRefreshInFlight.current = true;
+      void client.refreshPermissions().catch((error) => {
+        console.error('Toph could not refresh home readiness.', error);
+      }).finally(() => {
+        homeReadinessRefreshInFlight.current = false;
+      });
+    };
+
+    window.addEventListener('focus', refreshOnFocus);
+    document.addEventListener('visibilitychange', refreshOnFocus);
+
+    return () => {
+      window.removeEventListener('focus', refreshOnFocus);
+      document.removeEventListener('visibilitychange', refreshOnFocus);
+    };
+  }, [awaitingSetupContinue, client, setupComplete, view]);
 
   if (!state) {
     return (
