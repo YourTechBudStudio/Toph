@@ -195,6 +195,89 @@ describe('HomeApp', () => {
     expect(screen.getByText('time saved')).toBeTruthy();
   });
 
+  it('refreshes home readiness when the window regains focus', async () => {
+    const refreshPermissions = vi.fn<() => Promise<void>>(async () => {});
+
+    render(<HomeApp client={createClient(baseState, { refreshPermissions })} />);
+
+    await screen.findByText('All systems go');
+
+    act(() => {
+      window.dispatchEvent(new Event('focus'));
+    });
+
+    await waitFor(() => expect(refreshPermissions).toHaveBeenCalledTimes(1));
+  });
+
+  it('does not refresh home readiness while settings are open', async () => {
+    const refreshPermissions = vi.fn<() => Promise<void>>(async () => {});
+
+    render(<HomeApp client={createClient(baseState, { refreshPermissions })} />);
+
+    await screen.findByText('All systems go');
+    fireEvent.click(screen.getByLabelText('Settings'));
+    await screen.findByRole('heading', { name: 'Settings' });
+
+    act(() => {
+      window.dispatchEvent(new Event('focus'));
+    });
+
+    expect(refreshPermissions).not.toHaveBeenCalled();
+  });
+
+  it('does not overlap home readiness refreshes', async () => {
+    let resolveRefresh: (() => void) | null = null;
+    const refreshPermissions = vi.fn<() => Promise<void>>(
+      () =>
+        new Promise((resolve) => {
+          resolveRefresh = resolve;
+        }),
+    );
+
+    render(<HomeApp client={createClient(baseState, { refreshPermissions })} />);
+
+    await screen.findByText('All systems go');
+
+    act(() => {
+      window.dispatchEvent(new Event('focus'));
+      window.dispatchEvent(new Event('focus'));
+    });
+
+    expect(refreshPermissions).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      resolveRefresh?.();
+    });
+
+    act(() => {
+      window.dispatchEvent(new Event('focus'));
+    });
+
+    await waitFor(() => expect(refreshPermissions).toHaveBeenCalledTimes(2));
+  });
+
+  it('handles failed home readiness refreshes', async () => {
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const refreshPermissions = vi.fn<() => Promise<void>>(async () => {
+      throw new Error('refresh failed');
+    });
+
+    render(<HomeApp client={createClient(baseState, { refreshPermissions })} />);
+
+    await screen.findByText('All systems go');
+
+    act(() => {
+      window.dispatchEvent(new Event('focus'));
+    });
+
+    await waitFor(() => expect(consoleError).toHaveBeenCalledWith(
+      'Toph could not refresh home readiness.',
+      expect.any(Error),
+    ));
+
+    consoleError.mockRestore();
+  });
+
   it('shows the app version on home but not settings', async () => {
     render(<HomeApp client={createClient(baseState)} />);
 
