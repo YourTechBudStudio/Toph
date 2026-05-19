@@ -9,6 +9,7 @@ const baseState: AppState = {
     version: '0.0.2',
   },
   phase: 'idle',
+  activeInputDeviceFallback: null,
   shortcut: {
     chord: { modifiers: ['control', 'alt'], key: 'Space' },
     accelerator: 'Control+Alt+Space',

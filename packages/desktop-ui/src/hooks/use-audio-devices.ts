@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 
 import {
   SYSTEM_DEFAULT_AUDIO_DEVICE_ID,
+  normalizeAudioDeviceLabel,
   type AudioDeviceInfo,
   type AudioDevicePreference,
   type AudioDeviceResolution,
@@ -13,7 +14,7 @@ const fallbackInputLabel = 'System Default Microphone';
 const fallbackOutputLabel = 'System Default Output';
 
 function toLabel(device: MediaDeviceInfo, fallback: string) {
-  return (device.label || fallback).replace(/^Default\s*-\s*/i, '');
+  return normalizeAudioDeviceLabel(device.label || fallback);
 }
 
 async function enumerateAudioDevices(): Promise<{ inputs: AudioDeviceInfo[]; outputs: AudioDeviceInfo[] }> {

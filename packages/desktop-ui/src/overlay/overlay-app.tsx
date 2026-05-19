@@ -22,6 +22,10 @@ const overlayRendererGeometry = {
       minWidth: 164,
       height: 44,
     },
+    inputFallback: {
+      width: 512,
+      height: 64,
+    },
   },
   windowPaddingX: 16,
   content: {
@@ -38,6 +42,8 @@ const overlayGeometryStyle = {
   '--overlay-idle-height': `${overlayRendererGeometry.pill.idle.height}px`,
   '--overlay-active-min-width': `${overlayRendererGeometry.pill.active.minWidth}px`,
   '--overlay-active-height': `${overlayRendererGeometry.pill.active.height}px`,
+  '--overlay-input-fallback-width': `${overlayRendererGeometry.pill.inputFallback.width}px`,
+  '--overlay-input-fallback-height': `${overlayRendererGeometry.pill.inputFallback.height}px`,
   '--overlay-content-padding-x': `${overlayRendererGeometry.content.paddingX}px`,
   '--overlay-content-gap': `${overlayRendererGeometry.content.gap}px`,
   '--overlay-activity-slot-size': `${overlayRendererGeometry.content.activitySlotSize}px`,
@@ -114,6 +120,8 @@ export function OverlayApp({
   const noSpeech = phase === 'no_speech';
   const cancelled = phase === 'cancelled';
   const failed = phase === 'failed';
+  const activeInputFallback =
+    listening && !ruleSwitcherVisible ? state?.activeInputDeviceFallback ?? null : null;
   const activeDictationVisible = phase !== 'idle';
   const activeRulePresetId = state?.settings.polish.rulePresetId ?? null;
   const renderedActiveRulePresetId = pendingRuleSelection
@@ -138,6 +146,8 @@ export function OverlayApp({
     !ruleSwitcherClosing && renderedRuleSwitcherContentMode === 'selecting';
   const pillVisualClass = failed
     ? 'h-(--overlay-active-height) min-w-(--overlay-active-min-width) rounded-full border-accent-red/36 bg-[rgba(63,32,45,0.96)] shadow-[0_8px_24px_rgba(0,0,0,0.3)]'
+    : activeInputFallback
+      ? 'h-(--overlay-input-fallback-height) w-(--overlay-input-fallback-width) rounded-[28px] border-accent-amber/28 bg-canvas/95 shadow-[0_8px_24px_rgba(0,0,0,0.3)]'
     : audioFallbackNotice
       ? 'h-(--overlay-active-height) min-w-80 rounded-full border-accent-amber/28 bg-canvas/95 shadow-[0_8px_24px_rgba(0,0,0,0.3)]'
     : ruleSwitcherExpanded
@@ -238,6 +248,7 @@ export function OverlayApp({
   }, [
     client,
     phase,
+    activeInputFallback,
     audioFallbackNotice,
     ruleSwitcherVisible,
     ruleSwitcherExpanded,
@@ -344,44 +355,58 @@ export function OverlayApp({
           </div>
         ) : (
           <div
-            className={`flex h-full items-center gap-(--overlay-content-gap) px-(--overlay-content-padding-x) transition-[opacity,visibility] duration-200 ease-out ${isIdle && !audioFallbackNotice ? 'invisible opacity-0 delay-0' : 'visible opacity-100 delay-150'}`}
+            className={`flex h-full items-center gap-(--overlay-content-gap) px-(--overlay-content-padding-x) transition-[opacity,visibility] duration-200 ease-out ${isIdle && !audioFallbackNotice && !activeInputFallback ? 'invisible opacity-0 delay-0' : 'visible opacity-100 delay-150'}`}
           >
             <div className="flex size-(--overlay-activity-slot-size) shrink-0 items-center justify-center">
-              {audioFallbackNotice ? (
+              {activeInputFallback ? (
+                <ListeningWave />
+              ) : audioFallbackNotice ? (
                 <span className="size-3.5 rounded-full bg-accent-amber" />
               ) : failed ? (
                 <span className="size-3.5 rounded-full bg-accent-red" />
               ) : noSpeech || cancelled ? (
                 <span className="size-3.5 rounded-full bg-accent-amber" />
               ) : listening ? (
-                <div className="flex h-3.5 items-center gap-0.75" aria-hidden="true">
-                  <span className="h-2 w-1 animate-wave rounded-full bg-text-primary" />
-                  <span className="h-3 w-1 animate-wave rounded-full bg-text-primary [animation-delay:0.12s]" />
-                  <span className="h-3.5 w-1 animate-wave rounded-full bg-text-primary [animation-delay:0.24s]" />
-                  <span className="h-2.5 w-1 animate-wave rounded-full bg-text-primary [animation-delay:0.36s]" />
-                </div>
+                <ListeningWave />
               ) : (
                 <span className="size-4 animate-spin-ring rounded-full border-2 border-text-tertiary/20 border-t-text-primary" />
               )}
             </div>
 
-            <h2 className="m-0 text-left text-[0.92rem] font-medium tracking-tight whitespace-nowrap text-text-primary">
-              {failed
-                ? 'Failed'
-                : audioFallbackNotice
-                  ? audioFallbackNotice
-                  : noSpeech
-                  ? 'No speech detected'
-                  : cancelled
-                    ? 'Cancelled'
-                    : listening
-                      ? 'Listening...'
-                      : polishing
-                        ? 'Polishing...'
-                        : transcribing
-                          ? 'Transcribing...'
-                          : 'Working...'}
-            </h2>
+            {activeInputFallback ? (
+              <div className="min-w-0 flex-1 text-left">
+                <h2 className="m-0 text-xs font-medium tracking-tight whitespace-nowrap text-text-secondary">
+                  Listening...
+                </h2>
+                <p className="m-0 mt-0.5 flex min-w-0 items-center gap-2 text-sm leading-tight tracking-tight whitespace-nowrap">
+                  <span className="size-1.5 shrink-0 rounded-full bg-accent-amber shadow-[0_0_0_4px_rgba(245,169,127,0.12)]" />
+                  <span className="shrink-0 font-semibold text-accent-amber">
+                    Using default input
+                  </span>
+                  <span className="truncate font-medium text-text-secondary">
+                    {activeInputFallback.defaultLabel ?? 'System Default Microphone'}
+                  </span>
+                </p>
+              </div>
+            ) : (
+              <h2 className="m-0 text-left text-[0.92rem] font-medium tracking-tight whitespace-nowrap text-text-primary">
+                {failed
+                  ? 'Failed'
+                  : audioFallbackNotice
+                    ? audioFallbackNotice
+                    : noSpeech
+                      ? 'No speech detected'
+                      : cancelled
+                        ? 'Cancelled'
+                        : listening
+                          ? 'Listening...'
+                          : polishing
+                            ? 'Polishing...'
+                            : transcribing
+                              ? 'Transcribing...'
+                              : 'Working...'}
+              </h2>
+            )}
 
             {!isIdle ? (
               <button
@@ -397,6 +422,17 @@ export function OverlayApp({
         )}
       </section>
     </main>
+  );
+}
+
+function ListeningWave() {
+  return (
+    <div className="flex h-3.5 items-center gap-0.75" aria-hidden="true">
+      <span className="h-2 w-1 animate-wave rounded-full bg-text-primary" />
+      <span className="h-3 w-1 animate-wave rounded-full bg-text-primary [animation-delay:0.12s]" />
+      <span className="h-3.5 w-1 animate-wave rounded-full bg-text-primary [animation-delay:0.24s]" />
+      <span className="h-2.5 w-1 animate-wave rounded-full bg-text-primary [animation-delay:0.36s]" />
+    </div>
   );
 }
 

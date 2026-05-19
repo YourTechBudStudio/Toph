@@ -5,6 +5,7 @@ import {
   resolveDefaultShortcutChord,
   resolveDefaultRuleSwitcherShortcutChord,
   shortcutChordToElectronAccelerator,
+  type ActiveInputDeviceFallback,
   type AppState,
   type AppSettings,
   type DashboardStats,
@@ -49,7 +50,10 @@ export interface DesktopStateStore {
   setRecentSessions: (sessions: DictationSessionRecord[]) => void;
   setDashboardStats: (dashboardStats: DashboardStats) => void;
   setPhase: (phase: DictationPhase) => void;
-  startListening: (detail?: string) => void;
+  startListening: (options?: {
+    detail?: string;
+    inputDeviceFallback?: ActiveInputDeviceFallback | null;
+  }) => void;
   startTranscribing: () => void;
   startPolishing: () => void;
   completeRecording: () => void;
@@ -91,6 +95,7 @@ function createInitialState(options: { appVersion: string }): AppState {
       version: options.appVersion,
     },
     phase: 'idle',
+    activeInputDeviceFallback: null,
     shortcut: toShortcutState(defaultShortcutChord, 'Inspecting dictation shortcut support...'),
     ruleSwitcherShortcut: toShortcutState(
       defaultRuleSwitcherShortcutChord,
@@ -287,16 +292,20 @@ export function createDesktopStateStore(initialStateOptions: {
     setPhase(phase) {
       commit((draft) => {
         draft.phase = phase;
+        if (phase !== 'listening') {
+          draft.activeInputDeviceFallback = null;
+        }
       });
     },
 
-    startListening(detail) {
+    startListening(options) {
       commit((draft) => {
         draft.phase = 'listening';
+        draft.activeInputDeviceFallback = options?.inputDeviceFallback ?? null;
         draft.lastPasteAttempt = {
           helper: draft.lastPasteAttempt.helper,
           status: 'idle',
-          detail: detail ?? 'Recording microphone audio...',
+          detail: options?.detail ?? 'Recording microphone audio...',
         };
       });
     },
@@ -304,6 +313,7 @@ export function createDesktopStateStore(initialStateOptions: {
     startTranscribing() {
       commit((draft) => {
         draft.phase = 'transcribing';
+        draft.activeInputDeviceFallback = null;
         draft.lastPasteAttempt = {
           helper: draft.lastPasteAttempt.helper,
           status: 'idle',
@@ -315,6 +325,7 @@ export function createDesktopStateStore(initialStateOptions: {
     startPolishing() {
       commit((draft) => {
         draft.phase = 'polishing';
+        draft.activeInputDeviceFallback = null;
         draft.lastPasteAttempt = {
           helper: draft.lastPasteAttempt.helper,
           status: 'idle',
@@ -326,6 +337,7 @@ export function createDesktopStateStore(initialStateOptions: {
     completeRecording() {
       commit((draft) => {
         draft.phase = 'idle';
+        draft.activeInputDeviceFallback = null;
         draft.lastPasteAttempt = {
           helper: draft.lastPasteAttempt.helper,
           status: 'idle',
@@ -337,6 +349,7 @@ export function createDesktopStateStore(initialStateOptions: {
     noSpeechDetected() {
       commit((draft) => {
         draft.phase = 'no_speech';
+        draft.activeInputDeviceFallback = null;
         draft.lastPasteAttempt = {
           helper: draft.lastPasteAttempt.helper,
           status: 'idle',
@@ -348,6 +361,7 @@ export function createDesktopStateStore(initialStateOptions: {
     cancelDictation() {
       commit((draft) => {
         draft.phase = 'cancelled';
+        draft.activeInputDeviceFallback = null;
         draft.lastPasteAttempt = {
           helper: draft.lastPasteAttempt.helper,
           status: 'idle',
@@ -359,6 +373,7 @@ export function createDesktopStateStore(initialStateOptions: {
     failDictation(detail) {
       commit((draft) => {
         draft.phase = 'failed';
+        draft.activeInputDeviceFallback = null;
         draft.lastPasteAttempt = {
           helper: draft.lastPasteAttempt.helper,
           status: 'failed',
@@ -392,6 +407,7 @@ export function createDesktopStateStore(initialStateOptions: {
         };
 
         draft.phase = 'idle';
+        draft.activeInputDeviceFallback = null;
         draft.lastTranscript = transcript;
         draft.lastPasteAttempt = pasteAttempt;
         draft.recentSessions = [

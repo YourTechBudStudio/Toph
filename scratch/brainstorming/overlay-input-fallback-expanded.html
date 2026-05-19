@@ -1,0 +1,373 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Toph overlay — input fallback while listening</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --canvas: #24273a;
+        --canvas-elevated: #363a4f;
+        --text-primary: #cad3f5;
+        --text-secondary: #a5adcb;
+        --text-tertiary: #6e738d;
+        --accent-amber: #f5a97f;
+        --accent-cyan: #91d7e3;
+        --accent-red: #ed8796;
+        --border: rgba(255, 255, 255, 0.08);
+        font-family: "Source Sans 3", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+          "Segoe UI", sans-serif;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        min-height: 100vh;
+        margin: 0;
+        color: var(--text-primary);
+        background:
+          linear-gradient(145deg, rgba(138, 173, 244, 0.06), transparent 40%),
+          linear-gradient(35deg, rgba(145, 215, 227, 0.04), transparent 48%),
+          var(--canvas);
+      }
+
+      main {
+        width: min(760px, calc(100vw - 40px));
+        margin: 0 auto;
+        padding: 44px 0 56px;
+      }
+
+      h1 {
+        margin: 0 0 8px;
+        font-family: Sora, ui-sans-serif, system-ui, sans-serif;
+        font-size: 26px;
+        letter-spacing: -0.03em;
+      }
+
+      .intro {
+        max-width: 600px;
+        margin: 0 0 30px;
+        color: var(--text-secondary);
+        font-size: 14px;
+        line-height: 1.55;
+      }
+
+      .stage {
+        display: grid;
+        gap: 24px;
+      }
+
+      .scene {
+        position: relative;
+        min-height: 190px;
+        overflow: hidden;
+        border: 1px solid rgba(255, 255, 255, 0.06);
+        border-radius: 28px;
+        background:
+          radial-gradient(circle at 50% 112%, rgba(0, 0, 0, 0.42), transparent 36%),
+          linear-gradient(180deg, rgba(255, 255, 255, 0.035), rgba(255, 255, 255, 0.008)),
+          rgba(36, 39, 58, 0.55);
+      }
+
+      .scene::before {
+        content: "";
+        position: absolute;
+        inset: auto 18% 0;
+        height: 1px;
+        background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.12), transparent);
+      }
+
+      .scene-label {
+        position: absolute;
+        top: 18px;
+        left: 22px;
+        color: var(--text-tertiary);
+        font-size: 12px;
+        font-weight: 800;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+      }
+
+      .overlay-anchor {
+        position: absolute;
+        right: 0;
+        bottom: 0;
+        left: 0;
+        display: grid;
+        place-items: end center;
+        padding-bottom: 8px;
+      }
+
+      .pill {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        overflow: hidden;
+        border: 1px solid var(--border);
+        background: rgba(36, 39, 58, 0.95);
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+        backdrop-filter: blur(18px);
+      }
+
+      .pill.normal {
+        min-width: 164px;
+        height: 44px;
+        border-radius: 999px;
+      }
+
+      .pill.expanded {
+        width: min(520px, calc(100vw - 86px));
+        min-height: 66px;
+        border-radius: 28px;
+        border-color: rgba(245, 169, 127, 0.24);
+        background:
+          linear-gradient(90deg, rgba(245, 169, 127, 0.09), transparent 48%),
+          rgba(36, 39, 58, 0.97);
+      }
+
+      .pill-content {
+        display: flex;
+        width: 100%;
+        align-items: center;
+        gap: 12px;
+        padding: 0 16px;
+      }
+
+      .activity-slot {
+        display: grid;
+        width: 20px;
+        height: 20px;
+        flex: 0 0 auto;
+        place-items: center;
+      }
+
+      .wave {
+        display: flex;
+        height: 15px;
+        align-items: center;
+        gap: 3px;
+      }
+
+      .wave span {
+        width: 4px;
+        border-radius: 999px;
+        background: var(--text-primary);
+        animation: wave 1s ease-in-out infinite;
+      }
+
+      .wave span:nth-child(1) {
+        height: 8px;
+      }
+
+      .wave span:nth-child(2) {
+        height: 12px;
+        animation-delay: 0.12s;
+      }
+
+      .wave span:nth-child(3) {
+        height: 15px;
+        animation-delay: 0.24s;
+      }
+
+      .wave span:nth-child(4) {
+        height: 10px;
+        animation-delay: 0.36s;
+      }
+
+      .copy {
+        min-width: 0;
+        flex: 1;
+      }
+
+      .title {
+        margin: 0;
+        color: var(--text-primary);
+        font-size: 15px;
+        font-weight: 700;
+        letter-spacing: -0.01em;
+        white-space: nowrap;
+      }
+
+      .expanded .title {
+        font-size: 13px;
+        color: var(--text-secondary);
+      }
+
+      .notice {
+        display: flex;
+        min-width: 0;
+        align-items: center;
+        gap: 8px;
+        margin-top: 1px;
+        color: var(--text-primary);
+        font-size: 14px;
+        font-weight: 700;
+        letter-spacing: -0.01em;
+        white-space: nowrap;
+      }
+
+      .notice strong {
+        color: var(--accent-amber);
+        font-weight: 800;
+      }
+
+      .notice .device {
+        overflow: hidden;
+        color: var(--text-secondary);
+        font-weight: 650;
+        text-overflow: ellipsis;
+      }
+
+      .amber-dot {
+        width: 7px;
+        height: 7px;
+        flex: 0 0 auto;
+        border-radius: 999px;
+        background: var(--accent-amber);
+        box-shadow: 0 0 0 4px rgba(245, 169, 127, 0.12);
+      }
+
+      .cancel {
+        display: grid;
+        width: 24px;
+        height: 24px;
+        flex: 0 0 auto;
+        place-items: center;
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 999px;
+        color: var(--text-secondary);
+        background: rgba(255, 255, 255, 0.06);
+        font-size: 18px;
+        line-height: 1;
+      }
+
+      .copy-variant {
+        display: grid;
+        gap: 16px;
+      }
+
+      .copy-chip {
+        display: inline-flex;
+        width: fit-content;
+        align-items: center;
+        gap: 8px;
+        margin: 0 auto;
+        padding: 7px 10px;
+        border: 1px solid rgba(255, 255, 255, 0.06);
+        border-radius: 999px;
+        color: var(--text-tertiary);
+        background: rgba(255, 255, 255, 0.035);
+        font-size: 12px;
+        font-weight: 700;
+      }
+
+      @keyframes wave {
+        0%,
+        100% {
+          transform: scaleY(0.65);
+          opacity: 0.52;
+        }
+
+        50% {
+          transform: scaleY(1.1);
+          opacity: 1;
+        }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        *,
+        *::before,
+        *::after {
+          animation: none !important;
+          transition: none !important;
+        }
+      }
+
+      @media (max-width: 560px) {
+        .pill.expanded {
+          width: calc(100vw - 48px);
+        }
+
+        .notice {
+          white-space: normal;
+          line-height: 1.2;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Overlay notice while Toph is listening</h1>
+      <p class="intro">
+        The listening pill keeps its original wave and cancel affordance, then grows upward and
+        sideways only when the input fallback notice needs to be shown.
+      </p>
+
+      <div class="stage">
+        <section class="scene" aria-label="Normal listening overlay">
+          <div class="scene-label">Normal listening</div>
+          <div class="overlay-anchor">
+            <div class="pill normal">
+              <div class="pill-content">
+                <div class="activity-slot" aria-hidden="true">
+                  <div class="wave"><span></span><span></span><span></span><span></span></div>
+                </div>
+                <div class="copy">
+                  <p class="title">Listening...</p>
+                </div>
+                <div class="cancel" aria-hidden="true">×</div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="scene copy-variant" aria-label="Expanded input fallback overlay">
+          <div class="scene-label">Expanded fallback notice</div>
+          <div class="overlay-anchor">
+            <div class="pill expanded">
+              <div class="pill-content">
+                <div class="activity-slot" aria-hidden="true">
+                  <div class="wave"><span></span><span></span><span></span><span></span></div>
+                </div>
+                <div class="copy">
+                  <p class="title">Listening...</p>
+                  <div class="notice">
+                    <span class="amber-dot" aria-hidden="true"></span>
+                    <strong>Using default input</strong>
+                    <span class="device">MacBook Pro Microphone</span>
+                  </div>
+                </div>
+                <div class="cancel" aria-hidden="true">×</div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="scene copy-variant" aria-label="Alternate expanded input fallback overlay">
+          <div class="scene-label">Slightly more explicit copy</div>
+          <div class="overlay-anchor">
+            <div class="pill expanded">
+              <div class="pill-content">
+                <div class="activity-slot" aria-hidden="true">
+                  <div class="wave"><span></span><span></span><span></span><span></span></div>
+                </div>
+                <div class="copy">
+                  <p class="title">Listening...</p>
+                  <div class="notice">
+                    <span class="amber-dot" aria-hidden="true"></span>
+                    <strong>Falling back to default</strong>
+                    <span class="device">MacBook Pro Microphone</span>
+                  </div>
+                </div>
+                <div class="cancel" aria-hidden="true">×</div>
+              </div>
+            </div>
+          </div>
+        </section>
+      </div>
+    </main>
+  </body>
+</html>

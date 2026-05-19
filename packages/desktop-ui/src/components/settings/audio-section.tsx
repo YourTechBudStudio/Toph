@@ -87,10 +87,8 @@ export function AudioSection({
   inputPreference,
   outputPreference,
   disabled,
-  refreshing,
   inputTesting,
   inputEnergy,
-  onRefresh,
   onInputDeviceChange,
   onOutputDeviceChange,
   onStartInputTest,
@@ -101,10 +99,8 @@ export function AudioSection({
   inputPreference: AudioDevicePreference;
   outputPreference: AudioDevicePreference;
   disabled?: boolean;
-  refreshing?: boolean;
   inputTesting: boolean;
   inputEnergy: number;
-  onRefresh: () => void;
   onInputDeviceChange: (device: AudioDevicePreference) => void;
   onOutputDeviceChange: (device: AudioDevicePreference) => void;
   onStartInputTest: () => void;
@@ -121,25 +117,17 @@ export function AudioSection({
       eyebrow="Audio"
       description="Choose where Toph listens and where the tiny confirmation sounds go. System Default follows your OS dynamically."
       footer={
-        <div className="flex items-center justify-between gap-3 max-[560px]:flex-col max-[560px]:items-start">
-          <span>
-            Specific devices are remembered. If one disappears, Toph temporarily falls back to the
-            system default.
-          </span>
-          <Button variant="ghost" onClick={onRefresh} disabled={refreshing}>
-            {refreshing ? 'Refreshing...' : 'Refresh devices'}
-          </Button>
-        </div>
+        <span>
+          Specific devices are remembered. If one disappears, Toph temporarily falls back to the
+          system default.
+        </span>
       }
     >
       <SettingsRow
         label="Input device"
         description={
           state.input.fallbackUsed ? (
-            <span className="text-accent-amber">
-              {selectedInputLabel ?? 'Selected microphone'} is unavailable. Using System Default -{' '}
-              {state.input.resolvedLabel}.
-            </span>
+            `Selected microphone: ${selectedInputLabel ?? 'Unavailable device'}`
           ) : (
             `Currently using ${inputPreference.id === SYSTEM_DEFAULT_AUDIO_DEVICE_ID ? 'System Default - ' : ''}${state.input.resolvedLabel}`
           )
@@ -153,7 +141,7 @@ export function AudioSection({
             </svg>
           </SettingsIcon>
         }
-        className="max-[760px]:items-start max-[760px]:flex-col"
+        className={`${state.input.fallbackUsed ? 'border-b-0 pb-2' : ''} max-[760px]:items-start max-[760px]:flex-col`}
       >
         <SettingsSelect
           items={inputItems}
@@ -170,6 +158,19 @@ export function AudioSection({
           {inputTesting ? 'Stop test' : 'Start test'}
         </Button>
       </SettingsRow>
+
+      {state.input.fallbackUsed && (
+        <div className="border-b border-white/5 px-4 pb-3">
+          <div className="ml-11 flex gap-2 rounded-xl border border-accent-amber/16 bg-accent-amber/8 px-3 py-2 text-xs leading-relaxed text-text-secondary max-[760px]:ml-0">
+            <span className="mt-1 size-1.5 shrink-0 rounded-full bg-accent-amber shadow-[0_0_0_4px_rgba(245,169,127,0.12)]" />
+            <span>
+              <span className="font-semibold text-accent-amber">Using default input.</span>{' '}
+              {selectedInputLabel ?? 'The selected microphone'} is unavailable, so Toph is
+              listening through {state.input.resolvedLabel} for now.
+            </span>
+          </div>
+        </div>
+      )}
 
       {inputTesting && (
         <SettingsRow label="Input level" description="Actual microphone energy, not decorative lies.">

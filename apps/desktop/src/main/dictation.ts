@@ -1,3 +1,5 @@
+import type { ActiveInputDeviceFallback } from '@toph/desktop-contracts';
+
 import type { RawAudioRecorder } from './managers/audio-recorder';
 import type { ClipboardManager } from './managers/clipboard';
 import type { WindowManager } from './managers/windows';
@@ -537,15 +539,23 @@ export function createDictationController(options: {
       }
 
       const inputDevicePreference = options.settingsStore.getSettings().audio.inputDevice;
-      let inputDeviceFallbackUsed = false;
+      const inputDeviceFallbackRef: { current: ActiveInputDeviceFallback | null } = {
+        current: null,
+      };
       await options.audioRecorder.start({
         sessionId: session.id,
         outputPath: session.rawAudioPath,
         inputDeviceId: inputDevicePreference.id === 'default' ? null : inputDevicePreference.id,
-        onInputDeviceFallback: () => {
-          inputDeviceFallbackUsed = true;
+        onInputDeviceFallback: ({ defaultLabel }) => {
+          inputDeviceFallbackRef.current = {
+            selectedLabel: inputDevicePreference.label,
+            defaultLabel,
+          };
+          const defaultInputDescription = defaultLabel
+            ? `system default microphone (${defaultLabel})`
+            : 'system default microphone';
           console.warn(
-            `${inputDevicePreference.label ?? 'Selected microphone'} is unavailable. Recording with the system default microphone.`,
+            `${inputDevicePreference.label ?? 'Selected microphone'} is unavailable. Recording with the ${defaultInputDescription}.`,
           );
         },
         onPcmChunk: async (chunk) => {
@@ -630,9 +640,13 @@ export function createDictationController(options: {
       }
 
       lifecycle = 'listening';
+      const inputDeviceFallback = inputDeviceFallbackRef.current;
       options.stateStore.startListening(
-        inputDeviceFallbackUsed
-          ? `${inputDevicePreference.label ?? 'Selected microphone'} is unavailable. Recording with system default microphone.`
+        inputDeviceFallback
+          ? {
+              detail: `Using default input${inputDeviceFallback.defaultLabel ? ` - ${inputDeviceFallback.defaultLabel}` : ''}.`,
+              inputDeviceFallback,
+            }
           : undefined,
       );
       options.windows.showOverlay();

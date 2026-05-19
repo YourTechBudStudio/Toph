@@ -10,6 +10,7 @@ const baseState: AppState = {
     version: '0.0.2',
   },
   phase: 'transcribing',
+  activeInputDeviceFallback: null,
   shortcut: {
     chord: { modifiers: ['control', 'alt'], key: 'Space' },
     accelerator: 'Control+Alt+Space',
@@ -206,6 +207,26 @@ describe('OverlayApp', () => {
     );
 
     await screen.findByRole('heading', { name: 'Polishing...' });
+  });
+
+  it('renders the input fallback notice while listening', async () => {
+    render(
+      <OverlayApp
+        client={createClient({
+          ...baseState,
+          phase: 'listening',
+          activeInputDeviceFallback: {
+            selectedLabel: 'Shure MV7',
+            defaultLabel: 'MacBook Pro Microphone',
+          },
+        })}
+        soundsEnabled={false}
+      />,
+    );
+
+    await screen.findByRole('heading', { name: 'Listening...' });
+    expect(screen.getByText('Using default input')).toBeTruthy();
+    expect(screen.getByText('MacBook Pro Microphone')).toBeTruthy();
   });
 
   it('cancels active dictation from the overlay button', async () => {

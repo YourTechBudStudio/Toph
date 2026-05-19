@@ -24,7 +24,7 @@ export interface RawAudioRecorder {
     outputPath: string;
     inputDeviceId: string | null;
     onPcmChunk?: (chunk: Buffer) => Promise<void> | void;
-    onInputDeviceFallback?: () => void;
+    onInputDeviceFallback?: (fallback: { defaultLabel: string | null }) => void;
   }) => Promise<void>;
   stop: () => Promise<RawAudioRecordingResult>;
   dispose: () => void;
@@ -137,7 +137,8 @@ export function createElectronCaptureAudioRecorder(): RawAudioRecorder {
   let activeOutputPath: string | null = null;
   let wavWriter: WavFileWriter | null = null;
   let activeChunkHandler: ((chunk: Buffer) => Promise<void> | void) | null = null;
-  let activeInputDeviceFallbackHandler: (() => void) | null = null;
+  let activeInputDeviceFallbackHandler: ((fallback: { defaultLabel: string | null }) => void) | null =
+    null;
   let startDeferred: ReturnType<typeof createDeferred<void>> | null = null;
   let stopDeferred: ReturnType<typeof createDeferred<void>> | null = null;
   let captureError: Error | null = null;
@@ -191,7 +192,9 @@ export function createElectronCaptureAudioRecorder(): RawAudioRecorder {
     startDeferred?.resolve();
     startDeferred = null;
     if (message.inputDeviceFallbackUsed) {
-      activeInputDeviceFallbackHandler?.();
+      activeInputDeviceFallbackHandler?.({
+        defaultLabel: message.inputDeviceFallbackLabel ?? null,
+      });
     }
   };
 

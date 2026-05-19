@@ -1,3 +1,5 @@
+import { normalizeAudioDeviceLabel } from '@toph/desktop-contracts';
+
 let stream: MediaStream | null = null;
 let audioContext: AudioContext | null = null;
 let sourceNode: MediaStreamAudioSourceNode | null = null;
@@ -63,6 +65,7 @@ async function startCapture({
     ...(inputDeviceId ? { deviceId: { exact: inputDeviceId } } : {}),
   };
   let inputDeviceFallbackUsed = false;
+  let inputDeviceFallbackLabel: string | null = null;
 
   try {
     stream = await navigator.mediaDevices.getUserMedia({
@@ -84,6 +87,10 @@ async function startCapture({
       },
       video: false,
     });
+    const fallbackTrackLabel = stream.getAudioTracks()[0]?.label;
+    inputDeviceFallbackLabel = fallbackTrackLabel
+      ? normalizeAudioDeviceLabel(fallbackTrackLabel)
+      : null;
   }
 
   audioContext = new AudioContext({ sampleRate });
@@ -108,7 +115,11 @@ async function startCapture({
   processorNode.connect(muteNode);
   muteNode.connect(audioContext.destination);
 
-  window.tophCapture.sendStarted({ sessionId, inputDeviceFallbackUsed });
+  window.tophCapture.sendStarted({
+    sessionId,
+    inputDeviceFallbackUsed,
+    inputDeviceFallbackLabel,
+  });
 }
 
 window.tophCapture.onStart((request) => {

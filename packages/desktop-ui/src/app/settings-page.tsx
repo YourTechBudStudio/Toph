@@ -144,10 +144,8 @@ export function SettingsPage({
           inputPreference={state.settings.audio.inputDevice}
           outputPreference={state.settings.audio.outputDevice}
           disabled={!settingsEditable || busySettings}
-          refreshing={audioDevices.refreshing}
           inputTesting={audioDevices.inputTesting}
           inputEnergy={audioDevices.inputEnergy}
-          onRefresh={() => void audioDevices.refresh()}
           onInputDeviceChange={(device) =>
             void updateSetting(() => client.setAudioInputDevice(device))
           }

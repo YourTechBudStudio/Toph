@@ -350,6 +350,9 @@ export type ProviderConnectionStatus = 'missing' | 'connecting' | 'connected' | 
 export type ProviderBillingMode = 'subscription' | 'metered' | 'local' | 'unknown';
 export const SYSTEM_DEFAULT_AUDIO_DEVICE_ID = 'default';
 export type AudioDeviceKind = 'input' | 'output';
+export function normalizeAudioDeviceLabel(label: string) {
+  return label.trim().replace(/^Default\s*-\s*/i, '');
+}
 export type AudioDevicePreference = {
   id: typeof SYSTEM_DEFAULT_AUDIO_DEVICE_ID | string;
   label: string | null;
@@ -367,6 +370,10 @@ export type AudioDeviceResolution = {
   fallbackUsed: boolean;
   fallbackReason: 'missing-device' | null;
 };
+export interface ActiveInputDeviceFallback {
+  selectedLabel: string | null;
+  defaultLabel: string | null;
+}
 export interface AudioDeviceState {
   inputs: AudioDeviceInfo[];
   outputs: AudioDeviceInfo[];
@@ -610,6 +617,7 @@ export interface AppState {
     version: string;
   };
   phase: DictationPhase;
+  activeInputDeviceFallback: ActiveInputDeviceFallback | null;
   shortcut: ShortcutRegistrationState;
   ruleSwitcherShortcut: ShortcutRegistrationState;
   ruleSwitcher: {
@@ -702,6 +710,7 @@ export interface CaptureChunkMessage {
 export interface CaptureLifecycleMessage {
   sessionId: string;
   inputDeviceFallbackUsed?: boolean;
+  inputDeviceFallbackLabel?: string | null;
 }
 
 export interface CaptureErrorMessage {
