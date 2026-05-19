@@ -40,22 +40,51 @@ async function stopCapture() {
   }
 }
 
-async function startCapture({ sessionId, sampleRate }: { sessionId: string; sampleRate: number }) {
+async function startCapture({
+  sessionId,
+  sampleRate,
+  inputDeviceId,
+}: {
+  sessionId: string;
+  sampleRate: number;
+  inputDeviceId: string | null;
+}) {
   if (activeSessionId) {
     await stopCapture();
   }
 
   activeSessionId = sessionId;
 
-  stream = await navigator.mediaDevices.getUserMedia({
-    audio: {
-      channelCount: 1,
-      echoCancellation: false,
-      noiseSuppression: false,
-      autoGainControl: false,
-    },
-    video: false,
-  });
+  const audioConstraints: MediaTrackConstraints = {
+    channelCount: 1,
+    echoCancellation: false,
+    noiseSuppression: false,
+    autoGainControl: false,
+    ...(inputDeviceId ? { deviceId: { exact: inputDeviceId } } : {}),
+  };
+  let inputDeviceFallbackUsed = false;
+
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({
+      audio: audioConstraints,
+      video: false,
+    });
+  } catch (error) {
+    if (!inputDeviceId) {
+      throw error;
+    }
+
+    inputDeviceFallbackUsed = true;
+    stream = await navigator.mediaDevices.getUserMedia({
+      audio: {
+        channelCount: 1,
+        echoCancellation: false,
+        noiseSuppression: false,
+        autoGainControl: false,
+      },
+      video: false,
+    });
+  }
 
   audioContext = new AudioContext({ sampleRate });
   sourceNode = audioContext.createMediaStreamSource(stream);
@@ -79,7 +108,7 @@ async function startCapture({ sessionId, sampleRate }: { sessionId: string; samp
   processorNode.connect(muteNode);
   muteNode.connect(audioContext.destination);
 
-  window.tophCapture.sendStarted({ sessionId });
+  window.tophCapture.sendStarted({ sessionId, inputDeviceFallbackUsed });
 }
 
 window.tophCapture.onStart((request) => {

@@ -514,6 +514,16 @@ export async function bootstrap(options: {
         throw new Error('Settings cannot be changed while dictation is active.');
       await settingsStore.setInferenceModel(model);
     },
+    setAudioInputDevice: async (device) => {
+      if (stateStore.getState().phase !== 'idle')
+        throw new Error('Settings cannot be changed while dictation is active.');
+      await settingsStore.setAudioInputDevice(device);
+    },
+    setAudioOutputDevice: async (device) => {
+      if (stateStore.getState().phase !== 'idle')
+        throw new Error('Settings cannot be changed while dictation is active.');
+      await settingsStore.setAudioOutputDevice(device);
+    },
     setPolishEnabled: async (enabled) => {
       if (stateStore.getState().phase !== 'idle')
         throw new Error('Settings cannot be changed while dictation is active.');

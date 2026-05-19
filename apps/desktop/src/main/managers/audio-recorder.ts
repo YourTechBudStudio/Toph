@@ -22,7 +22,9 @@ export interface RawAudioRecorder {
   start: (options: {
     sessionId: string;
     outputPath: string;
+    inputDeviceId: string | null;
     onPcmChunk?: (chunk: Buffer) => Promise<void> | void;
+    onInputDeviceFallback?: () => void;
   }) => Promise<void>;
   stop: () => Promise<RawAudioRecordingResult>;
   dispose: () => void;
@@ -135,6 +137,7 @@ export function createElectronCaptureAudioRecorder(): RawAudioRecorder {
   let activeOutputPath: string | null = null;
   let wavWriter: WavFileWriter | null = null;
   let activeChunkHandler: ((chunk: Buffer) => Promise<void> | void) | null = null;
+  let activeInputDeviceFallbackHandler: (() => void) | null = null;
   let startDeferred: ReturnType<typeof createDeferred<void>> | null = null;
   let stopDeferred: ReturnType<typeof createDeferred<void>> | null = null;
   let captureError: Error | null = null;
@@ -187,6 +190,9 @@ export function createElectronCaptureAudioRecorder(): RawAudioRecorder {
 
     startDeferred?.resolve();
     startDeferred = null;
+    if (message.inputDeviceFallbackUsed) {
+      activeInputDeviceFallbackHandler?.();
+    }
   };
 
   const handleStopped = (_event: Electron.IpcMainEvent, message: CaptureLifecycleMessage) => {
@@ -250,7 +256,7 @@ export function createElectronCaptureAudioRecorder(): RawAudioRecorder {
   ipcMain.on(DESKTOP_CAPTURE_IPC_CHANNELS.error, handleError);
 
   return {
-    async start({ sessionId, outputPath, onPcmChunk }) {
+    async start({ sessionId, outputPath, inputDeviceId, onPcmChunk, onInputDeviceFallback }) {
       if (activeSessionId) {
         throw new Error('Audio recording is already active.');
       }
@@ -262,11 +268,16 @@ export function createElectronCaptureAudioRecorder(): RawAudioRecorder {
         activeSessionId = sessionId;
         activeOutputPath = outputPath;
         activeChunkHandler = onPcmChunk ?? null;
+        activeInputDeviceFallbackHandler = onInputDeviceFallback ?? null;
         captureError = null;
         wavWriter = new WavFileWriter(outputPath);
         startDeferred = createDeferred<void>();
 
-        window.webContents.send(DESKTOP_CAPTURE_IPC_CHANNELS.start, { sessionId, sampleRate });
+        window.webContents.send(DESKTOP_CAPTURE_IPC_CHANNELS.start, {
+          sessionId,
+          sampleRate,
+          inputDeviceId,
+        });
 
         await withTimeout(
           startDeferred.promise,
@@ -286,6 +297,7 @@ export function createElectronCaptureAudioRecorder(): RawAudioRecorder {
         activeSessionId = null;
         activeOutputPath = null;
         activeChunkHandler = null;
+        activeInputDeviceFallbackHandler = null;
         startDeferred = null;
         throw error;
       }
@@ -310,6 +322,7 @@ export function createElectronCaptureAudioRecorder(): RawAudioRecorder {
         activeSessionId = null;
         activeOutputPath = null;
         activeChunkHandler = null;
+        activeInputDeviceFallbackHandler = null;
         wavWriter = null;
         stopDeferred = null;
         failedWriter?.finalize();
@@ -323,6 +336,7 @@ export function createElectronCaptureAudioRecorder(): RawAudioRecorder {
         activeSessionId = null;
         activeOutputPath = null;
         activeChunkHandler = null;
+        activeInputDeviceFallbackHandler = null;
         wavWriter = null;
         stopDeferred = null;
         captureError = null;
@@ -334,6 +348,7 @@ export function createElectronCaptureAudioRecorder(): RawAudioRecorder {
       activeSessionId = null;
       activeOutputPath = null;
       activeChunkHandler = null;
+      activeInputDeviceFallbackHandler = null;
       wavWriter = null;
       stopDeferred = null;
       captureError = null;
@@ -356,6 +371,7 @@ export function createElectronCaptureAudioRecorder(): RawAudioRecorder {
       activeSessionId = null;
       activeOutputPath = null;
       activeChunkHandler = null;
+      activeInputDeviceFallbackHandler = null;
       destroyCaptureWindow();
     },
   };

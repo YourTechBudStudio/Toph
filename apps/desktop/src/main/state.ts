@@ -49,7 +49,7 @@ export interface DesktopStateStore {
   setRecentSessions: (sessions: DictationSessionRecord[]) => void;
   setDashboardStats: (dashboardStats: DashboardStats) => void;
   setPhase: (phase: DictationPhase) => void;
-  startListening: () => void;
+  startListening: (detail?: string) => void;
   startTranscribing: () => void;
   startPolishing: () => void;
   completeRecording: () => void;
@@ -290,13 +290,13 @@ export function createDesktopStateStore(initialStateOptions: {
       });
     },
 
-    startListening() {
+    startListening(detail) {
       commit((draft) => {
         draft.phase = 'listening';
         draft.lastPasteAttempt = {
           helper: draft.lastPasteAttempt.helper,
           status: 'idle',
-          detail: 'Recording microphone audio...',
+          detail: detail ?? 'Recording microphone audio...',
         };
       });
     },

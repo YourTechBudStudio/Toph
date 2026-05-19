@@ -4,12 +4,14 @@ import { type AppState, type DesktopApi, type ProviderId } from '@toph/desktop-c
 
 import { AppBackdrop } from '../components/app-backdrop';
 import { Button } from '../components/button';
+import { AudioSection } from '../components/settings/audio-section';
 import { DiagnosticsSection } from '../components/settings/diagnostics-section';
 import { PolishSection } from '../components/settings/polish-section';
 import { ProviderSection } from '../components/settings/provider-section';
 import { RoutingSection } from '../components/settings/routing-section';
 import { ShortcutSection } from '../components/settings/shortcut-section';
 import { WindowDragRegion } from '../components/window-drag-region';
+import { useAudioDevices } from '../hooks/use-audio-devices';
 
 export function SettingsPage({
   state,
@@ -23,6 +25,10 @@ export function SettingsPage({
   const [busyProvider, setBusyProvider] = useState<string | null>(null);
   const [busyPolish, setBusyPolish] = useState(false);
   const [busySettings, setBusySettings] = useState(false);
+  const audioDevices = useAudioDevices(
+    state.settings.audio.inputDevice,
+    state.settings.audio.outputDevice,
+  );
   const provider = state.providers.providers[0];
   const settingsEditable = state.phase === 'idle';
 
@@ -131,6 +137,26 @@ export function SettingsPage({
           onInferenceModelChange={(model) =>
             void updateSetting(() => client.setInferenceModel(model))
           }
+        />
+
+        <AudioSection
+          state={audioDevices.state}
+          inputPreference={state.settings.audio.inputDevice}
+          outputPreference={state.settings.audio.outputDevice}
+          disabled={!settingsEditable || busySettings}
+          refreshing={audioDevices.refreshing}
+          inputTesting={audioDevices.inputTesting}
+          inputEnergy={audioDevices.inputEnergy}
+          onRefresh={() => void audioDevices.refresh()}
+          onInputDeviceChange={(device) =>
+            void updateSetting(() => client.setAudioInputDevice(device))
+          }
+          onOutputDeviceChange={(device) =>
+            void updateSetting(() => client.setAudioOutputDevice(device))
+          }
+          onStartInputTest={() => void audioDevices.startInputTest()}
+          onStopInputTest={audioDevices.stopInputTest}
+          onPlayOutputTest={() => void audioDevices.playOutputTest()}
         />
 
         <PolishSection

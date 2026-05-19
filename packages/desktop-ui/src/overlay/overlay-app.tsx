@@ -1,6 +1,10 @@
-import { useEffect, useRef, useState, type CSSProperties } from 'react';
+import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react';
 
-import { OVERLAY_WINDOW_GEOMETRY, type DesktopApi } from '@toph/desktop-contracts';
+import {
+  OVERLAY_WINDOW_GEOMETRY,
+  SYSTEM_DEFAULT_AUDIO_DEVICE_ID,
+  type DesktopApi,
+} from '@toph/desktop-contracts';
 
 import { useDesktopState } from '../hooks/use-desktop-state';
 import { useOverlaySounds } from '../hooks/use-overlay-sounds';
@@ -83,8 +87,19 @@ export function OverlayApp({
   const [pendingRuleSelection, setPendingRuleSelection] = useState<PendingRuleSelection | null>(
     null,
   );
+  const [audioFallbackNotice, setAudioFallbackNotice] = useState<string | null>(null);
   const state = useDesktopState(client);
-  useOverlaySounds(client, soundsEnabled);
+  const showAudioFallback = useCallback((device: { label: string | null }) => {
+    setAudioFallbackNotice(
+      `${device.label ?? 'Selected output'} is unavailable. Using System Default.`,
+    );
+  }, []);
+  useOverlaySounds(
+    client,
+    soundsEnabled,
+    state?.settings.audio.outputDevice ?? { id: SYSTEM_DEFAULT_AUDIO_DEVICE_ID, label: null },
+    showAudioFallback,
+  );
 
   const phase = state?.phase || 'idle';
   const ruleSwitcherMode = state?.ruleSwitcher.mode ?? 'idle';
@@ -123,11 +138,26 @@ export function OverlayApp({
     !ruleSwitcherClosing && renderedRuleSwitcherContentMode === 'selecting';
   const pillVisualClass = failed
     ? 'h-(--overlay-active-height) min-w-(--overlay-active-min-width) rounded-full border-accent-red/36 bg-[rgba(63,32,45,0.96)] shadow-[0_8px_24px_rgba(0,0,0,0.3)]'
+    : audioFallbackNotice
+      ? 'h-(--overlay-active-height) min-w-80 rounded-full border-accent-amber/28 bg-canvas/95 shadow-[0_8px_24px_rgba(0,0,0,0.3)]'
     : ruleSwitcherExpanded
       ? 'h-(--rule-switcher-height) w-(--rule-switcher-width) rounded-[28px] border-white/8 bg-canvas/98 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]'
       : isIdle
         ? 'h-(--overlay-idle-height) w-(--overlay-idle-width) rounded-full border-white/8 bg-canvas shadow-[0_4px_12px_rgba(0,0,0,0.2)]'
         : 'h-(--overlay-active-height) min-w-(--overlay-active-min-width) rounded-full border-white/8 bg-canvas/95 shadow-[0_8px_24px_rgba(0,0,0,0.3)]';
+
+  useEffect(() => {
+    if (!audioFallbackNotice) {
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      setAudioFallbackNotice(null);
+    }, 4_000);
+    return () => {
+      clearTimeout(timer);
+    };
+  }, [audioFallbackNotice]);
 
   useEffect(() => {
     if (ruleSwitcherMode !== 'idle') {
@@ -208,6 +238,7 @@ export function OverlayApp({
   }, [
     client,
     phase,
+    audioFallbackNotice,
     ruleSwitcherVisible,
     ruleSwitcherExpanded,
     rulePresets.length,
@@ -313,10 +344,12 @@ export function OverlayApp({
           </div>
         ) : (
           <div
-            className={`flex h-full items-center gap-(--overlay-content-gap) px-(--overlay-content-padding-x) transition-[opacity,visibility] duration-200 ease-out ${isIdle ? 'invisible opacity-0 delay-0' : 'visible opacity-100 delay-150'}`}
+            className={`flex h-full items-center gap-(--overlay-content-gap) px-(--overlay-content-padding-x) transition-[opacity,visibility] duration-200 ease-out ${isIdle && !audioFallbackNotice ? 'invisible opacity-0 delay-0' : 'visible opacity-100 delay-150'}`}
           >
             <div className="flex size-(--overlay-activity-slot-size) shrink-0 items-center justify-center">
-              {failed ? (
+              {audioFallbackNotice ? (
+                <span className="size-3.5 rounded-full bg-accent-amber" />
+              ) : failed ? (
                 <span className="size-3.5 rounded-full bg-accent-red" />
               ) : noSpeech || cancelled ? (
                 <span className="size-3.5 rounded-full bg-accent-amber" />
@@ -335,7 +368,9 @@ export function OverlayApp({
             <h2 className="m-0 text-left text-[0.92rem] font-medium tracking-tight whitespace-nowrap text-text-primary">
               {failed
                 ? 'Failed'
-                : noSpeech
+                : audioFallbackNotice
+                  ? audioFallbackNotice
+                  : noSpeech
                   ? 'No speech detected'
                   : cancelled
                     ? 'Cancelled'

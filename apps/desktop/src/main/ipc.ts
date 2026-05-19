@@ -5,8 +5,10 @@ import {
   isShortcutChord,
   PERMISSION_REQUIREMENT_IDS,
   PROVIDER_IDS,
+  SYSTEM_DEFAULT_AUDIO_DEVICE_ID,
   validateShortcutChord,
   type AppState,
+  type AudioDevicePreference,
   type DictionaryEntryDraft,
   type OverlaySize,
   type PermissionRequirementId,
@@ -24,6 +26,20 @@ function isPermissionRequirementId(value: unknown): value is PermissionRequireme
 
 function isProviderId(value: unknown): value is ProviderId {
   return typeof value === 'string' && PROVIDER_IDS.includes(value as ProviderId);
+}
+
+function isAudioDevicePreference(value: unknown): value is AudioDevicePreference {
+  if (typeof value !== 'object' || value === null) {
+    return false;
+  }
+
+  const preference = value as Partial<AudioDevicePreference>;
+  return (
+    typeof preference.id === 'string' &&
+    preference.id.trim().length > 0 &&
+    (preference.id === SYSTEM_DEFAULT_AUDIO_DEVICE_ID || preference.id.trim().length > 0) &&
+    (typeof preference.label === 'string' || preference.label === null)
+  );
 }
 
 function isPolishRulePresetDraft(value: unknown): value is PolishRulePresetDraft {
@@ -75,6 +91,8 @@ export function registerDesktopIpc(options: {
   setTranscriptionModel: (model: string) => Promise<void>;
   setInferenceProvider: (providerId: ProviderId) => Promise<void>;
   setInferenceModel: (model: string) => Promise<void>;
+  setAudioInputDevice: (device: AudioDevicePreference) => Promise<void>;
+  setAudioOutputDevice: (device: AudioDevicePreference) => Promise<void>;
   setPolishEnabled: (enabled: boolean) => Promise<void>;
   setTypingWpm: (typingWpm: number) => Promise<void>;
   setActivePolishRulePreset: (rulePresetId: string) => Promise<void>;
@@ -228,6 +246,18 @@ export function registerDesktopIpc(options: {
     }
     await options.setInferenceModel(model);
   });
+  ipcMain.handle(DESKTOP_IPC_CHANNELS.setAudioInputDevice, async (_event, device: unknown) => {
+    if (!isAudioDevicePreference(device)) {
+      throw new Error('Invalid audio input device.');
+    }
+    await options.setAudioInputDevice(device);
+  });
+  ipcMain.handle(DESKTOP_IPC_CHANNELS.setAudioOutputDevice, async (_event, device: unknown) => {
+    if (!isAudioDevicePreference(device)) {
+      throw new Error('Invalid audio output device.');
+    }
+    await options.setAudioOutputDevice(device);
+  });
   ipcMain.handle(DESKTOP_IPC_CHANNELS.setPolishEnabled, async (_event, enabled: unknown) => {
     if (typeof enabled !== 'boolean') {
       throw new Error('Invalid Polish enabled setting.');
@@ -373,6 +403,8 @@ export function registerDesktopIpc(options: {
     ipcMain.removeHandler(DESKTOP_IPC_CHANNELS.setTranscriptionModel);
     ipcMain.removeHandler(DESKTOP_IPC_CHANNELS.setInferenceProvider);
     ipcMain.removeHandler(DESKTOP_IPC_CHANNELS.setInferenceModel);
+    ipcMain.removeHandler(DESKTOP_IPC_CHANNELS.setAudioInputDevice);
+    ipcMain.removeHandler(DESKTOP_IPC_CHANNELS.setAudioOutputDevice);
     ipcMain.removeHandler(DESKTOP_IPC_CHANNELS.setPolishEnabled);
     ipcMain.removeHandler(DESKTOP_IPC_CHANNELS.setActivePolishRulePreset);
     ipcMain.removeHandler(DESKTOP_IPC_CHANNELS.createPolishRulePreset);

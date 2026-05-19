@@ -5,6 +5,7 @@ import {
   PROVIDER_IDS,
   resolveDefaultShortcutChord,
   resolveDefaultRuleSwitcherShortcutChord,
+  SYSTEM_DEFAULT_AUDIO_DEVICE_ID,
   validateShortcutChord,
   type AppSettings,
   type ProviderId,
@@ -14,6 +15,10 @@ const shortcutModifierSchema = z.enum(['command', 'control', 'option', 'alt', 's
 const shortcutChordSchema = z.object({
   modifiers: z.array(shortcutModifierSchema),
   key: z.string(),
+});
+const audioDevicePreferenceSchema = z.object({
+  id: z.string(),
+  label: z.string().nullable().optional(),
 });
 
 const appSettingsFileSchema = z.object({
@@ -39,6 +44,12 @@ const appSettingsFileSchema = z.object({
     providerId: z.string(),
     model: z.string(),
   }),
+  audio: z
+    .object({
+      inputDevice: audioDevicePreferenceSchema.optional(),
+      outputDevice: audioDevicePreferenceSchema.optional(),
+    })
+    .optional(),
   polish: z.object({
     enabled: z.boolean(),
     rulePresetId: z.string().nullable().optional(),
@@ -83,6 +94,20 @@ function normalizeTypingWpm(typingWpm: number | undefined) {
     typingWpm <= 200
     ? Math.round(typingWpm)
     : defaultAppSettings.dashboard.typingWpm;
+}
+
+function normalizeAudioDevicePreference(
+  value: z.infer<typeof audioDevicePreferenceSchema> | undefined,
+): AppSettings['audio']['inputDevice'] {
+  if (!value || value.id.trim().length === 0) {
+    return { id: SYSTEM_DEFAULT_AUDIO_DEVICE_ID, label: null };
+  }
+
+  const label = value.label?.trim() ?? '';
+  return {
+    id: value.id,
+    label: label.length > 0 ? label : null,
+  };
 }
 
 export function parseAppSettingsFile(value: unknown): AppSettingsFile {
@@ -131,6 +156,10 @@ export function normalizeAppSettings(
         defaultAppSettings.inference.providerId,
       ),
       model: normalizeModel(value.inference.model, defaultAppSettings.inference.model),
+    },
+    audio: {
+      inputDevice: normalizeAudioDevicePreference(value.audio?.inputDevice),
+      outputDevice: normalizeAudioDevicePreference(value.audio?.outputDevice),
     },
     polish: {
       enabled: value.polish.enabled,

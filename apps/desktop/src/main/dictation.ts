@@ -536,9 +536,18 @@ export function createDictationController(options: {
         }
       }
 
+      const inputDevicePreference = options.settingsStore.getSettings().audio.inputDevice;
+      let inputDeviceFallbackUsed = false;
       await options.audioRecorder.start({
         sessionId: session.id,
         outputPath: session.rawAudioPath,
+        inputDeviceId: inputDevicePreference.id === 'default' ? null : inputDevicePreference.id,
+        onInputDeviceFallback: () => {
+          inputDeviceFallbackUsed = true;
+          console.warn(
+            `${inputDevicePreference.label ?? 'Selected microphone'} is unavailable. Recording with the system default microphone.`,
+          );
+        },
         onPcmChunk: async (chunk) => {
           const generation = sessionGeneration;
           const pipelineAtEnqueue = activeLivePipeline;
@@ -621,7 +630,11 @@ export function createDictationController(options: {
       }
 
       lifecycle = 'listening';
-      options.stateStore.startListening();
+      options.stateStore.startListening(
+        inputDeviceFallbackUsed
+          ? `${inputDevicePreference.label ?? 'Selected microphone'} is unavailable. Recording with system default microphone.`
+          : undefined,
+      );
       options.windows.showOverlay();
       options.windows.emitSound('start');
     } catch (error) {

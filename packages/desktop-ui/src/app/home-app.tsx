@@ -338,6 +338,8 @@ export function HomeApp({ client }: { client: DesktopApi }) {
         permissionsReady={state.permissions.ready}
         rulePresets={state.polish.rulePresets}
         activeRulePresetId={state.settings.polish.rulePresetId}
+        audioInputDevice={state.settings.audio.inputDevice}
+        audioOutputDevice={state.settings.audio.outputDevice}
         requirements={state.permissions.requirements}
         client={client}
         onSetupAction={() => setAwaitingSetupContinue(true)}

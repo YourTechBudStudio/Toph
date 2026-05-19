@@ -2,6 +2,7 @@ import { contextBridge, ipcRenderer } from 'electron';
 
 import type {
   AppState,
+  AudioDevicePreference,
   DesktopApi,
   DictionaryEntryDraft,
   OverlaySize,
@@ -86,6 +87,10 @@ const api: DesktopApi = {
     ipcRenderer.invoke(DESKTOP_IPC_CHANNELS.setInferenceProvider, providerId) as Promise<void>,
   setInferenceModel: (model: string) =>
     ipcRenderer.invoke(DESKTOP_IPC_CHANNELS.setInferenceModel, model) as Promise<void>,
+  setAudioInputDevice: (device: AudioDevicePreference) =>
+    ipcRenderer.invoke(DESKTOP_IPC_CHANNELS.setAudioInputDevice, device) as Promise<void>,
+  setAudioOutputDevice: (device: AudioDevicePreference) =>
+    ipcRenderer.invoke(DESKTOP_IPC_CHANNELS.setAudioOutputDevice, device) as Promise<void>,
   setPolishEnabled: (enabled: boolean) =>
     ipcRenderer.invoke(DESKTOP_IPC_CHANNELS.setPolishEnabled, enabled) as Promise<void>,
   setTypingWpm: (typingWpm: number) =>
