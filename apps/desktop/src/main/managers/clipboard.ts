@@ -53,7 +53,9 @@ async function commandExists(command: string): Promise<boolean> {
   }
 }
 
-async function resolveHelper(options: { forceRefresh?: boolean } = {}): Promise<PasteHelper | null> {
+async function resolveHelper(
+  options: { forceRefresh?: boolean } = {},
+): Promise<PasteHelper | null> {
   if (helperPromise && !options.forceRefresh) {
     return helperPromise;
   }

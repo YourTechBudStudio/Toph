@@ -123,10 +123,12 @@ export function createSessionTranscriptionCoordinator(options: {
     }
 
     tasks.add(task);
-    void task.finally(() => {
-      tasks.delete(task);
-      batchTasks.delete(batch.id);
-    }).catch(() => {});
+    void task
+      .finally(() => {
+        tasks.delete(task);
+        batchTasks.delete(batch.id);
+      })
+      .catch(() => {});
   };
 
   const rememberAbortController = (batch: TranscriptionBatch, abortController: AbortController) => {

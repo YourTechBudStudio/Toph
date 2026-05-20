@@ -102,10 +102,7 @@ class ReusableSileroStreamingSpeechActivitySession implements StreamingSpeechAct
     release: () => void;
   };
 
-  constructor(options: {
-    model: SileroModel;
-    release: () => void;
-  }) {
+  constructor(options: { model: SileroModel; release: () => void }) {
     this.options = options;
     options.model.reset_state();
   }

@@ -137,8 +137,9 @@ export function createElectronCaptureAudioRecorder(): RawAudioRecorder {
   let activeOutputPath: string | null = null;
   let wavWriter: WavFileWriter | null = null;
   let activeChunkHandler: ((chunk: Buffer) => Promise<void> | void) | null = null;
-  let activeInputDeviceFallbackHandler: ((fallback: { defaultLabel: string | null }) => void) | null =
-    null;
+  let activeInputDeviceFallbackHandler:
+    | ((fallback: { defaultLabel: string | null }) => void)
+    | null = null;
   let startDeferred: ReturnType<typeof createDeferred<void>> | null = null;
   let stopDeferred: ReturnType<typeof createDeferred<void>> | null = null;
   let captureError: Error | null = null;

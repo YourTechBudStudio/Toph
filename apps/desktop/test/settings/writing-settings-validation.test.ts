@@ -36,7 +36,8 @@ test('normalizes and bounds custom rule presets', () => {
     /80 characters/,
   );
   assert.throws(
-    () => normalizeRulePresetDraft({ title: 'Title', description: 'desc', body: 'x'.repeat(4_001) }),
+    () =>
+      normalizeRulePresetDraft({ title: 'Title', description: 'desc', body: 'x'.repeat(4_001) }),
     /4000 characters/,
   );
 });

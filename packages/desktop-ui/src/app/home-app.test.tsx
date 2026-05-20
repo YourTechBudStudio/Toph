@@ -270,10 +270,12 @@ describe('HomeApp', () => {
       window.dispatchEvent(new Event('focus'));
     });
 
-    await waitFor(() => expect(consoleError).toHaveBeenCalledWith(
-      'Toph could not refresh home readiness.',
-      expect.any(Error),
-    ));
+    await waitFor(() =>
+      expect(consoleError).toHaveBeenCalledWith(
+        'Toph could not refresh home readiness.',
+        expect.any(Error),
+      ),
+    );
 
     consoleError.mockRestore();
   });
@@ -418,7 +420,9 @@ describe('HomeApp', () => {
     fireEvent.click(screen.getByLabelText('Copy debug report'));
     await waitFor(() => {
       expect(writeText).toHaveBeenCalledWith(
-        expect.stringContaining('Error: OpenAI-sub transcription failed: HTTP 500 provider exploded.'),
+        expect.stringContaining(
+          'Error: OpenAI-sub transcription failed: HTTP 500 provider exploded.',
+        ),
       );
     });
   });

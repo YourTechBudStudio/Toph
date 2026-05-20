@@ -199,13 +199,13 @@ export async function bootstrap(options: {
         canRetry: record.rawAudioAvailable,
         selectedOutput: record.selectedOutput
           ? {
-            id: record.selectedOutput.id,
-            text: record.selectedOutput.text,
-            kind: record.selectedOutput.kind,
-            rulePresetId: record.selectedOutput.rulePresetId,
-            rulePresetHash: record.selectedOutput.rulePresetHash,
-            createdAt: record.selectedOutput.createdAt,
-          }
+              id: record.selectedOutput.id,
+              text: record.selectedOutput.text,
+              kind: record.selectedOutput.kind,
+              rulePresetId: record.selectedOutput.rulePresetId,
+              rulePresetHash: record.selectedOutput.rulePresetHash,
+              createdAt: record.selectedOutput.createdAt,
+            }
           : null,
         pasteStatus: 'idle',
         pasteDetail: detailsBySessionId[record.session.id] ?? 'Loaded from local history.',
@@ -254,7 +254,10 @@ export async function bootstrap(options: {
     } catch (error) {
       stateStore.setPasteSupport({
         helper: null,
-        detail: describeUnexpectedError('Desktop paste capabilities could not be inspected.', error),
+        detail: describeUnexpectedError(
+          'Desktop paste capabilities could not be inspected.',
+          error,
+        ),
       });
     }
   };

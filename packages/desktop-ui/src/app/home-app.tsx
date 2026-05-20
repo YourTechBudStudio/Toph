@@ -331,11 +331,14 @@ export function HomeApp({ client }: { client: DesktopApi }) {
       }
 
       homeReadinessRefreshInFlight.current = true;
-      void client.refreshPermissions().catch((error) => {
-        console.error('Toph could not refresh home readiness.', error);
-      }).finally(() => {
-        homeReadinessRefreshInFlight.current = false;
-      });
+      void client
+        .refreshPermissions()
+        .catch((error) => {
+          console.error('Toph could not refresh home readiness.', error);
+        })
+        .finally(() => {
+          homeReadinessRefreshInFlight.current = false;
+        });
     };
 
     window.addEventListener('focus', refreshOnFocus);

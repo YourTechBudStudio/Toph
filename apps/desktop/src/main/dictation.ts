@@ -6,8 +6,8 @@ import type { WindowManager } from './managers/windows';
 import type { SessionOutputService } from './outputs/session-output-service';
 import type { PolishService } from './polish/polish-service';
 import type { SessionSegmentationService } from './segmentation/session-segmentation-service';
-import type { SegmentationPipelineSession } from './segmentation/streaming/segmentation-pipeline-session';
 import { isStreamingVadBusyError } from './segmentation/streaming-vad-runtime';
+import type { SegmentationPipelineSession } from './segmentation/streaming/segmentation-pipeline-session';
 import type { AppSettingsStore } from './settings/app-settings-store';
 import type { DesktopStateStore } from './state';
 import type { RecordingSessionStore } from './stores/session-store';
@@ -178,7 +178,9 @@ export function createDictationController(options: {
   };
 
   const failActiveSession = async (detail: string, error: unknown) => {
-    const message = isStreamingVadBusyError(error) ? detail : describeUnexpectedError(detail, error);
+    const message = isStreamingVadBusyError(error)
+      ? detail
+      : describeUnexpectedError(detail, error);
     const failedSession = activeSession;
     const failedPipeline = activeLivePipeline;
     const pendingLiveProcessing = liveProcessingQueue;
@@ -921,7 +923,11 @@ export function createDictationController(options: {
       lifecycle === 'starting' || lifecycle === 'listening' || Boolean(activeRecorderStop);
 
     if (!session && lifecycle === 'idle') {
-      if (currentPhase === 'failed' || currentPhase === 'no_speech' || currentPhase === 'cancelled') {
+      if (
+        currentPhase === 'failed' ||
+        currentPhase === 'no_speech' ||
+        currentPhase === 'cancelled'
+      ) {
         options.stateStore.setPhase('idle');
       }
       return;
@@ -1040,7 +1046,6 @@ export function createDictationController(options: {
         await runFinishListening();
         return;
       }
-
     },
 
     cancelCapture,

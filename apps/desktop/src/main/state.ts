@@ -279,7 +279,8 @@ export function createDesktopStateStore(initialStateOptions: {
     setRecentSessions(sessions) {
       commit((draft) => {
         draft.recentSessions = sessions.slice(0, 8);
-        draft.lastTranscript = sessions.find((session) => session.selectedOutput)?.selectedOutput?.text ?? null;
+        draft.lastTranscript =
+          sessions.find((session) => session.selectedOutput)?.selectedOutput?.text ?? null;
       });
     },
 

@@ -602,15 +602,15 @@ export interface ProviderState {
 
 export type VadRuntimeStatus =
   | {
-    kind: 'ready';
-    activeAnalyzer: 'silero';
-    detail: string;
-  }
+      kind: 'ready';
+      activeAnalyzer: 'silero';
+      detail: string;
+    }
   | {
-    kind: 'degraded';
-    activeAnalyzer: 'energy';
-    detail: string;
-  };
+      kind: 'degraded';
+      activeAnalyzer: 'energy';
+      detail: string;
+    };
 
 export interface AppState {
   app: {

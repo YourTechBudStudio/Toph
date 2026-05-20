@@ -17,7 +17,10 @@ function toLabel(device: MediaDeviceInfo, fallback: string) {
   return normalizeAudioDeviceLabel(device.label || fallback);
 }
 
-async function enumerateAudioDevices(): Promise<{ inputs: AudioDeviceInfo[]; outputs: AudioDeviceInfo[] }> {
+async function enumerateAudioDevices(): Promise<{
+  inputs: AudioDeviceInfo[];
+  outputs: AudioDeviceInfo[];
+}> {
   if (typeof navigator === 'undefined' || !navigator.mediaDevices?.enumerateDevices) {
     return { inputs: [], outputs: [] };
   }
@@ -44,9 +47,7 @@ async function enumerateAudioDevices(): Promise<{ inputs: AudioDeviceInfo[]; out
       isDefault: device.deviceId === SYSTEM_DEFAULT_AUDIO_DEVICE_ID,
       label: toLabel(
         device,
-        device.deviceId === SYSTEM_DEFAULT_AUDIO_DEVICE_ID
-          ? fallbackOutputLabel
-          : 'Unnamed output',
+        device.deviceId === SYSTEM_DEFAULT_AUDIO_DEVICE_ID ? fallbackOutputLabel : 'Unnamed output',
       ),
     }));
 
@@ -140,9 +141,9 @@ export async function playSoundEvent(kind: SoundEventKind, preference: AudioDevi
       typeof (audioContext as AudioContext & { setSinkId?: (sinkId: string) => Promise<void> })
         .setSinkId === 'function'
     ) {
-      await (audioContext as AudioContext & { setSinkId: (sinkId: string) => Promise<void> }).setSinkId(
-        preference.id,
-      );
+      await (
+        audioContext as AudioContext & { setSinkId: (sinkId: string) => Promise<void> }
+      ).setSinkId(preference.id);
     }
   } catch {
     // Missing output devices fall back to the default sink for the current sound.
@@ -184,10 +185,12 @@ export function useAudioDevices(
   inputPreference: AudioDevicePreference,
   outputPreference: AudioDevicePreference,
 ) {
-  const [devices, setDevices] = useState<{ inputs: AudioDeviceInfo[]; outputs: AudioDeviceInfo[] }>({
-    inputs: [],
-    outputs: [],
-  });
+  const [devices, setDevices] = useState<{ inputs: AudioDeviceInfo[]; outputs: AudioDeviceInfo[] }>(
+    {
+      inputs: [],
+      outputs: [],
+    },
+  );
   const [refreshing, setRefreshing] = useState(false);
   const [inputTesting, setInputTesting] = useState(false);
   const [inputEnergy, setInputEnergy] = useState(0);

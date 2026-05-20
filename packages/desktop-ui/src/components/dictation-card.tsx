@@ -26,9 +26,7 @@ export function DictationCard({
 }) {
   const relativeTime = useRelativeTime(session.createdAt);
   const output = session.selectedOutput;
-  const rulePresetTitle = rulePresets.find(
-    (preset) => preset.id === output?.rulePresetId,
-  )?.title;
+  const rulePresetTitle = rulePresets.find((preset) => preset.id === output?.rulePresetId)?.title;
   const [justCopied, setJustCopied] = useState(false);
   const [copyFailed, setCopyFailed] = useState(false);
   const [copiedKind, setCopiedKind] = useState<'transcript' | 'error' | null>(null);
@@ -158,23 +156,26 @@ export function DictationCard({
             {!output && (
               <div className="rounded-2xl border border-accent-red/14 bg-accent-red/8 px-3 py-2 text-sm text-text-secondary">
                 <p className="m-0 font-medium text-accent-red">Session {session.id}</p>
-                <p className="mt-1 mb-0">{session.errorMessage ?? 'Toph kept the raw WAV, but the pipeline did not produce text.'}</p>
+                <p className="mt-1 mb-0">
+                  {session.errorMessage ??
+                    'Toph kept the raw WAV, but the pipeline did not produce text.'}
+                </p>
               </div>
             )}
             {output && hasError && session.errorMessage && (
               <p className="m-0 text-xs text-accent-red">{session.errorMessage}</p>
             )}
-          {output?.kind === 'polished' && output.rulePresetId && (
-            <div className="pt-3">
-              <p className="mt-2 mb-0 text-xs text-text-tertiary">
-                Polished with the{' '}
-                <span className="font-semibold text-text-secondary">
-                  {rulePresetTitle ?? 'selected'}
-                </span>{' '}
-                rule
-              </p>
-            </div>
-          )}
+            {output?.kind === 'polished' && output.rulePresetId && (
+              <div className="pt-3">
+                <p className="mt-2 mb-0 text-xs text-text-tertiary">
+                  Polished with the{' '}
+                  <span className="font-semibold text-text-secondary">
+                    {rulePresetTitle ?? 'selected'}
+                  </span>{' '}
+                  rule
+                </p>
+              </div>
+            )}
           </div>
         </Collapsible.Panel>
 
