@@ -31,6 +31,10 @@ test('normalizes unknown providers, empty models, and unknown rule presets to un
     auth: { providerId: 'openai-sub' },
     transcription: { providerId: 'openai-sub', model: 'chatgpt-backend-transcribe' },
     inference: { providerId: 'openai-sub', model: 'gpt-5.4-mini' },
+    audio: {
+      inputDevice: { id: 'default', label: null },
+      outputDevice: { id: 'default', label: null },
+    },
     polish: { enabled: true, rulePresetId: null },
     dashboard: { typingWpm: 50 },
   });
@@ -50,6 +54,32 @@ test('normalizes existing v1 settings without a shortcut to the platform default
 
   assert.deepEqual(settings.shortcut.chord, resolveDefaultShortcutChord(process.platform));
   assert.equal(settings.polish.enabled, false);
+  assert.deepEqual(settings.audio, {
+    inputDevice: { id: 'default', label: null },
+    outputDevice: { id: 'default', label: null },
+  });
+});
+
+test('normalizes persisted audio device labels', () => {
+  const settings = normalizeAppSettings(
+    parseAppSettingsFile({
+      version: 1,
+      auth: { providerId: 'openai-sub' },
+      transcription: { providerId: 'openai-sub', model: 'chatgpt-backend-transcribe' },
+      inference: { providerId: 'openai-sub', model: 'gpt-5.4-mini' },
+      audio: {
+        inputDevice: { id: 'mic-1', label: '  Blue Yeti  ' },
+        outputDevice: { id: 'speaker-1', label: '   ' },
+      },
+      polish: { enabled: false, rulePresetId: 'general' },
+    }),
+    { rulePresetIds: ['general'] },
+  );
+
+  assert.deepEqual(settings.audio, {
+    inputDevice: { id: 'mic-1', label: 'Blue Yeti' },
+    outputDevice: { id: 'speaker-1', label: null },
+  });
 });
 
 test('preserves legacy active prompt IDs as rule preset IDs when available', () => {

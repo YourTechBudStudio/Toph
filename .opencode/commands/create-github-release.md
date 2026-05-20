@@ -30,7 +30,37 @@ Find the previous release tag (`gh release view --json tagName -q .tagName`, fal
 git log <previous-ref>..HEAD --no-merges --pretty=format:"%h%x09%an%x09%s"
 ```
 
-For ambiguous subjects, read the diff with `git show <sha>` before describing them. Don't invent behavior that isn't in the diff.
+## Build context selectively
+
+Before grouping or drafting, do a quick triage pass over the commit list. Don't inspect every commit by default.
+
+Only gather extra context for commits that are likely to matter to the release notes, such as:
+
+- Vague subjects: `misc`, `update`, `cleanup`, `fix stuff`, `refactor`, `changes`, `wip`.
+- Consequential-sounding commits whose user or product impact is unclear.
+- Commits that touch user-facing areas like dictation, transcription, overlays, settings, onboarding, shortcuts, permissions, pricing, installation, or reliability.
+- Large commits, commits that appear to bundle multiple changes, or commits where the conventional prefix doesn't explain the outcome.
+
+For those selected commits, gather context in the cheapest useful way:
+
+1. Start with `git show --stat --oneline <sha>` or `git show --name-status <sha>`.
+2. If the product impact is still unclear, inspect the relevant diff with `git show <sha>`.
+3. If the diff still doesn't make the user-facing outcome clear, ask the user concise questions before drafting.
+
+When asking questions:
+
+- Batch them together instead of interrupting for every commit.
+- Ask only what would change the release notes.
+- Reference the commit short SHA and subject so the user has context.
+- Phrase questions in product/business terms, not implementation terms.
+
+Example:
+
+> I need a little context before drafting. For `abc1234` — `refactor transcription flow` — was this purely internal cleanup, or did it improve dictation speed/reliability in a way users would notice?
+
+Do this context-gathering and question-answering phase before writing the release draft or inviting feedback.
+
+Release notes should stay product-focused. Translate technical changes into user outcomes when supported by the diff or the user's answers. If the impact is purely internal, keep it brief under **Under the hood** or omit it. Don't invent behavior that isn't in the diff or the user's answers.
 
 ## Group the work
 

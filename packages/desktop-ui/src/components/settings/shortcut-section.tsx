@@ -316,6 +316,7 @@ function ShortcutRecorderModal({
 }
 
 export function ShortcutSection({
+  id,
   shortcut,
   ruleSwitcherShortcut,
   platform,
@@ -334,6 +335,7 @@ export function ShortcutSection({
   onSuspend,
   onResume,
 }: {
+  id?: string;
   shortcut: ShortcutChord;
   ruleSwitcherShortcut: ShortcutChord;
   platform: NodeJS.Platform;
@@ -371,6 +373,7 @@ export function ShortcutSection({
   return (
     <>
       <SettingsSection
+        id={id}
         eyebrow="Keyboard Shortcuts"
         description="Configure the global shortcuts for capture and quick rule switching."
         footer={`${detail} ${ruleSwitcherDetail}`}

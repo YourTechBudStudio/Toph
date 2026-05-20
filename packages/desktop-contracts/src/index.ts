@@ -22,6 +22,8 @@ export const DESKTOP_IPC_CHANNELS = {
   setTranscriptionModel: 'toph:set-transcription-model',
   setInferenceProvider: 'toph:set-inference-provider',
   setInferenceModel: 'toph:set-inference-model',
+  setAudioInputDevice: 'toph:set-audio-input-device',
+  setAudioOutputDevice: 'toph:set-audio-output-device',
   setPolishEnabled: 'toph:set-polish-enabled',
   setTypingWpm: 'toph:set-typing-wpm',
   setActivePolishRulePreset: 'toph:set-active-polish-rule-preset',
@@ -329,6 +331,7 @@ export type DictationPhase =
   | 'transcribing'
   | 'polishing'
   | 'no_speech'
+  | 'cancelled'
   | 'failed';
 export type PasteAttemptStatus = 'idle' | 'clipboard-only' | 'success' | 'failed';
 export type SoundEventKind = 'start' | 'stop' | 'done';
@@ -345,6 +348,38 @@ export const DEFAULT_INFERENCE_MODEL = 'gpt-5.4-mini';
 export const MAX_POLISH_RULE_PRESETS = 9;
 export type ProviderConnectionStatus = 'missing' | 'connecting' | 'connected' | 'invalid';
 export type ProviderBillingMode = 'subscription' | 'metered' | 'local' | 'unknown';
+export const SYSTEM_DEFAULT_AUDIO_DEVICE_ID = 'default';
+export type AudioDeviceKind = 'input' | 'output';
+export function normalizeAudioDeviceLabel(label: string) {
+  return label.trim().replace(/^Default\s*-\s*/i, '');
+}
+export type AudioDevicePreference = {
+  id: typeof SYSTEM_DEFAULT_AUDIO_DEVICE_ID | string;
+  label: string | null;
+};
+export type AudioDeviceInfo = {
+  id: string;
+  label: string;
+  kind: AudioDeviceKind;
+  isDefault: boolean;
+};
+export type AudioDeviceResolution = {
+  preference: AudioDevicePreference;
+  resolvedDeviceId: string | null;
+  resolvedLabel: string;
+  fallbackUsed: boolean;
+  fallbackReason: 'missing-device' | null;
+};
+export interface ActiveInputDeviceFallback {
+  selectedLabel: string | null;
+  defaultLabel: string | null;
+}
+export interface AudioDeviceState {
+  inputs: AudioDeviceInfo[];
+  outputs: AudioDeviceInfo[];
+  input: AudioDeviceResolution;
+  output: AudioDeviceResolution;
+}
 export const PROVIDER_BILLING_MODES: Record<ProviderId, ProviderBillingMode> = {
   'openai-sub': 'subscription',
 };
@@ -466,6 +501,10 @@ export interface AppSettings {
     providerId: ProviderId;
     model: string;
   };
+  audio: {
+    inputDevice: AudioDevicePreference;
+    outputDevice: AudioDevicePreference;
+  };
   polish: {
     enabled: boolean;
     rulePresetId: string | null;
@@ -499,6 +538,16 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   inference: {
     providerId: DEFAULT_INFERENCE_PROVIDER_ID,
     model: DEFAULT_INFERENCE_MODEL,
+  },
+  audio: {
+    inputDevice: {
+      id: SYSTEM_DEFAULT_AUDIO_DEVICE_ID,
+      label: null,
+    },
+    outputDevice: {
+      id: SYSTEM_DEFAULT_AUDIO_DEVICE_ID,
+      label: null,
+    },
   },
   polish: {
     enabled: true,
@@ -553,18 +602,22 @@ export interface ProviderState {
 
 export type VadRuntimeStatus =
   | {
-    kind: 'ready';
-    activeAnalyzer: 'silero';
-    detail: string;
-  }
+      kind: 'ready';
+      activeAnalyzer: 'silero';
+      detail: string;
+    }
   | {
-    kind: 'degraded';
-    activeAnalyzer: 'energy';
-    detail: string;
-  };
+      kind: 'degraded';
+      activeAnalyzer: 'energy';
+      detail: string;
+    };
 
 export interface AppState {
+  app: {
+    version: string;
+  };
   phase: DictationPhase;
+  activeInputDeviceFallback: ActiveInputDeviceFallback | null;
   shortcut: ShortcutRegistrationState;
   ruleSwitcherShortcut: ShortcutRegistrationState;
   ruleSwitcher: {
@@ -617,6 +670,8 @@ export interface DesktopApi {
   setTranscriptionModel: (model: string) => Promise<void>;
   setInferenceProvider: (providerId: ProviderId) => Promise<void>;
   setInferenceModel: (model: string) => Promise<void>;
+  setAudioInputDevice: (device: AudioDevicePreference) => Promise<void>;
+  setAudioOutputDevice: (device: AudioDevicePreference) => Promise<void>;
   setPolishEnabled: (enabled: boolean) => Promise<void>;
   setTypingWpm: (typingWpm: number) => Promise<void>;
   setActivePolishRulePreset: (rulePresetId: string) => Promise<void>;
@@ -644,6 +699,7 @@ export interface OverlaySize {
 export interface CaptureStartRequest {
   sessionId: string;
   sampleRate: number;
+  inputDeviceId: string | null;
 }
 
 export interface CaptureChunkMessage {
@@ -653,6 +709,8 @@ export interface CaptureChunkMessage {
 
 export interface CaptureLifecycleMessage {
   sessionId: string;
+  inputDeviceFallbackUsed?: boolean;
+  inputDeviceFallbackLabel?: string | null;
 }
 
 export interface CaptureErrorMessage {

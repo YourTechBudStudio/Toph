@@ -99,7 +99,7 @@ export async function bootstrap(options: {
   let pendingToggle = options.shouldToggleOnLaunch;
   let pendingRuleSwitcher = options.shouldOpenRuleSwitcherOnLaunch;
 
-  const stateStore = createDesktopStateStore();
+  const stateStore = createDesktopStateStore({ appVersion: app.getVersion() });
   const windows = createWindowManager({
     appName,
     appIconPath,
@@ -199,13 +199,13 @@ export async function bootstrap(options: {
         canRetry: record.rawAudioAvailable,
         selectedOutput: record.selectedOutput
           ? {
-            id: record.selectedOutput.id,
-            text: record.selectedOutput.text,
-            kind: record.selectedOutput.kind,
-            rulePresetId: record.selectedOutput.rulePresetId,
-            rulePresetHash: record.selectedOutput.rulePresetHash,
-            createdAt: record.selectedOutput.createdAt,
-          }
+              id: record.selectedOutput.id,
+              text: record.selectedOutput.text,
+              kind: record.selectedOutput.kind,
+              rulePresetId: record.selectedOutput.rulePresetId,
+              rulePresetHash: record.selectedOutput.rulePresetHash,
+              createdAt: record.selectedOutput.createdAt,
+            }
           : null,
         pasteStatus: 'idle',
         pasteDetail: detailsBySessionId[record.session.id] ?? 'Loaded from local history.',
@@ -248,6 +248,19 @@ export async function bootstrap(options: {
     inference: inferenceProvider,
   });
 
+  const refreshPasteSupport = async () => {
+    try {
+      stateStore.setPasteSupport(await clipboard.describePasteSupport());
+    } catch (error) {
+      stateStore.setPasteSupport({
+        helper: null,
+        detail: describeUnexpectedError(
+          'Desktop paste capabilities could not be inspected.',
+          error,
+        ),
+      });
+    }
+  };
   const ensurePermissionsReady = async () => {
     const permissionState = await permissions.inspectRequiredPermissions();
     stateStore.setPermissions(permissionState);
@@ -255,6 +268,9 @@ export async function bootstrap(options: {
       windows.showSettings();
     }
     return permissionState.ready;
+  };
+  const refreshReadiness = async () => {
+    await Promise.all([ensurePermissionsReady(), refreshPasteSupport()]);
   };
   const ensureProvidersReady = async () => {
     const providerState = await providerAuth.getState();
@@ -289,6 +305,7 @@ export async function bootstrap(options: {
       (await ensurePermissionsReady()) &&
       (await ensureWritingReady()),
     windows,
+    onPasteSupportMayHaveChanged: refreshPasteSupport,
     onDashboardStatsChanged: refreshDashboardStats,
     onRecentSessionsChanged: refreshRecentSessions,
   });
@@ -335,6 +352,14 @@ export async function bootstrap(options: {
     invalidateRuleSwitcherSelection();
     clearRuleSwitcherTimer();
     stateStore.closeRuleSwitcher();
+  };
+  const handleDictationTrigger = async () => {
+    if (stateStore.getState().ruleSwitcher.mode !== 'idle') {
+      await closeRuleSwitcher();
+      return;
+    }
+
+    await dictation.toggleCapture();
   };
   const selectRuleSwitcherPreset = async (rulePresetId: string) => {
     if (stateStore.getState().ruleSwitcher.mode !== 'selecting') {
@@ -388,7 +413,7 @@ export async function bootstrap(options: {
       ruleSwitcherFlag: options.ruleSwitcherFlag,
     },
     onDictationTrigger: () => {
-      void dictation.toggleCapture();
+      void handleDictationTrigger();
     },
     onRuleSwitcherTrigger: () => {
       void openRuleSwitcher();
@@ -417,7 +442,7 @@ export async function bootstrap(options: {
         return;
       }
 
-      void dictation.toggleCapture();
+      void handleDictationTrigger();
       return;
     }
 
@@ -448,7 +473,7 @@ export async function bootstrap(options: {
   });
   const unregisterIpc = registerDesktopIpc({
     getState: stateStore.getState,
-    toggleCapture: dictation.toggleCapture,
+    toggleCapture: handleDictationTrigger,
     cancelCapture: dictation.cancelCapture,
     resizeOverlay: windows.resizeOverlay,
     showSettings: windows.showSettings,
@@ -505,6 +530,16 @@ export async function bootstrap(options: {
       if (stateStore.getState().phase !== 'idle')
         throw new Error('Settings cannot be changed while dictation is active.');
       await settingsStore.setInferenceModel(model);
+    },
+    setAudioInputDevice: async (device) => {
+      if (stateStore.getState().phase !== 'idle')
+        throw new Error('Settings cannot be changed while dictation is active.');
+      await settingsStore.setAudioInputDevice(device);
+    },
+    setAudioOutputDevice: async (device) => {
+      if (stateStore.getState().phase !== 'idle')
+        throw new Error('Settings cannot be changed while dictation is active.');
+      await settingsStore.setAudioOutputDevice(device);
     },
     setPolishEnabled: async (enabled) => {
       if (stateStore.getState().phase !== 'idle')
@@ -598,9 +633,10 @@ export async function bootstrap(options: {
     },
     performPermissionAction: async (permissionId) => {
       stateStore.setPermissions(await permissions.performPermissionAction(permissionId));
+      await refreshPasteSupport();
     },
     refreshPermissions: async () => {
-      await ensurePermissionsReady();
+      await refreshReadiness();
     },
     rerunSession: async (sessionId) => {
       try {
@@ -644,18 +680,11 @@ export async function bootstrap(options: {
     windows.showSettings();
   }
 
-  try {
-    stateStore.setPasteSupport(await clipboard.describePasteSupport());
-  } catch (error) {
-    stateStore.setPasteSupport({
-      helper: null,
-      detail: describeUnexpectedError('Desktop paste capabilities could not be inspected.', error),
-    });
-  }
+  await refreshPasteSupport();
 
   if (pendingToggle) {
     pendingToggle = false;
-    void dictation.toggleCapture();
+    void handleDictationTrigger();
   }
   if (pendingRuleSwitcher) {
     pendingRuleSwitcher = false;

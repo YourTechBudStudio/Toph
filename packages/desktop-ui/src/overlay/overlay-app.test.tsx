@@ -6,7 +6,11 @@ import type { AppState, DesktopApi } from '@toph/desktop-contracts';
 import { OverlayApp } from './overlay-app';
 
 const baseState: AppState = {
+  app: {
+    version: '0.0.2',
+  },
   phase: 'transcribing',
+  activeInputDeviceFallback: null,
   shortcut: {
     chord: { modifiers: ['control', 'alt'], key: 'Space' },
     accelerator: 'Control+Alt+Space',
@@ -65,6 +69,10 @@ const baseState: AppState = {
     auth: { providerId: 'openai-sub' },
     transcription: { providerId: 'openai-sub', model: 'chatgpt-backend-transcribe' },
     inference: { providerId: 'openai-sub', model: 'gpt-5.4-mini' },
+    audio: {
+      inputDevice: { id: 'default', label: null },
+      outputDevice: { id: 'default', label: null },
+    },
     polish: { enabled: true, rulePresetId: 'general' },
     dashboard: { typingWpm: 50 },
   },
@@ -152,6 +160,8 @@ function createClient(state: AppState, overrides: Partial<DesktopApi> = {}): Des
     setTranscriptionModel: async () => {},
     setInferenceProvider: async () => {},
     setInferenceModel: async () => {},
+    setAudioInputDevice: async () => {},
+    setAudioOutputDevice: async () => {},
     setPolishEnabled: async () => {},
     setTypingWpm: async () => {},
     setActivePolishRulePreset: async () => {},
@@ -199,6 +209,26 @@ describe('OverlayApp', () => {
     await screen.findByRole('heading', { name: 'Polishing...' });
   });
 
+  it('renders the input fallback notice while listening', async () => {
+    render(
+      <OverlayApp
+        client={createClient({
+          ...baseState,
+          phase: 'listening',
+          activeInputDeviceFallback: {
+            selectedLabel: 'Shure MV7',
+            defaultLabel: 'MacBook Pro Microphone',
+          },
+        })}
+        soundsEnabled={false}
+      />,
+    );
+
+    await screen.findByRole('heading', { name: 'Listening...' });
+    expect(screen.getByText('Using default input')).toBeTruthy();
+    expect(screen.getByText('MacBook Pro Microphone')).toBeTruthy();
+  });
+
   it('cancels active dictation from the overlay button', async () => {
     const cancelCapture = vi.fn<() => Promise<void>>(async () => {});
     render(
@@ -206,6 +236,33 @@ describe('OverlayApp', () => {
     );
 
     fireEvent.click(await screen.findByRole('button', { name: 'Cancel dictation' }));
+
+    expect(cancelCapture).toHaveBeenCalledOnce();
+  });
+
+  it('cancels active dictation with Escape when the overlay is focused', async () => {
+    const cancelCapture = vi.fn<() => Promise<void>>(async () => {});
+    render(
+      <OverlayApp client={createClient(baseState, { cancelCapture })} soundsEnabled={false} />,
+    );
+
+    await screen.findByRole('heading', { name: 'Transcribing...' });
+    fireEvent.keyDown(window, { key: 'Escape' });
+
+    expect(cancelCapture).toHaveBeenCalledOnce();
+  });
+
+  it('renders and dismisses the cancelled state', async () => {
+    const cancelCapture = vi.fn<() => Promise<void>>(async () => {});
+    render(
+      <OverlayApp
+        client={createClient({ ...baseState, phase: 'cancelled' }, { cancelCapture })}
+        soundsEnabled={false}
+      />,
+    );
+
+    await screen.findByRole('heading', { name: 'Cancelled' });
+    fireEvent.click(await screen.findByRole('button', { name: 'Dismiss status' }));
 
     expect(cancelCapture).toHaveBeenCalledOnce();
   });
@@ -272,5 +329,27 @@ describe('OverlayApp', () => {
 
     fireEvent.keyDown(window, { key: '6' });
     expect(selectRuleSwitcherPreset).toHaveBeenCalledWith('rule-6');
+  });
+
+  it('closes the rule switcher with Escape', async () => {
+    const closeRuleSwitcher = vi.fn<DesktopApi['closeRuleSwitcher']>(async () => {});
+    render(
+      <OverlayApp
+        client={createClient(
+          {
+            ...baseState,
+            phase: 'idle',
+            ruleSwitcher: { mode: 'selecting', selectedRulePresetId: null, message: null },
+          },
+          { closeRuleSwitcher },
+        )}
+        soundsEnabled={false}
+      />,
+    );
+
+    await screen.findByRole('heading', { name: 'Choose writing rule' });
+    fireEvent.keyDown(window, { key: 'Escape' });
+
+    expect(closeRuleSwitcher).toHaveBeenCalledOnce();
   });
 });

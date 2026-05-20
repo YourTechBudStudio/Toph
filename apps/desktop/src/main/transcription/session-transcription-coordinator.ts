@@ -34,6 +34,10 @@ function describeError(error: unknown) {
   return error instanceof Error ? error.message : 'Unknown transcription error.';
 }
 
+function isTranscriptionAbortError(error: unknown) {
+  return error instanceof Error && error.message === 'Transcription was aborted.';
+}
+
 function sleep(ms: number, signal?: AbortSignal) {
   return new Promise<void>((resolve, reject) => {
     if (signal?.aborted) {
@@ -119,10 +123,12 @@ export function createSessionTranscriptionCoordinator(options: {
     }
 
     tasks.add(task);
-    task.finally(() => {
-      tasks.delete(task);
-      batchTasks.delete(batch.id);
-    });
+    void task
+      .finally(() => {
+        tasks.delete(task);
+        batchTasks.delete(batch.id);
+      })
+      .catch(() => {});
   };
 
   const rememberAbortController = (batch: TranscriptionBatch, abortController: AbortController) => {
@@ -224,6 +230,10 @@ export function createSessionTranscriptionCoordinator(options: {
         }
       })();
       task.catch((error: unknown) => {
+        if (abortController.signal.aborted && isTranscriptionAbortError(error)) {
+          return;
+        }
+
         console.error('Toph batch transcription task failed unexpectedly.', error);
       });
 

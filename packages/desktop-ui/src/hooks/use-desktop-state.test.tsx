@@ -5,7 +5,11 @@ import type { AppState, DesktopApi } from '@toph/desktop-contracts';
 import { useDesktopState, useRelativeTime } from './use-desktop-state';
 
 const baseState: AppState = {
+  app: {
+    version: '0.0.2',
+  },
   phase: 'idle',
+  activeInputDeviceFallback: null,
   shortcut: {
     chord: { modifiers: ['control', 'alt'], key: 'Space' },
     accelerator: 'Control+Alt+Space',
@@ -64,6 +68,10 @@ const baseState: AppState = {
     auth: { providerId: 'openai-sub' },
     transcription: { providerId: 'openai-sub', model: 'chatgpt-backend-transcribe' },
     inference: { providerId: 'openai-sub', model: 'gpt-5.4-mini' },
+    audio: {
+      inputDevice: { id: 'default', label: null },
+      outputDevice: { id: 'default', label: null },
+    },
     polish: { enabled: true, rulePresetId: 'general' },
     dashboard: { typingWpm: 50 },
   },
@@ -134,6 +142,8 @@ function createClient(
     setTranscriptionModel: async () => {},
     setInferenceProvider: async () => {},
     setInferenceModel: async () => {},
+    setAudioInputDevice: async () => {},
+    setAudioOutputDevice: async () => {},
     setPolishEnabled: async () => {},
     setTypingWpm: async () => {},
     setActivePolishRulePreset: async () => {},

@@ -6,7 +6,11 @@ import type { AppState, DesktopApi } from '@toph/desktop-contracts';
 import { HomeApp } from './home-app';
 
 const baseState: AppState = {
+  app: {
+    version: '0.0.2',
+  },
   phase: 'idle',
+  activeInputDeviceFallback: null,
   shortcut: {
     chord: { modifiers: ['control', 'alt'], key: 'Space' },
     accelerator: 'Control+Alt+Space',
@@ -65,6 +69,10 @@ const baseState: AppState = {
     auth: { providerId: 'openai-sub' },
     transcription: { providerId: 'openai-sub', model: 'chatgpt-backend-transcribe' },
     inference: { providerId: 'openai-sub', model: 'gpt-5.4-mini' },
+    audio: {
+      inputDevice: { id: 'default', label: null },
+      outputDevice: { id: 'default', label: null },
+    },
     polish: { enabled: true, rulePresetId: 'general' },
     dashboard: { typingWpm: 50 },
   },
@@ -152,6 +160,8 @@ function createClient(state: AppState, overrides: Partial<DesktopApi> = {}): Des
     setTranscriptionModel: async () => {},
     setInferenceProvider: async () => {},
     setInferenceModel: async () => {},
+    setAudioInputDevice: async () => {},
+    setAudioOutputDevice: async () => {},
     setPolishEnabled: async () => {},
     setTypingWpm: async () => {},
     setActivePolishRulePreset: async () => {},
@@ -183,6 +193,103 @@ describe('HomeApp', () => {
     expect(screen.getByText('Your last 28 days. Tiny wins, conveniently quantified.')).toBeTruthy();
     expect(screen.getByText('28 days')).toBeTruthy();
     expect(screen.getByText('time saved')).toBeTruthy();
+  });
+
+  it('refreshes home readiness when the window regains focus', async () => {
+    const refreshPermissions = vi.fn<() => Promise<void>>(async () => {});
+
+    render(<HomeApp client={createClient(baseState, { refreshPermissions })} />);
+
+    await screen.findByText('All systems go');
+
+    act(() => {
+      window.dispatchEvent(new Event('focus'));
+    });
+
+    await waitFor(() => expect(refreshPermissions).toHaveBeenCalledTimes(1));
+  });
+
+  it('does not refresh home readiness while settings are open', async () => {
+    const refreshPermissions = vi.fn<() => Promise<void>>(async () => {});
+
+    render(<HomeApp client={createClient(baseState, { refreshPermissions })} />);
+
+    await screen.findByText('All systems go');
+    fireEvent.click(screen.getByLabelText('Settings'));
+    await screen.findByRole('heading', { name: 'Settings' });
+
+    act(() => {
+      window.dispatchEvent(new Event('focus'));
+    });
+
+    expect(refreshPermissions).not.toHaveBeenCalled();
+  });
+
+  it('does not overlap home readiness refreshes', async () => {
+    let resolveRefresh: (() => void) | null = null;
+    const refreshPermissions = vi.fn<() => Promise<void>>(
+      () =>
+        new Promise((resolve) => {
+          resolveRefresh = resolve;
+        }),
+    );
+
+    render(<HomeApp client={createClient(baseState, { refreshPermissions })} />);
+
+    await screen.findByText('All systems go');
+
+    act(() => {
+      window.dispatchEvent(new Event('focus'));
+      window.dispatchEvent(new Event('focus'));
+    });
+
+    expect(refreshPermissions).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      resolveRefresh?.();
+    });
+
+    act(() => {
+      window.dispatchEvent(new Event('focus'));
+    });
+
+    await waitFor(() => expect(refreshPermissions).toHaveBeenCalledTimes(2));
+  });
+
+  it('handles failed home readiness refreshes', async () => {
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const refreshPermissions = vi.fn<() => Promise<void>>(async () => {
+      throw new Error('refresh failed');
+    });
+
+    render(<HomeApp client={createClient(baseState, { refreshPermissions })} />);
+
+    await screen.findByText('All systems go');
+
+    act(() => {
+      window.dispatchEvent(new Event('focus'));
+    });
+
+    await waitFor(() =>
+      expect(consoleError).toHaveBeenCalledWith(
+        'Toph could not refresh home readiness.',
+        expect.any(Error),
+      ),
+    );
+
+    consoleError.mockRestore();
+  });
+
+  it('shows the app version on home but not settings', async () => {
+    render(<HomeApp client={createClient(baseState)} />);
+
+    await screen.findByRole('heading', { name: 'Toph' });
+    expect(screen.getByText('v0.0.2')).toBeTruthy();
+
+    fireEvent.click(screen.getByLabelText('Settings'));
+
+    await screen.findByRole('heading', { name: 'Settings' });
+    expect(screen.queryByText('v0.0.2')).toBeNull();
   });
 
   it('rounds positive usage cost up to the nearest cent', async () => {
@@ -313,7 +420,9 @@ describe('HomeApp', () => {
     fireEvent.click(screen.getByLabelText('Copy debug report'));
     await waitFor(() => {
       expect(writeText).toHaveBeenCalledWith(
-        expect.stringContaining('Error: OpenAI-sub transcription failed: HTTP 500 provider exploded.'),
+        expect.stringContaining(
+          'Error: OpenAI-sub transcription failed: HTTP 500 provider exploded.',
+        ),
       );
     });
   });

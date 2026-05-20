@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import {
   formatShortcutChordKeys,
@@ -245,18 +245,24 @@ function HomeScreen({
 
         <footer className="mt-8 flex items-center justify-between gap-4 text-xs text-text-tertiary">
           <span>Audio retained for last 10 items</span>
-          <span>
-            {state.phase === 'listening'
-              ? 'Listening...'
-              : state.phase === 'transcribing'
-                ? 'Transcribing...'
-                : state.phase === 'polishing'
-                  ? 'Polishing...'
-                  : state.phase === 'no_speech'
-                    ? 'No speech detected'
-                    : state.phase === 'failed'
-                      ? 'Recording failed'
-                      : 'Ready'}
+          <span className="inline-flex items-center gap-1.5">
+            <span>
+              {state.phase === 'listening'
+                ? 'Listening...'
+                : state.phase === 'transcribing'
+                  ? 'Transcribing...'
+                  : state.phase === 'polishing'
+                    ? 'Polishing...'
+                    : state.phase === 'no_speech'
+                      ? 'No speech detected'
+                      : state.phase === 'cancelled'
+                        ? 'Cancelled'
+                        : state.phase === 'failed'
+                          ? 'Recording failed'
+                          : 'Ready'}
+            </span>
+            <span aria-hidden="true">·</span>
+            <span className="text-text-secondary">v{state.app.version}</span>
           </span>
         </footer>
       </section>
@@ -300,6 +306,7 @@ export function HomeApp({ client }: { client: DesktopApi }) {
   const state = useDesktopState(client);
   const [view, setView] = useState<ActiveView>('home');
   const [awaitingSetupContinue, setAwaitingSetupContinue] = useState(false);
+  const homeReadinessRefreshInFlight = useRef(false);
   const setupComplete = state
     ? state.providers.ready && state.permissions.ready && hasActiveWritingPreset(state)
     : false;
@@ -309,6 +316,39 @@ export function HomeApp({ client }: { client: DesktopApi }) {
       setAwaitingSetupContinue(false);
     }
   }, [setupComplete]);
+
+  useEffect(() => {
+    if (!setupComplete || awaitingSetupContinue || view !== 'home') {
+      return;
+    }
+
+    const refreshOnFocus = () => {
+      if (document.visibilityState === 'hidden') {
+        return;
+      }
+      if (homeReadinessRefreshInFlight.current) {
+        return;
+      }
+
+      homeReadinessRefreshInFlight.current = true;
+      void client
+        .refreshPermissions()
+        .catch((error) => {
+          console.error('Toph could not refresh home readiness.', error);
+        })
+        .finally(() => {
+          homeReadinessRefreshInFlight.current = false;
+        });
+    };
+
+    window.addEventListener('focus', refreshOnFocus);
+    document.addEventListener('visibilitychange', refreshOnFocus);
+
+    return () => {
+      window.removeEventListener('focus', refreshOnFocus);
+      document.removeEventListener('visibilitychange', refreshOnFocus);
+    };
+  }, [awaitingSetupContinue, client, setupComplete, view]);
 
   if (!state) {
     return (
@@ -332,6 +372,8 @@ export function HomeApp({ client }: { client: DesktopApi }) {
         permissionsReady={state.permissions.ready}
         rulePresets={state.polish.rulePresets}
         activeRulePresetId={state.settings.polish.rulePresetId}
+        audioInputDevice={state.settings.audio.inputDevice}
+        audioOutputDevice={state.settings.audio.outputDevice}
         requirements={state.permissions.requirements}
         client={client}
         onSetupAction={() => setAwaitingSetupContinue(true)}

@@ -16,7 +16,9 @@ import { isPermissionComplete } from '../../components/onboarding/onboarding-uti
 import { PermissionCard } from '../../components/onboarding/permission-card';
 import { ProviderCard } from '../../components/onboarding/provider-card';
 import { StepSection } from '../../components/onboarding/step-section';
+import { AudioSection } from '../../components/settings/audio-section';
 import { WindowDragRegion } from '../../components/window-drag-region';
+import { useAudioDevices } from '../../hooks/use-audio-devices';
 
 export function OnboardingScreen({
   platform,
@@ -24,6 +26,8 @@ export function OnboardingScreen({
   permissionsReady,
   rulePresets,
   activeRulePresetId,
+  audioInputDevice,
+  audioOutputDevice,
   requirements,
   client,
   onSetupAction,
@@ -34,6 +38,8 @@ export function OnboardingScreen({
   permissionsReady: boolean;
   rulePresets: PolishRulePresetSummary[];
   activeRulePresetId: string | null;
+  audioInputDevice: { id: string; label: string | null };
+  audioOutputDevice: { id: string; label: string | null };
   requirements: PermissionRequirement[];
   client: DesktopApi;
   onSetupAction: () => void;
@@ -45,6 +51,7 @@ export function OnboardingScreen({
   const [busyProvider, setBusyProvider] = useState<ProviderId | 'manual' | null>(null);
   const [refreshFailed, setRefreshFailed] = useState(false);
   const [busyRulePreset, setBusyRulePreset] = useState<string | null>(null);
+  const [busyAudio, setBusyAudio] = useState(false);
   const [selectedRulePresetId, setSelectedRulePresetId] = useState<string | null>(
     activeRulePresetId,
   );
@@ -63,6 +70,7 @@ export function OnboardingScreen({
   const committedWritingComplete =
     !!activeRulePresetId && rulePresets.some((preset) => preset.id === activeRulePresetId);
   const setupComplete = providerComplete && permissionsComplete && committedWritingComplete;
+  const audioDevices = useAudioDevices(audioInputDevice, audioOutputDevice);
 
   useEffect(() => {
     setSelectedRulePresetId(activeRulePresetId);
@@ -113,6 +121,16 @@ export function OnboardingScreen({
       setSelectedRulePresetId(activeRulePresetId);
     } finally {
       setBusyRulePreset(null);
+    }
+  };
+
+  const updateAudioSetting = async (action: () => Promise<void>) => {
+    onSetupAction();
+    setBusyAudio(true);
+    try {
+      await action();
+    } finally {
+      setBusyAudio(false);
     }
   };
 
@@ -263,12 +281,38 @@ export function OnboardingScreen({
               </StepSection>
 
               <StepSection
+                complete
+                showConnector
+                marker={<CheckIcon size={16} />}
+                title="Configure audio"
+                status="Optional"
+              >
+                <AudioSection
+                  state={audioDevices.state}
+                  inputPreference={audioInputDevice}
+                  outputPreference={audioOutputDevice}
+                  disabled={!providerComplete || !permissionsComplete || busyAudio}
+                  inputTesting={audioDevices.inputTesting}
+                  inputEnergy={audioDevices.inputEnergy}
+                  onInputDeviceChange={(device) =>
+                    void updateAudioSetting(() => client.setAudioInputDevice(device))
+                  }
+                  onOutputDeviceChange={(device) =>
+                    void updateAudioSetting(() => client.setAudioOutputDevice(device))
+                  }
+                  onStartInputTest={() => void audioDevices.startInputTest()}
+                  onStopInputTest={audioDevices.stopInputTest}
+                  onPlayOutputTest={() => void audioDevices.playOutputTest()}
+                />
+              </StepSection>
+
+              <StepSection
                 complete={writingComplete}
                 marker={
                   writingComplete ? (
                     <CheckIcon size={16} />
                   ) : (
-                    <span className="font-display text-sm font-semibold">3</span>
+                    <span className="font-display text-sm font-semibold">4</span>
                   )
                 }
                 title="Choose writing style"

@@ -5,18 +5,20 @@ import { DropdownSelect, type DropdownSelectItem } from '../dropdown';
 export type SettingsSelectItem<TValue extends string = string> = DropdownSelectItem<TValue>;
 
 export function SettingsSection({
+  id,
   eyebrow,
   description,
   children,
   footer,
 }: {
+  id?: string;
   eyebrow: string;
   description?: string;
   children: ReactNode;
   footer?: ReactNode;
 }) {
   return (
-    <section className="mb-7">
+    <section id={id} className="mb-7 scroll-mt-12">
       <span className="mb-2 inline-flex px-1 text-xs font-bold tracking-[0.12em] text-accent-cyan uppercase">
         {eyebrow}
       </span>

@@ -1,6 +1,10 @@
-import { useEffect, useRef, useState, type CSSProperties } from 'react';
+import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react';
 
-import { OVERLAY_WINDOW_GEOMETRY, type DesktopApi } from '@toph/desktop-contracts';
+import {
+  OVERLAY_WINDOW_GEOMETRY,
+  SYSTEM_DEFAULT_AUDIO_DEVICE_ID,
+  type DesktopApi,
+} from '@toph/desktop-contracts';
 
 import { useDesktopState } from '../hooks/use-desktop-state';
 import { useOverlaySounds } from '../hooks/use-overlay-sounds';
@@ -18,6 +22,10 @@ const overlayRendererGeometry = {
       minWidth: 164,
       height: 44,
     },
+    inputFallback: {
+      maxWidth: 512,
+      height: 64,
+    },
   },
   windowPaddingX: 16,
   content: {
@@ -34,6 +42,8 @@ const overlayGeometryStyle = {
   '--overlay-idle-height': `${overlayRendererGeometry.pill.idle.height}px`,
   '--overlay-active-min-width': `${overlayRendererGeometry.pill.active.minWidth}px`,
   '--overlay-active-height': `${overlayRendererGeometry.pill.active.height}px`,
+  '--overlay-input-fallback-max-width': `${overlayRendererGeometry.pill.inputFallback.maxWidth}px`,
+  '--overlay-input-fallback-height': `${overlayRendererGeometry.pill.inputFallback.height}px`,
   '--overlay-content-padding-x': `${overlayRendererGeometry.content.paddingX}px`,
   '--overlay-content-gap': `${overlayRendererGeometry.content.gap}px`,
   '--overlay-activity-slot-size': `${overlayRendererGeometry.content.activitySlotSize}px`,
@@ -83,8 +93,22 @@ export function OverlayApp({
   const [pendingRuleSelection, setPendingRuleSelection] = useState<PendingRuleSelection | null>(
     null,
   );
+  const [audioFallbackNotice, setAudioFallbackNotice] = useState<string | null>(null);
   const state = useDesktopState(client);
-  useOverlaySounds(client, soundsEnabled);
+  const showAudioFallback = useCallback((device: { label: string | null }) => {
+    setAudioFallbackNotice(
+      `${device.label ?? 'Selected output'} is unavailable. Using System Default.`,
+    );
+  }, []);
+  useOverlaySounds(
+    client,
+    soundsEnabled,
+    state?.settings.audio.outputDevice ?? {
+      id: SYSTEM_DEFAULT_AUDIO_DEVICE_ID,
+      label: null,
+    },
+    showAudioFallback,
+  );
 
   const phase = state?.phase || 'idle';
   const ruleSwitcherMode = state?.ruleSwitcher.mode ?? 'idle';
@@ -94,9 +118,14 @@ export function OverlayApp({
   const ruleSwitcherExpanded = ruleSwitcherVisible && !ruleSwitcherClosing;
   const ruleSwitcherSelecting = ruleSwitcherMode === 'selecting';
   const listening = phase === 'listening';
+  const transcribing = phase === 'transcribing';
   const polishing = phase === 'polishing';
   const noSpeech = phase === 'no_speech';
+  const cancelled = phase === 'cancelled';
   const failed = phase === 'failed';
+  const activeInputFallback =
+    listening && !ruleSwitcherVisible ? (state?.activeInputDeviceFallback ?? null) : null;
+  const activeDictationVisible = phase !== 'idle';
   const activeRulePresetId = state?.settings.polish.rulePresetId ?? null;
   const renderedActiveRulePresetId = pendingRuleSelection
     ? pendingRuleSelection.previousActiveRulePresetId
@@ -120,11 +149,28 @@ export function OverlayApp({
     !ruleSwitcherClosing && renderedRuleSwitcherContentMode === 'selecting';
   const pillVisualClass = failed
     ? 'h-(--overlay-active-height) min-w-(--overlay-active-min-width) rounded-full border-accent-red/36 bg-[rgba(63,32,45,0.96)] shadow-[0_8px_24px_rgba(0,0,0,0.3)]'
-    : ruleSwitcherExpanded
-      ? 'h-(--rule-switcher-height) w-(--rule-switcher-width) rounded-[28px] border-white/8 bg-canvas/98 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]'
-      : isIdle
-        ? 'h-(--overlay-idle-height) w-(--overlay-idle-width) rounded-full border-white/8 bg-canvas shadow-[0_4px_12px_rgba(0,0,0,0.2)]'
-        : 'h-(--overlay-active-height) min-w-(--overlay-active-min-width) rounded-full border-white/8 bg-canvas/95 shadow-[0_8px_24px_rgba(0,0,0,0.3)]';
+    : activeInputFallback
+      ? 'h-(--overlay-input-fallback-height) w-fit max-w-(--overlay-input-fallback-max-width) rounded-[28px] border-accent-amber/28 bg-canvas/95 shadow-[0_8px_24px_rgba(0,0,0,0.3)]'
+      : audioFallbackNotice
+        ? 'h-(--overlay-active-height) min-w-80 rounded-full border-accent-amber/28 bg-canvas/95 shadow-[0_8px_24px_rgba(0,0,0,0.3)]'
+        : ruleSwitcherExpanded
+          ? 'h-(--rule-switcher-height) w-(--rule-switcher-width) rounded-[28px] border-white/8 bg-canvas/98 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]'
+          : isIdle
+            ? 'h-(--overlay-idle-height) w-(--overlay-idle-width) rounded-full border-white/8 bg-canvas shadow-[0_4px_12px_rgba(0,0,0,0.2)]'
+            : 'h-(--overlay-active-height) min-w-(--overlay-active-min-width) rounded-full border-white/8 bg-canvas/95 shadow-[0_8px_24px_rgba(0,0,0,0.3)]';
+
+  useEffect(() => {
+    if (!audioFallbackNotice) {
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      setAudioFallbackNotice(null);
+    }, 4_000);
+    return () => {
+      clearTimeout(timer);
+    };
+  }, [audioFallbackNotice]);
 
   useEffect(() => {
     if (ruleSwitcherMode !== 'idle') {
@@ -205,6 +251,8 @@ export function OverlayApp({
   }, [
     client,
     phase,
+    activeInputFallback,
+    audioFallbackNotice,
     ruleSwitcherVisible,
     ruleSwitcherExpanded,
     rulePresets.length,
@@ -230,18 +278,23 @@ export function OverlayApp({
   };
 
   useEffect(() => {
-    if (!ruleSwitcherSelecting) {
+    if (ruleSwitcherMode === 'idle' && !activeDictationVisible) {
       return;
     }
 
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         event.preventDefault();
-        void client.closeRuleSwitcher();
+        if (ruleSwitcherMode !== 'idle') {
+          void client.closeRuleSwitcher();
+          return;
+        }
+
+        cancelCapture();
         return;
       }
 
-      if (!/^[1-9]$/.test(event.key)) {
+      if (!ruleSwitcherSelecting || !/^[1-9]$/.test(event.key)) {
         return;
       }
 
@@ -258,7 +311,15 @@ export function OverlayApp({
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [client, rulePresets, ruleSwitcherSelecting, selectRulePreset]);
+  }, [
+    activeDictationVisible,
+    cancelCapture,
+    client,
+    rulePresets,
+    ruleSwitcherMode,
+    ruleSwitcherSelecting,
+    selectRulePreset,
+  ]);
 
   return (
     <main
@@ -297,42 +358,68 @@ export function OverlayApp({
           </div>
         ) : (
           <div
-            className={`flex h-full items-center gap-(--overlay-content-gap) px-(--overlay-content-padding-x) transition-[opacity,visibility] duration-200 ease-out ${isIdle ? 'invisible opacity-0 delay-0' : 'visible opacity-100 delay-150'}`}
+            className={`flex h-full items-center gap-(--overlay-content-gap) transition-[opacity,visibility] duration-200 ease-out ${activeInputFallback ? 'min-w-0 max-w-full pl-5.5 pr-4.5' : 'px-(--overlay-content-padding-x)'} ${isIdle && !audioFallbackNotice && !activeInputFallback ? 'invisible opacity-0 delay-0' : 'visible opacity-100 delay-150'}`}
           >
-            <div className="flex size-(--overlay-activity-slot-size) shrink-0 items-center justify-center">
-              {failed ? (
+            <div
+              className={`flex size-(--overlay-activity-slot-size) shrink-0 items-center justify-center ${activeInputFallback ? 'mr-1' : ''}`}
+            >
+              {activeInputFallback ? (
+                <ListeningWave />
+              ) : audioFallbackNotice ? (
+                <span className="size-3.5 rounded-full bg-accent-amber" />
+              ) : failed ? (
                 <span className="size-3.5 rounded-full bg-accent-red" />
-              ) : noSpeech ? (
+              ) : noSpeech || cancelled ? (
                 <span className="size-3.5 rounded-full bg-accent-amber" />
               ) : listening ? (
-                <div className="flex h-3.5 items-center gap-0.75" aria-hidden="true">
-                  <span className="h-2 w-1 animate-wave rounded-full bg-text-primary" />
-                  <span className="h-3 w-1 animate-wave rounded-full bg-text-primary [animation-delay:0.12s]" />
-                  <span className="h-3.5 w-1 animate-wave rounded-full bg-text-primary [animation-delay:0.24s]" />
-                  <span className="h-2.5 w-1 animate-wave rounded-full bg-text-primary [animation-delay:0.36s]" />
-                </div>
+                <ListeningWave />
               ) : (
                 <span className="size-4 animate-spin-ring rounded-full border-2 border-text-tertiary/20 border-t-text-primary" />
               )}
             </div>
 
-            <h2 className="m-0 text-left text-[0.92rem] font-medium tracking-tight whitespace-nowrap text-text-primary">
-              {failed
-                ? 'Failed'
-                : noSpeech
-                  ? 'No speech detected'
-                  : listening
-                    ? 'Listening...'
-                    : polishing
-                      ? 'Polishing...'
-                      : 'Transcribing...'}
-            </h2>
+            {activeInputFallback ? (
+              <div className="min-w-0 flex-1 text-left">
+                <h2 className="m-0 text-xs font-medium tracking-tight whitespace-nowrap text-text-secondary">
+                  Listening...
+                </h2>
+                <p className="m-0 mt-0.5 flex min-w-0 items-center gap-2 text-sm leading-tight tracking-tight whitespace-nowrap">
+                  <span className="size-1.5 shrink-0 rounded-full bg-accent-amber shadow-[0_0_0_4px_rgba(245,169,127,0.12)]" />
+                  <span className="shrink-0 font-semibold text-accent-amber">
+                    Using default input
+                  </span>
+                  <span className="truncate font-medium text-text-secondary">
+                    {activeInputFallback.defaultLabel ?? 'System Default Microphone'}
+                  </span>
+                </p>
+              </div>
+            ) : (
+              <h2 className="m-0 text-left text-[0.92rem] font-medium tracking-tight whitespace-nowrap text-text-primary">
+                {failed
+                  ? 'Failed'
+                  : audioFallbackNotice
+                    ? audioFallbackNotice
+                    : noSpeech
+                      ? 'No speech detected'
+                      : cancelled
+                        ? 'Cancelled'
+                        : listening
+                          ? 'Listening...'
+                          : polishing
+                            ? 'Polishing...'
+                            : transcribing
+                              ? 'Transcribing...'
+                              : 'Working...'}
+              </h2>
+            )}
 
             {!isIdle ? (
               <button
                 type="button"
                 className="flex size-(--overlay-cancel-button-size) shrink-0 items-center justify-center rounded-full border border-white/8 bg-white/6 text-[1.05rem] leading-none text-text-secondary transition-[background-color,color,transform] duration-200 ease-out hover:scale-105 hover:bg-accent-red/18 hover:text-accent-red active:scale-95"
-                aria-label="Cancel dictation"
+                aria-label={
+                  listening || transcribing || polishing ? 'Cancel dictation' : 'Dismiss status'
+                }
                 onClick={cancelCapture}
               >
                 &#215;
@@ -342,6 +429,17 @@ export function OverlayApp({
         )}
       </section>
     </main>
+  );
+}
+
+function ListeningWave() {
+  return (
+    <div className="flex h-3.5 items-center gap-0.75" aria-hidden="true">
+      <span className="h-2 w-1 animate-wave rounded-full bg-text-primary" />
+      <span className="h-3 w-1 animate-wave rounded-full bg-text-primary [animation-delay:0.12s]" />
+      <span className="h-3.5 w-1 animate-wave rounded-full bg-text-primary [animation-delay:0.24s]" />
+      <span className="h-2.5 w-1 animate-wave rounded-full bg-text-primary [animation-delay:0.36s]" />
+    </div>
   );
 }
 
@@ -438,7 +536,7 @@ function RuleSwitcherContent({
                     <span className="shrink-0 text-xs text-accent-green">Active</span>
                   )}
                 </span>
-                <span className="mt-1 block overflow-hidden text-xs leading-snug text-text-tertiary [display:-webkit-box] [-webkit-box-orient:vertical] [-webkit-line-clamp:2]">
+                <span className="mt-1 line-clamp-2 text-xs leading-snug text-text-tertiary">
                   {rulePreset.description}
                 </span>
               </span>

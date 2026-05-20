@@ -1,6 +1,11 @@
 import { rename, readFile, writeFile } from 'node:fs/promises';
 
-import type { AppSettings, ProviderId, ShortcutChord } from '@toph/desktop-contracts';
+import type {
+  AppSettings,
+  AudioDevicePreference,
+  ProviderId,
+  ShortcutChord,
+} from '@toph/desktop-contracts';
 
 import {
   defaultAppSettings,
@@ -19,6 +24,8 @@ export interface AppSettingsStore {
   setTranscriptionModel: (model: string) => Promise<AppSettings>;
   setInferenceProvider: (providerId: ProviderId) => Promise<AppSettings>;
   setInferenceModel: (model: string) => Promise<AppSettings>;
+  setAudioInputDevice: (device: AudioDevicePreference) => Promise<AppSettings>;
+  setAudioOutputDevice: (device: AudioDevicePreference) => Promise<AppSettings>;
   setPolishEnabled: (enabled: boolean) => Promise<AppSettings>;
   setTypingWpm: (typingWpm: number) => Promise<AppSettings>;
   setPolishRulePreset: (rulePresetId: string) => Promise<AppSettings>;
@@ -174,6 +181,18 @@ export async function createAppSettingsStore(options: {
     setInferenceModel(model) {
       return commit((draft) => {
         draft.inference.model = model;
+      });
+    },
+
+    setAudioInputDevice(device) {
+      return commit((draft) => {
+        draft.audio.inputDevice = device;
+      });
+    },
+
+    setAudioOutputDevice(device) {
+      return commit((draft) => {
+        draft.audio.outputDevice = device;
       });
     },
 

@@ -1,15 +1,42 @@
-import { useState } from 'react';
+import { Bot, BrainCircuit, History, Keyboard, Mic, WandSparkles } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
 
 import { type AppState, type DesktopApi, type ProviderId } from '@toph/desktop-contracts';
 
 import { AppBackdrop } from '../components/app-backdrop';
 import { Button } from '../components/button';
+import { AudioSection } from '../components/settings/audio-section';
 import { DiagnosticsSection } from '../components/settings/diagnostics-section';
 import { PolishSection } from '../components/settings/polish-section';
 import { ProviderSection } from '../components/settings/provider-section';
 import { RoutingSection } from '../components/settings/routing-section';
+import {
+  SettingsSideNav,
+  type SettingsSideNavSection,
+} from '../components/settings/settings-side-nav';
 import { ShortcutSection } from '../components/settings/shortcut-section';
 import { WindowDragRegion } from '../components/window-drag-region';
+import { useAudioDevices } from '../hooks/use-audio-devices';
+
+const settingsSectionIds = {
+  providers: 'providers',
+  models: 'models',
+  audio: 'audio',
+  writing: 'writing',
+  shortcuts: 'shortcuts',
+  advanced: 'advanced',
+} as const;
+
+type SettingsSectionId = (typeof settingsSectionIds)[keyof typeof settingsSectionIds];
+
+const settingsNavSections = [
+  { id: settingsSectionIds.providers, label: 'Providers', icon: Bot },
+  { id: settingsSectionIds.models, label: 'Models', icon: BrainCircuit },
+  { id: settingsSectionIds.audio, label: 'Audio', icon: Mic },
+  { id: settingsSectionIds.writing, label: 'Writing', icon: WandSparkles },
+  { id: settingsSectionIds.shortcuts, label: 'Shortcuts', icon: Keyboard },
+  { id: settingsSectionIds.advanced, label: 'Advanced', icon: History },
+] satisfies readonly SettingsSideNavSection<SettingsSectionId>[];
 
 export function SettingsPage({
   state,
@@ -20,9 +47,17 @@ export function SettingsPage({
   client: DesktopApi;
   onBack: () => void;
 }) {
+  const mainRef = useRef<HTMLElement | null>(null);
   const [busyProvider, setBusyProvider] = useState<string | null>(null);
   const [busyPolish, setBusyPolish] = useState(false);
   const [busySettings, setBusySettings] = useState(false);
+  const [activeSectionId, setActiveSectionId] = useState<SettingsSectionId>(
+    settingsNavSections[0].id,
+  );
+  const audioDevices = useAudioDevices(
+    state.settings.audio.inputDevice,
+    state.settings.audio.outputDevice,
+  );
   const provider = state.providers.providers[0];
   const settingsEditable = state.phase === 'idle';
 
@@ -77,13 +112,82 @@ export function SettingsPage({
     }
   };
 
+  const scrollToSection = (sectionId: SettingsSectionId) => {
+    const element = document.getElementById(sectionId);
+    if (!element) {
+      return;
+    }
+
+    const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    setActiveSectionId(sectionId);
+    element.scrollIntoView({
+      behavior: prefersReducedMotion ? 'auto' : 'smooth',
+      block: 'start',
+    });
+  };
+
+  useEffect(() => {
+    const root = mainRef.current;
+    if (!root) {
+      return;
+    }
+
+    let animationFrame = 0;
+    const updateActiveSection = () => {
+      if (animationFrame !== 0) {
+        return;
+      }
+
+      animationFrame = window.requestAnimationFrame(() => {
+        animationFrame = 0;
+        const targetTop = root.getBoundingClientRect().top + 72;
+        let nextSectionId = settingsNavSections[0].id;
+        const scrollable = root.scrollHeight > root.clientHeight + 2;
+        const nearScrollEnd =
+          scrollable && root.scrollTop + root.clientHeight >= root.scrollHeight - 2;
+
+        for (const section of settingsNavSections) {
+          const element = document.getElementById(section.id);
+          if (!element) {
+            continue;
+          }
+
+          if (element.getBoundingClientRect().top <= targetTop) {
+            nextSectionId = section.id;
+          }
+        }
+
+        if (nearScrollEnd) {
+          nextSectionId = settingsNavSections[settingsNavSections.length - 1].id;
+        }
+
+        setActiveSectionId((current) => (current === nextSectionId ? current : nextSectionId));
+      });
+    };
+
+    updateActiveSection();
+    root.addEventListener('scroll', updateActiveSection, { passive: true });
+    window.addEventListener('resize', updateActiveSection);
+
+    return () => {
+      root.removeEventListener('scroll', updateActiveSection);
+      window.removeEventListener('resize', updateActiveSection);
+      if (animationFrame !== 0) {
+        window.cancelAnimationFrame(animationFrame);
+      }
+    };
+  }, []);
+
   return (
-    <main className="relative h-screen overflow-y-auto bg-canvas px-6 pt-8 pb-10 [scrollbar-width:none] max-[640px]:px-5 [&::-webkit-scrollbar]:hidden">
+    <main
+      ref={mainRef}
+      className="relative h-screen overflow-y-auto bg-canvas px-6 pt-8 pb-10 [scrollbar-width:none] max-[640px]:px-5 [&::-webkit-scrollbar]:hidden"
+    >
       {state.environment.platform === 'darwin' && <WindowDragRegion />}
       <AppBackdrop variant="settings" fixed />
 
-      <section className="relative mx-auto max-w-160">
-        <header className="mb-5 flex items-center gap-4 pt-4 pb-5">
+      <section className="relative mx-auto grid max-w-245 grid-cols-[13.5rem_minmax(0,1fr)] gap-x-6 gap-y-5 max-[820px]:block">
+        <header className="col-span-2 flex items-center gap-4 pt-4 pb-5 max-[820px]:mb-5">
           <button
             type="button"
             className="inline-flex size-9 cursor-pointer items-center justify-center rounded-full border border-white/8 bg-white/5 text-text-secondary transition-colors duration-200 ease-out hover:bg-white/10 hover:text-text-primary"
@@ -105,85 +209,117 @@ export function SettingsPage({
           <h1 className="m-0 font-display text-[28px] font-bold tracking-[-0.03em]">Settings</h1>
         </header>
 
-        <ProviderSection
-          provider={provider}
-          busy={busyProvider !== null}
-          onConnect={() => void connectProvider()}
-          onRemove={() => void removeProvider()}
+        <SettingsSideNav
+          sections={settingsNavSections}
+          activeSectionId={activeSectionId}
+          onSectionSelect={scrollToSection}
         />
 
-        <RoutingSection
-          providerItems={providerItems}
-          transcriptionProviderId={state.settings.transcription.providerId}
-          transcriptionModel={state.settings.transcription.model}
-          inferenceProviderId={state.settings.inference.providerId}
-          inferenceModel={state.settings.inference.model}
-          disabled={!settingsEditable || busySettings}
-          onTranscriptionProviderChange={(providerId: ProviderId) =>
-            void updateSetting(() => client.setTranscriptionProvider(providerId))
-          }
-          onTranscriptionModelChange={(model) =>
-            void updateSetting(() => client.setTranscriptionModel(model))
-          }
-          onInferenceProviderChange={(providerId: ProviderId) =>
-            void updateSetting(() => client.setInferenceProvider(providerId))
-          }
-          onInferenceModelChange={(model) =>
-            void updateSetting(() => client.setInferenceModel(model))
-          }
-        />
+        <div className="min-w-0">
+          <ProviderSection
+            id={settingsSectionIds.providers}
+            provider={provider}
+            busy={busyProvider !== null}
+            onConnect={() => void connectProvider()}
+            onRemove={() => void removeProvider()}
+          />
 
-        <PolishSection
-          enabled={state.settings.polish.enabled}
-          activeRulePresetId={state.settings.polish.rulePresetId}
-          rulePresets={state.polish.rulePresets}
-          dictionary={state.polish.dictionary}
-          typingWpm={state.settings.dashboard.typingWpm}
-          disabled={!settingsEditable || busyPolish}
-          client={client}
-          onEnabledChange={(enabled) => void setPolishEnabled(enabled)}
-          onTypingWpmChange={(typingWpm) =>
-            void updateSetting(() => client.setTypingWpm(typingWpm))
-          }
-        />
+          <RoutingSection
+            id={settingsSectionIds.models}
+            providerItems={providerItems}
+            transcriptionProviderId={state.settings.transcription.providerId}
+            transcriptionModel={state.settings.transcription.model}
+            inferenceProviderId={state.settings.inference.providerId}
+            inferenceModel={state.settings.inference.model}
+            disabled={!settingsEditable || busySettings}
+            onTranscriptionProviderChange={(providerId: ProviderId) =>
+              void updateSetting(() => client.setTranscriptionProvider(providerId))
+            }
+            onTranscriptionModelChange={(model) =>
+              void updateSetting(() => client.setTranscriptionModel(model))
+            }
+            onInferenceProviderChange={(providerId: ProviderId) =>
+              void updateSetting(() => client.setInferenceProvider(providerId))
+            }
+            onInferenceModelChange={(model) =>
+              void updateSetting(() => client.setInferenceModel(model))
+            }
+          />
 
-        <ShortcutSection
-          shortcut={state.shortcut.chord}
-          ruleSwitcherShortcut={state.ruleSwitcherShortcut.chord}
-          platform={state.environment.platform}
-          registered={state.shortcut.registered}
-          ruleSwitcherRegistered={state.ruleSwitcherShortcut.registered}
-          backend={state.shortcut.backend}
-          ruleSwitcherBackend={state.ruleSwitcherShortcut.backend}
-          detail={state.shortcut.detail}
-          ruleSwitcherDetail={state.ruleSwitcherShortcut.detail}
-          installed={state.shortcut.installed}
-          ruleSwitcherInstalled={state.ruleSwitcherShortcut.installed}
-          installable={state.shortcut.installable}
-          ruleSwitcherInstallable={state.ruleSwitcherShortcut.installable}
-          onRegister={(chord) => client.installShortcut(chord)}
-          onRegisterRuleSwitcher={(chord) => client.installRuleSwitcherShortcut(chord)}
-          onSuspend={client.suspendShortcut}
-          onResume={client.resumeShortcut}
-        />
+          <AudioSection
+            id={settingsSectionIds.audio}
+            state={audioDevices.state}
+            inputPreference={state.settings.audio.inputDevice}
+            outputPreference={state.settings.audio.outputDevice}
+            disabled={!settingsEditable || busySettings}
+            inputTesting={audioDevices.inputTesting}
+            inputEnergy={audioDevices.inputEnergy}
+            onInputDeviceChange={(device) =>
+              void updateSetting(() => client.setAudioInputDevice(device))
+            }
+            onOutputDeviceChange={(device) =>
+              void updateSetting(() => client.setAudioOutputDevice(device))
+            }
+            onStartInputTest={() => void audioDevices.startInputTest()}
+            onStopInputTest={audioDevices.stopInputTest}
+            onPlayOutputTest={() => void audioDevices.playOutputTest()}
+          />
 
-        <DiagnosticsSection
-          providerLabel={provider?.label ?? null}
-          currentDesktop={state.environment.currentDesktop}
-          sessionType={state.environment.sessionType}
-          platform={state.environment.platform}
-          providerReady={state.providers.ready}
-          polishEnabled={state.settings.polish.enabled}
-          polishRulePresetId={state.settings.polish.rulePresetId}
-          permissionsReady={state.permissions.ready}
-          pasteHelper={state.pasteSupport.helper}
-          pasteDetail={state.pasteSupport.detail}
-        />
+          <PolishSection
+            id={settingsSectionIds.writing}
+            enabled={state.settings.polish.enabled}
+            activeRulePresetId={state.settings.polish.rulePresetId}
+            rulePresets={state.polish.rulePresets}
+            dictionary={state.polish.dictionary}
+            typingWpm={state.settings.dashboard.typingWpm}
+            disabled={!settingsEditable || busyPolish}
+            client={client}
+            onEnabledChange={(enabled) => void setPolishEnabled(enabled)}
+            onTypingWpmChange={(typingWpm) =>
+              void updateSetting(() => client.setTypingWpm(typingWpm))
+            }
+          />
 
-        <div className="flex justify-end border-t border-white/6 pt-5">
-          <Button variant="danger" onClick={() => void client.quit()}>
-            Quit Toph
-          </Button>
+          <ShortcutSection
+            id={settingsSectionIds.shortcuts}
+            shortcut={state.shortcut.chord}
+            ruleSwitcherShortcut={state.ruleSwitcherShortcut.chord}
+            platform={state.environment.platform}
+            registered={state.shortcut.registered}
+            ruleSwitcherRegistered={state.ruleSwitcherShortcut.registered}
+            backend={state.shortcut.backend}
+            ruleSwitcherBackend={state.ruleSwitcherShortcut.backend}
+            detail={state.shortcut.detail}
+            ruleSwitcherDetail={state.ruleSwitcherShortcut.detail}
+            installed={state.shortcut.installed}
+            ruleSwitcherInstalled={state.ruleSwitcherShortcut.installed}
+            installable={state.shortcut.installable}
+            ruleSwitcherInstallable={state.ruleSwitcherShortcut.installable}
+            onRegister={(chord) => client.installShortcut(chord)}
+            onRegisterRuleSwitcher={(chord) => client.installRuleSwitcherShortcut(chord)}
+            onSuspend={client.suspendShortcut}
+            onResume={client.resumeShortcut}
+          />
+
+          <DiagnosticsSection
+            id={settingsSectionIds.advanced}
+            providerLabel={provider?.label ?? null}
+            currentDesktop={state.environment.currentDesktop}
+            sessionType={state.environment.sessionType}
+            platform={state.environment.platform}
+            providerReady={state.providers.ready}
+            polishEnabled={state.settings.polish.enabled}
+            polishRulePresetId={state.settings.polish.rulePresetId}
+            permissionsReady={state.permissions.ready}
+            pasteHelper={state.pasteSupport.helper}
+            pasteDetail={state.pasteSupport.detail}
+          />
+
+          <div className="flex justify-end border-t border-white/6 pt-5">
+            <Button variant="danger" onClick={() => void client.quit()}>
+              Quit Toph
+            </Button>
+          </div>
         </div>
       </section>
     </main>

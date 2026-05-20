@@ -1,6 +1,9 @@
+import { BrainCircuit } from 'lucide-react';
+
 import type { ProviderId } from '@toph/desktop-contracts';
 
 import {
+  SettingsIcon,
   SettingsRow,
   SettingsSection,
   SettingsSelect,
@@ -9,6 +12,7 @@ import {
 } from './settings-controls';
 
 export function RoutingSection({
+  id,
   providerItems,
   transcriptionProviderId,
   transcriptionModel,
@@ -20,6 +24,7 @@ export function RoutingSection({
   onInferenceProviderChange,
   onInferenceModelChange,
 }: {
+  id?: string;
   providerItems: SettingsSelectItem<ProviderId>[];
   transcriptionProviderId: ProviderId;
   transcriptionModel: string;
@@ -33,10 +38,18 @@ export function RoutingSection({
 }) {
   return (
     <SettingsSection
+      id={id}
       eyebrow="Models"
       description="Choose which provider and model Toph uses for transcription and inference."
     >
-      <SettingsRow label="Transcription Provider">
+      <SettingsRow
+        label="Transcription Provider"
+        icon={
+          <SettingsIcon tone="violet">
+            <BrainCircuit size={17} strokeWidth={1.8} />
+          </SettingsIcon>
+        }
+      >
         <SettingsSelect
           items={providerItems}
           value={transcriptionProviderId}

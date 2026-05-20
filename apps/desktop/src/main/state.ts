@@ -5,6 +5,7 @@ import {
   resolveDefaultShortcutChord,
   resolveDefaultRuleSwitcherShortcutChord,
   shortcutChordToElectronAccelerator,
+  type ActiveInputDeviceFallback,
   type AppState,
   type AppSettings,
   type DashboardStats,
@@ -49,11 +50,15 @@ export interface DesktopStateStore {
   setRecentSessions: (sessions: DictationSessionRecord[]) => void;
   setDashboardStats: (dashboardStats: DashboardStats) => void;
   setPhase: (phase: DictationPhase) => void;
-  startListening: () => void;
+  startListening: (options?: {
+    detail?: string;
+    inputDeviceFallback?: ActiveInputDeviceFallback | null;
+  }) => void;
   startTranscribing: () => void;
   startPolishing: () => void;
   completeRecording: () => void;
   noSpeechDetected: () => void;
+  cancelDictation: () => void;
   failDictation: (detail: string) => void;
   completeTranscription: (
     transcript: string,
@@ -69,7 +74,7 @@ export interface DesktopStateStore {
   ) => void;
 }
 
-function createInitialState(): AppState {
+function createInitialState(options: { appVersion: string }): AppState {
   const defaultShortcutChord = resolveDefaultShortcutChord(process.platform);
   const defaultRuleSwitcherShortcutChord = resolveDefaultRuleSwitcherShortcutChord(
     process.platform,
@@ -86,7 +91,11 @@ function createInitialState(): AppState {
   });
 
   return {
+    app: {
+      version: options.appVersion,
+    },
     phase: 'idle',
+    activeInputDeviceFallback: null,
     shortcut: toShortcutState(defaultShortcutChord, 'Inspecting dictation shortcut support...'),
     ruleSwitcherShortcut: toShortcutState(
       defaultRuleSwitcherShortcutChord,
@@ -157,8 +166,10 @@ function createInitialState(): AppState {
   };
 }
 
-export function createDesktopStateStore(): DesktopStateStore {
-  const state = createInitialState();
+export function createDesktopStateStore(initialStateOptions: {
+  appVersion: string;
+}): DesktopStateStore {
+  const state = createInitialState(initialStateOptions);
   const listeners = new Set<(state: AppState) => void>();
 
   const publish = () => {
@@ -268,7 +279,8 @@ export function createDesktopStateStore(): DesktopStateStore {
     setRecentSessions(sessions) {
       commit((draft) => {
         draft.recentSessions = sessions.slice(0, 8);
-        draft.lastTranscript = sessions.find((session) => session.selectedOutput)?.selectedOutput?.text ?? null;
+        draft.lastTranscript =
+          sessions.find((session) => session.selectedOutput)?.selectedOutput?.text ?? null;
       });
     },
 
@@ -281,16 +293,20 @@ export function createDesktopStateStore(): DesktopStateStore {
     setPhase(phase) {
       commit((draft) => {
         draft.phase = phase;
+        if (phase !== 'listening') {
+          draft.activeInputDeviceFallback = null;
+        }
       });
     },
 
-    startListening() {
+    startListening(options) {
       commit((draft) => {
         draft.phase = 'listening';
+        draft.activeInputDeviceFallback = options?.inputDeviceFallback ?? null;
         draft.lastPasteAttempt = {
           helper: draft.lastPasteAttempt.helper,
           status: 'idle',
-          detail: 'Recording microphone audio...',
+          detail: options?.detail ?? 'Recording microphone audio...',
         };
       });
     },
@@ -298,6 +314,7 @@ export function createDesktopStateStore(): DesktopStateStore {
     startTranscribing() {
       commit((draft) => {
         draft.phase = 'transcribing';
+        draft.activeInputDeviceFallback = null;
         draft.lastPasteAttempt = {
           helper: draft.lastPasteAttempt.helper,
           status: 'idle',
@@ -309,6 +326,7 @@ export function createDesktopStateStore(): DesktopStateStore {
     startPolishing() {
       commit((draft) => {
         draft.phase = 'polishing';
+        draft.activeInputDeviceFallback = null;
         draft.lastPasteAttempt = {
           helper: draft.lastPasteAttempt.helper,
           status: 'idle',
@@ -320,6 +338,7 @@ export function createDesktopStateStore(): DesktopStateStore {
     completeRecording() {
       commit((draft) => {
         draft.phase = 'idle';
+        draft.activeInputDeviceFallback = null;
         draft.lastPasteAttempt = {
           helper: draft.lastPasteAttempt.helper,
           status: 'idle',
@@ -331,6 +350,7 @@ export function createDesktopStateStore(): DesktopStateStore {
     noSpeechDetected() {
       commit((draft) => {
         draft.phase = 'no_speech';
+        draft.activeInputDeviceFallback = null;
         draft.lastPasteAttempt = {
           helper: draft.lastPasteAttempt.helper,
           status: 'idle',
@@ -339,9 +359,22 @@ export function createDesktopStateStore(): DesktopStateStore {
       });
     },
 
+    cancelDictation() {
+      commit((draft) => {
+        draft.phase = 'cancelled';
+        draft.activeInputDeviceFallback = null;
+        draft.lastPasteAttempt = {
+          helper: draft.lastPasteAttempt.helper,
+          status: 'idle',
+          detail: 'Cancelled.',
+        };
+      });
+    },
+
     failDictation(detail) {
       commit((draft) => {
         draft.phase = 'failed';
+        draft.activeInputDeviceFallback = null;
         draft.lastPasteAttempt = {
           helper: draft.lastPasteAttempt.helper,
           status: 'failed',
@@ -375,6 +408,7 @@ export function createDesktopStateStore(): DesktopStateStore {
         };
 
         draft.phase = 'idle';
+        draft.activeInputDeviceFallback = null;
         draft.lastTranscript = transcript;
         draft.lastPasteAttempt = pasteAttempt;
         draft.recentSessions = [

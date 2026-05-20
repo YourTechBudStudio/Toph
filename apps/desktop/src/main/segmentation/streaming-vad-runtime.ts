@@ -69,7 +69,10 @@ class RuntimeFallbackSession implements StreamingSpeechActivityAnalyzerSession {
       try {
         await this.active.dispose();
       } catch (disposeError) {
-        console.error(`Toph could not dispose failed VAD analyzer ${this.activeName}.`, disposeError);
+        console.error(
+          `Toph could not dispose failed VAD analyzer ${this.activeName}.`,
+          disposeError,
+        );
       }
 
       this.options.degrade(
@@ -95,10 +98,7 @@ class RuntimeLeasedSession implements StreamingSpeechActivityAnalyzerSession {
   private readonly session: StreamingSpeechActivityAnalyzerSession;
   private readonly release: () => void;
 
-  constructor(
-    session: StreamingSpeechActivityAnalyzerSession,
-    release: () => void,
-  ) {
+  constructor(session: StreamingSpeechActivityAnalyzerSession, release: () => void) {
     this.session = session;
     this.release = release;
   }
@@ -133,9 +133,11 @@ function isBusyError(error: unknown) {
   return error instanceof StreamingVadBusyError || error instanceof SileroStreamingVadBusyError;
 }
 
-export function createDefaultStreamingVadRuntime(options: {
-  onStatusChanged?: (status: VadRuntimeStatus) => void;
-} = {}): StreamingVadRuntime {
+export function createDefaultStreamingVadRuntime(
+  options: {
+    onStatusChanged?: (status: VadRuntimeStatus) => void;
+  } = {},
+): StreamingVadRuntime {
   const primary = createSileroStreamingVadBackend();
   const energyAnalyzer = createEnergyStreamingSpeechActivityAnalyzer({
     frameSizeSamples: primary.frameSizeSamples,
@@ -221,7 +223,10 @@ export function createDefaultStreamingVadRuntime(options: {
         }
 
         const detail = `Silero VAD failed to start. Falling back to basic energy detection. ${describeError(error)}.`;
-        console.error(`Toph could not initialize ${primary.name}; falling back to ${fallback.name}.`, error);
+        console.error(
+          `Toph could not initialize ${primary.name}; falling back to ${fallback.name}.`,
+          error,
+        );
         degrade(detail);
         try {
           return new RuntimeLeasedSession(await fallback.createSession(), release);

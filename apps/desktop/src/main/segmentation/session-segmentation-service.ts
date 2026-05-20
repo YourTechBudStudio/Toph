@@ -1,9 +1,9 @@
 import type { RecordingSessionStore } from '../stores/session-store';
 import type { StreamingSpeechActivityAnalyzer } from './analyzers/streaming-speech-activity-analyzer';
+import { createDefaultStreamingVadRuntime } from './streaming-vad-runtime';
 import { createSegmentationPipelineSession } from './streaming/segmentation-pipeline-session';
 import type { SegmentationPipelineSession } from './streaming/segmentation-pipeline-session';
 import { streamPcm16MonoWav } from './streaming/wav-stream-source';
-import { createDefaultStreamingVadRuntime } from './streaming-vad-runtime';
 import type { PlannedTranscriptionBatch } from './types';
 
 export type SegmentationOutcome = 'segmented' | 'no_speech';
