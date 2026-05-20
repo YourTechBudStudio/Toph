@@ -9,7 +9,7 @@ import {
 
 import type { ShortcutStateSupport } from '../state';
 
-const { globalShortcut } = electron;
+const { app, globalShortcut } = electron;
 
 export interface ShortcutManagerConfig {
   launcherScriptPath: string;
@@ -31,6 +31,8 @@ export interface ShortcutEnvironment {
   platform: NodeJS.Platform;
   sessionType: string;
   currentDesktop: string;
+  isPackaged?: boolean;
+  appImagePath?: string;
 }
 
 export interface GnomeShortcutInstallRequest {
@@ -94,6 +96,8 @@ export function createProcessShortcutEnvironment(): ShortcutEnvironment {
       process.env.DESKTOP_SESSION ??
       ''
     ).toLowerCase(),
+    isPackaged: app?.isPackaged ?? false,
+    appImagePath: process.env.APPIMAGE ?? '',
   };
 }
 

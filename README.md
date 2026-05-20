@@ -32,8 +32,22 @@ A few stubborn principles, in rough order of stubbornness:
 
 ## Getting started
 
-Head over to the [latest release](https://github.com/YourTechBudStudio/Toph/releases/latest)
-and grab the installer for your platform. Open it, install it, start talking.
+Download Toph from the [latest release](https://github.com/YourTechBudStudio/Toph/releases/latest):
+
+| Platform | Download | Notes |
+| --- | --- | --- |
+| macOS Apple silicon | `Toph-*-mac-arm64.dmg` | Open the DMG and drag Toph into Applications. |
+| macOS Intel | `Toph-*-mac-x64.dmg` | Open the DMG and drag Toph into Applications. |
+| Linux x64 | `Toph-*-linux-x86_64.AppImage` | Mark it executable, then run it. Tested first on Ubuntu GNOME. |
+
+On Linux:
+
+```bash
+chmod +x Toph-*-linux-x86_64.AppImage
+./Toph-*-linux-x86_64.AppImage
+```
+
+Windows builds are not part of the official release flow yet.
 
 ## Updating your rules
 

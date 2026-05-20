@@ -1,6 +1,7 @@
 appId: studio.yourtechbud.toph
 productName: Toph
 artifactName: ${productName}-${version}-${os}-${arch}.${ext}
+afterPack: build/after-pack.cjs
 
 directories:
   output: dist
@@ -41,11 +42,9 @@ win:
 
 linux:
   category: Utility
+  executableName: Toph
   icon: icon.png
   target:
     - target: AppImage
-      arch:
-        - x64
-    - target: deb
       arch:
         - x64

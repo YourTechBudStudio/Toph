@@ -26,6 +26,11 @@ const unityWaylandEnvironment = {
   sessionType: 'wayland',
   currentDesktop: 'Unity',
 };
+const appImageWaylandEnvironment = {
+  ...unityWaylandEnvironment,
+  isPackaged: true,
+  appImagePath: '/bin/sh',
+};
 const noopLogger = {
   info() {},
   warn() {},
@@ -487,4 +492,57 @@ test('production manager uses Electron backend when Unity Wayland portal is avai
   assert.equal(gnomeInstallAttempted, false);
   assert.equal(stateStore.getState().shortcut.backend, 'electron-global-shortcut');
   assert.deepEqual(shortcutApi.getRegistrations(), ['Control+Alt+Space', 'Control+Space']);
+});
+
+test('production manager uses stable AppImage launcher for GNOME fallback', async () => {
+  const stateStore = createStateStore();
+  const shortcutApi = createGlobalShortcutApi([false]);
+  const installedShortcuts: Array<{
+    path: string;
+    command: string;
+  }> = [];
+  const manager = createShortcutManager({
+    stateStore,
+    config: {
+      launcherScriptPath: '/tmp/toph-desktop.sh',
+      toggleCaptureFlag: '--toggle-capture',
+      ruleSwitcherFlag: '--rule-switcher',
+    },
+    onDictationTrigger: () => {},
+    onRuleSwitcherTrigger: () => {},
+    persistDictationShortcut: async () => {},
+    persistRuleSwitcherShortcut: async () => {},
+    shortcutApi,
+    environment: appImageWaylandEnvironment,
+    supportsGlobalShortcutsPortal: async () => false,
+    gnomeShortcutApi: {
+      async installShortcuts(shortcuts) {
+        installedShortcuts.push(...shortcuts);
+      },
+      async suspendShortcut() {},
+    },
+    logger: noopLogger,
+  });
+
+  await manager.registerSavedShortcuts({
+    dictation: defaultChord,
+    ruleSwitcher: ruleSwitcherChord,
+  });
+
+  assert.deepEqual(
+    installedShortcuts.map((shortcut) => ({
+      path: shortcut.path,
+      command: shortcut.command,
+    })),
+    [
+      {
+        path: '/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/toph/',
+        command: "'/bin/sh' --no-sandbox --disable-gpu --toggle-capture",
+      },
+      {
+        path: '/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/toph-rule-switcher/',
+        command: "'/bin/sh' --no-sandbox --disable-gpu --rule-switcher",
+      },
+    ],
+  );
 });

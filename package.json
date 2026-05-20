@@ -1,11 +1,12 @@
 {
   "name": "toph",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "private": true,
   "scripts": {
     "build": "pnpm --filter @toph/desktop build",
     "dev": "pnpm --filter @toph/desktop dev",
     "dist": "pnpm --filter @toph/desktop run dist",
+    "dist:linux": "pnpm --filter @toph/desktop run dist:linux",
     "dist:mac": "pnpm --filter @toph/desktop run dist:mac",
     "dist:mac:arm64": "pnpm --filter @toph/desktop run dist:mac:arm64",
     "dist:mac:x64": "pnpm --filter @toph/desktop run dist:mac:x64",

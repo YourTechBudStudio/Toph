@@ -105,15 +105,19 @@ async function shouldUseGnomeShortcutFallback(options: {
 
 function getShortcutLauncherCommand(
   config: ShortcutPlatformBackendOptions['config'],
+  environment: ShortcutPlatformBackendOptions['environment'],
   flag: string,
 ) {
-  const launcherPath = app?.isPackaged ? process.execPath : config.launcherScriptPath;
+  const isPackaged = environment.isPackaged ?? app?.isPackaged ?? false;
+  const launcherPath = isPackaged
+    ? environment.appImagePath || process.execPath
+    : config.launcherScriptPath;
   if (!existsSync(launcherPath)) {
     throw new Error(`Shortcut launcher does not exist: ${launcherPath}`);
   }
 
-  if (app?.isPackaged) {
-    return `${shellQuote(launcherPath)} ${flag}`;
+  if (isPackaged) {
+    return `${shellQuote(launcherPath)} --no-sandbox --disable-gpu ${flag}`;
   }
 
   return `sh ${shellQuote(launcherPath)} ${flag}`;
@@ -180,13 +184,21 @@ export function createLinuxShortcutBackend(
         {
           path: GNOME_TOPH_DICTATION_PATH,
           name: 'Toph Toggle Dictation',
-          command: getShortcutLauncherCommand(options.config, options.config.toggleCaptureFlag),
+          command: getShortcutLauncherCommand(
+            options.config,
+            options.environment,
+            options.config.toggleCaptureFlag,
+          ),
           binding: shortcutChordToGnomeBinding(chords.dictation),
         },
         {
           path: GNOME_TOPH_RULE_SWITCHER_PATH,
           name: 'Toph Rule Switcher',
-          command: getShortcutLauncherCommand(options.config, options.config.ruleSwitcherFlag),
+          command: getShortcutLauncherCommand(
+            options.config,
+            options.environment,
+            options.config.ruleSwitcherFlag,
+          ),
           binding: shortcutChordToGnomeBinding(chords.ruleSwitcher),
         },
       ];
