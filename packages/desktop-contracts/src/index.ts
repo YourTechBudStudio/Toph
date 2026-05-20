@@ -346,6 +346,7 @@ export const DEFAULT_INFERENCE_PROVIDER_ID: ProviderId = 'openai-sub';
 export const DEFAULT_TRANSCRIPTION_MODEL = 'chatgpt-backend-transcribe';
 export const DEFAULT_INFERENCE_MODEL = 'gpt-5.4-mini';
 export const MAX_POLISH_RULE_PRESETS = 9;
+export const MAX_ENABLED_DICTIONARY_ENTRIES = 200;
 export type ProviderConnectionStatus = 'missing' | 'connecting' | 'connected' | 'invalid';
 export type ProviderBillingMode = 'subscription' | 'metered' | 'local' | 'unknown';
 export const SYSTEM_DEFAULT_AUDIO_DEVICE_ID = 'default';
@@ -508,6 +509,7 @@ export interface AppSettings {
   polish: {
     enabled: boolean;
     rulePresetId: string | null;
+    dictionaryDefaultsSeeded: boolean;
   };
   dashboard: {
     typingWpm: number;
@@ -552,6 +554,7 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   polish: {
     enabled: true,
     rulePresetId: null,
+    dictionaryDefaultsSeeded: false,
   },
   dashboard: {
     typingWpm: 50,

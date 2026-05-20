@@ -1,6 +1,10 @@
 import { createHash } from 'node:crypto';
 
-import type { DictionaryEntryDraft, PolishRulePresetDraft } from '@toph/desktop-contracts';
+import {
+  MAX_ENABLED_DICTIONARY_ENTRIES,
+  type DictionaryEntryDraft,
+  type PolishRulePresetDraft,
+} from '@toph/desktop-contracts';
 
 import type { DictionaryEntry } from '../db/schema';
 
@@ -9,7 +13,7 @@ const maxRulePresetDescriptionLength = 180;
 const maxRulePresetBodyLength = 4_000;
 const maxDictionaryTermLength = 120;
 const maxDictionaryHintLength = 500;
-export const maxEnabledDictionaryEntries = 200;
+export const maxEnabledDictionaryEntries = MAX_ENABLED_DICTIONARY_ENTRIES;
 
 function createRulePresetHash(body: string) {
   return createHash('sha256').update(body, 'utf8').digest('hex');

@@ -39,7 +39,7 @@ function createService(
           auth: { providerId: 'openai-sub' },
           transcription: { providerId: 'openai-sub', model: 'chatgpt-backend-transcribe' },
           inference: { providerId: 'openai-sub', model: 'gpt-5.4-mini' },
-          polish: { enabled: true, rulePresetId: 'general' },
+          polish: { enabled: true, rulePresetId: 'general', dictionaryDefaultsSeeded: false },
         };
       },
     },

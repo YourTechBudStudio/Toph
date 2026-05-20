@@ -35,7 +35,7 @@ test('normalizes unknown providers, empty models, and unknown rule presets to un
       inputDevice: { id: 'default', label: null },
       outputDevice: { id: 'default', label: null },
     },
-    polish: { enabled: true, rulePresetId: null },
+    polish: { enabled: true, rulePresetId: null, dictionaryDefaultsSeeded: false },
     dashboard: { typingWpm: 50 },
   });
 });
@@ -54,6 +54,7 @@ test('normalizes existing v1 settings without a shortcut to the platform default
 
   assert.deepEqual(settings.shortcut.chord, resolveDefaultShortcutChord(process.platform));
   assert.equal(settings.polish.enabled, false);
+  assert.equal(settings.polish.dictionaryDefaultsSeeded, false);
   assert.deepEqual(settings.audio, {
     inputDevice: { id: 'default', label: null },
     outputDevice: { id: 'default', label: null },
@@ -95,6 +96,21 @@ test('preserves legacy active prompt IDs as rule preset IDs when available', () 
   );
 
   assert.equal(settings.polish.rulePresetId, 'default');
+});
+
+test('preserves the dictionary default seed marker', () => {
+  const settings = normalizeAppSettings(
+    parseAppSettingsFile({
+      version: 1,
+      auth: { providerId: 'openai-sub' },
+      transcription: { providerId: 'openai-sub', model: 'chatgpt-backend-transcribe' },
+      inference: { providerId: 'openai-sub', model: 'gpt-5.4-mini' },
+      polish: { enabled: true, rulePresetId: 'general', dictionaryDefaultsSeeded: true },
+    }),
+    { rulePresetIds: ['general'] },
+  );
+
+  assert.equal(settings.polish.dictionaryDefaultsSeeded, true);
 });
 
 test('rejects invalid settings structure', () => {
