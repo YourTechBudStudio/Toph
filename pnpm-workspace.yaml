@@ -4,5 +4,7 @@ packages:
 allowBuilds:
   better-sqlite3: true
   electron: true
+  electron-winstaller: set this to true or false
   esbuild: true
+  protobufjs: set this to true or false
   sharp: true
