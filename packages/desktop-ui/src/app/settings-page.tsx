@@ -313,6 +313,12 @@ export function SettingsPage({
             polishEnabled={state.settings.polish.enabled}
             polishRulePresetId={state.settings.polish.rulePresetId}
             permissionsReady={state.permissions.ready}
+            shortcutBackend={state.shortcut.backend}
+            shortcutRegistered={state.shortcut.registered}
+            shortcutDetail={state.shortcut.detail}
+            ruleSwitcherShortcutBackend={state.ruleSwitcherShortcut.backend}
+            ruleSwitcherShortcutRegistered={state.ruleSwitcherShortcut.registered}
+            ruleSwitcherShortcutDetail={state.ruleSwitcherShortcut.detail}
             pasteHelper={state.pasteSupport.helper}
             pasteDetail={state.pasteSupport.detail}
           />
