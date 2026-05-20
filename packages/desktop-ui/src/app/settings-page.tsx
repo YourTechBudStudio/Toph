@@ -254,6 +254,7 @@ export function SettingsPage({
             disabled={!settingsEditable || busySettings}
             inputTesting={audioDevices.inputTesting}
             inputEnergy={audioDevices.inputEnergy}
+            refreshingDevices={audioDevices.refreshing}
             onInputDeviceChange={(device) =>
               void updateSetting(() => client.setAudioInputDevice(device))
             }
@@ -263,6 +264,7 @@ export function SettingsPage({
             onStartInputTest={() => void audioDevices.startInputTest()}
             onStopInputTest={audioDevices.stopInputTest}
             onPlayOutputTest={() => void audioDevices.playOutputTest()}
+            onRefreshDevices={() => void audioDevices.refresh()}
           />
 
           <PolishSection

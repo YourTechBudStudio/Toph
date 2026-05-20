@@ -14,6 +14,9 @@ export const dangerItemClass = `${itemClass} text-accent-red data-highlighted:te
 
 export const separatorClass = 'mx-1.5 my-[3px] h-px bg-white/6';
 
+export const footerActionClass =
+  'flex w-full cursor-default items-center gap-2 rounded-lg px-2.5 py-[7px] text-left text-[0.8125rem] font-semibold text-text-secondary outline-hidden transition-colors duration-100 hover:bg-white/8 hover:text-text-primary disabled:opacity-55';
+
 export const selectTriggerInlineClass =
   'inline-flex min-w-0 items-center justify-end gap-2 rounded-lg bg-transparent px-0 py-0 text-right text-sm font-semibold text-text-secondary transition-colors duration-150 hover:text-text-primary data-popup-open:text-text-primary disabled:opacity-55';
 

@@ -294,6 +294,7 @@ export function OnboardingScreen({
                   disabled={!providerComplete || !permissionsComplete || busyAudio}
                   inputTesting={audioDevices.inputTesting}
                   inputEnergy={audioDevices.inputEnergy}
+                  refreshingDevices={audioDevices.refreshing}
                   onInputDeviceChange={(device) =>
                     void updateAudioSetting(() => client.setAudioInputDevice(device))
                   }
@@ -303,6 +304,7 @@ export function OnboardingScreen({
                   onStartInputTest={() => void audioDevices.startInputTest()}
                   onStopInputTest={audioDevices.stopInputTest}
                   onPlayOutputTest={() => void audioDevices.playOutputTest()}
+                  onRefreshDevices={() => void audioDevices.refresh()}
                 />
               </StepSection>
 

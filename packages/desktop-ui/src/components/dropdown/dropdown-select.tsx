@@ -1,10 +1,12 @@
 import { Select } from '@base-ui/react/select';
 
 import {
+  footerActionClass,
   itemClass,
   itemIndicatorClass,
   popupAnimationClass,
   popupSurfaceClass,
+  separatorClass,
   selectTriggerDefaultClass,
   selectTriggerInlineClass,
 } from './dropdown-styles';
@@ -12,6 +14,12 @@ import {
 export type DropdownSelectItem<TValue extends string = string> = {
   value: TValue;
   label: string;
+};
+
+export type DropdownSelectFooterAction = {
+  label: string;
+  disabled?: boolean;
+  onClick: () => void;
 };
 
 export type DropdownSelectVariant = 'inline' | 'default';
@@ -22,6 +30,7 @@ export function DropdownSelect<TValue extends string>({
   value,
   placeholder,
   disabled,
+  footerAction,
   variant = 'inline',
   onValueChange,
 }: {
@@ -30,6 +39,7 @@ export function DropdownSelect<TValue extends string>({
   value: TValue;
   placeholder: string;
   disabled?: boolean;
+  footerAction?: DropdownSelectFooterAction;
   variant?: DropdownSelectVariant;
   onValueChange: (value: TValue) => void;
 }) {
@@ -75,6 +85,34 @@ export function DropdownSelect<TValue extends string>({
                 </Select.Item>
               ))}
             </Select.List>
+            {footerAction && (
+              <>
+                <div className={separatorClass} />
+                <button
+                  type="button"
+                  className={footerActionClass}
+                  disabled={footerAction.disabled}
+                  onClick={footerAction.onClick}
+                >
+                  <svg
+                    className="size-3 shrink-0 text-text-tertiary"
+                    viewBox="0 0 12 12"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    aria-hidden="true"
+                  >
+                    <path d="M10 2.75V5H7.75" />
+                    <path d="M2 9.25V7h2.25" />
+                    <path d="M9.06 5A3.5 3.5 0 0 0 3.3 3.68L2 5" />
+                    <path d="M2.94 7a3.5 3.5 0 0 0 5.76 1.32L10 7" />
+                  </svg>
+                  {footerAction.label}
+                </button>
+              </>
+            )}
           </Select.Popup>
         </Select.Positioner>
       </Select.Portal>

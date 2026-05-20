@@ -1,6 +1,10 @@
 import { useEffect, useState, type ReactNode } from 'react';
 
-import { DropdownSelect, type DropdownSelectItem } from '../dropdown';
+import {
+  DropdownSelect,
+  type DropdownSelectFooterAction,
+  type DropdownSelectItem,
+} from '../dropdown';
 
 export type SettingsSelectItem<TValue extends string = string> = DropdownSelectItem<TValue>;
 
@@ -159,12 +163,14 @@ export function SettingsSelect<TValue extends string>({
   value,
   placeholder,
   disabled,
+  footerAction,
   onValueChange,
 }: {
   items: SettingsSelectItem<TValue>[];
   value: TValue;
   placeholder: string;
   disabled?: boolean;
+  footerAction?: DropdownSelectFooterAction;
   onValueChange: (value: TValue) => void;
 }) {
   return (
@@ -174,6 +180,7 @@ export function SettingsSelect<TValue extends string>({
       value={value}
       placeholder={placeholder}
       disabled={disabled}
+      footerAction={footerAction}
       variant="inline"
       onValueChange={onValueChange}
     />

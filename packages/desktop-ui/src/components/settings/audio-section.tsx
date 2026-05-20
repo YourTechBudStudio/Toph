@@ -92,8 +92,10 @@ export function AudioSection({
   disabled,
   inputTesting,
   inputEnergy,
+  refreshingDevices,
   onInputDeviceChange,
   onOutputDeviceChange,
+  onRefreshDevices,
   onStartInputTest,
   onStopInputTest,
   onPlayOutputTest,
@@ -105,8 +107,10 @@ export function AudioSection({
   disabled?: boolean;
   inputTesting: boolean;
   inputEnergy: number;
+  refreshingDevices: boolean;
   onInputDeviceChange: (device: AudioDevicePreference) => void;
   onOutputDeviceChange: (device: AudioDevicePreference) => void;
+  onRefreshDevices: () => void;
   onStartInputTest: () => void;
   onStopInputTest: () => void;
   onPlayOutputTest: () => void;
@@ -115,6 +119,11 @@ export function AudioSection({
   const outputItems = deviceItems('output', state, outputPreference);
   const selectedInputLabel = selectedDeviceLabel(inputPreference, state.inputs);
   const selectedOutputLabel = selectedDeviceLabel(outputPreference, state.outputs);
+  const refreshFooterAction = {
+    label: refreshingDevices ? 'Refreshing devices...' : 'Refresh devices',
+    disabled: refreshingDevices,
+    onClick: onRefreshDevices,
+  };
 
   return (
     <SettingsSection
@@ -147,6 +156,7 @@ export function AudioSection({
           value={inputPreference.id}
           placeholder="Input device"
           disabled={disabled || inputTesting}
+          footerAction={refreshFooterAction}
           onValueChange={(value) => onInputDeviceChange(preferenceForValue(value, state.inputs))}
         />
         <Button
@@ -204,6 +214,7 @@ export function AudioSection({
           value={outputPreference.id}
           placeholder="Output device"
           disabled={disabled}
+          footerAction={refreshFooterAction}
           onValueChange={(value) => onOutputDeviceChange(preferenceForValue(value, state.outputs))}
         />
         <Button variant="ghost" onClick={onPlayOutputTest} disabled={disabled}>
