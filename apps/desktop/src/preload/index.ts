@@ -11,6 +11,7 @@ import type {
   ProviderId,
   ShortcutChord,
   SoundEventKind,
+  WindowPosition,
 } from '@toph/desktop-contracts';
 import { DESKTOP_IPC_CHANNELS } from '@toph/desktop-contracts';
 
@@ -26,6 +27,7 @@ const handleStateSnapshot = (_event: Electron.IpcRendererEvent, state: AppState)
 };
 
 const api: DesktopApi = {
+  platform: process.platform,
   subscribeState(listener) {
     stateListeners.add(listener);
 
@@ -50,6 +52,16 @@ const api: DesktopApi = {
     ipcRenderer.invoke(DESKTOP_IPC_CHANNELS.resizeOverlay, size) as Promise<void>,
   showSettings: () => ipcRenderer.invoke(DESKTOP_IPC_CHANNELS.showSettings) as Promise<void>,
   hideSettings: () => ipcRenderer.invoke(DESKTOP_IPC_CHANNELS.hideSettings) as Promise<void>,
+  minimizeSettings: () =>
+    ipcRenderer.invoke(DESKTOP_IPC_CHANNELS.minimizeSettings) as Promise<void>,
+  toggleSettingsMaximized: () =>
+    ipcRenderer.invoke(DESKTOP_IPC_CHANNELS.toggleSettingsMaximized) as Promise<void>,
+  getSettingsWindowBounds: () =>
+    ipcRenderer.invoke(DESKTOP_IPC_CHANNELS.getSettingsWindowBounds) as ReturnType<
+      DesktopApi['getSettingsWindowBounds']
+    >,
+  moveSettingsWindow: (position: WindowPosition) =>
+    ipcRenderer.invoke(DESKTOP_IPC_CHANNELS.moveSettingsWindow, position) as Promise<void>,
   installShortcut: (chord: ShortcutChord) =>
     ipcRenderer.invoke(DESKTOP_IPC_CHANNELS.installShortcut, chord) as Promise<void>,
   installRuleSwitcherShortcut: (chord: ShortcutChord) =>
