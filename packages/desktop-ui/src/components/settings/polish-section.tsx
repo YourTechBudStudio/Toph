@@ -418,7 +418,7 @@ function DictionaryModal({
               onClick={() => void run(() => client.updateDictionaryEntry(selected.id, draft()))}
               disabled={disabled || busy}
             >
-              Save
+              Save entry
             </Button>
           ) : (
             <Button
@@ -426,7 +426,7 @@ function DictionaryModal({
               onClick={() => void run(() => client.createDictionaryEntry(draft()))}
               disabled={disabled || busy}
             >
-              Add term
+              Save entry
             </Button>
           )}
         </>
@@ -445,7 +445,7 @@ function DictionaryModal({
               setEnabled(true);
             }}
           >
-            + Add term
+            + New term
           </Button>
           <div className="grid gap-2">
             {entries.map((entry) => (

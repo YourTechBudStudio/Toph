@@ -31,6 +31,7 @@ import { createPricingService } from './pricing/pricing-service';
 import { createSessionSegmentationService } from './segmentation/session-segmentation-service';
 import { createDefaultStreamingVadRuntime } from './segmentation/streaming-vad-runtime';
 import { createAppSettingsStore } from './settings/app-settings-store';
+import { seedDefaultDictionaryEntriesIfNeeded } from './settings/default-dictionary-entries';
 import {
   ensureDictionaryEnabledLimit,
   normalizeDictionaryEntryDraft,
@@ -131,12 +132,14 @@ export async function bootstrap(options: {
       ? {
           ...defaultAppSettings,
           polish: {
+            ...defaultAppSettings.polish,
             enabled: legacyPolishSettings.enabled,
             rulePresetId: legacyPolishSettings.activeRulePresetId,
           },
         }
       : defaultAppSettings,
   });
+  await seedDefaultDictionaryEntriesIfNeeded({ settingsStore, sessionStore });
   const pricing = await createPricingService({ modelsDevCachePath: dataPaths.modelsDevCachePath });
   const refreshDashboardStats = async () => {
     stateStore.setDashboardStats(

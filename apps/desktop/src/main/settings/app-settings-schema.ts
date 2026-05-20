@@ -54,6 +54,7 @@ const appSettingsFileSchema = z.object({
     enabled: z.boolean(),
     rulePresetId: z.string().nullable().optional(),
     promptId: z.string().optional(),
+    dictionaryDefaultsSeeded: z.boolean().optional(),
   }),
   dashboard: z
     .object({
@@ -164,6 +165,7 @@ export function normalizeAppSettings(
     polish: {
       enabled: value.polish.enabled,
       rulePresetId,
+      dictionaryDefaultsSeeded: value.polish.dictionaryDefaultsSeeded ?? false,
     },
     dashboard: {
       typingWpm: normalizeTypingWpm(value.dashboard?.typingWpm),

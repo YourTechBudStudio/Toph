@@ -73,7 +73,7 @@ const baseState: AppState = {
       inputDevice: { id: 'default', label: null },
       outputDevice: { id: 'default', label: null },
     },
-    polish: { enabled: true, rulePresetId: 'general' },
+    polish: { enabled: true, rulePresetId: 'general', dictionaryDefaultsSeeded: false },
     dashboard: { typingWpm: 50 },
   },
   polish: {
@@ -475,14 +475,14 @@ describe('HomeApp', () => {
       ...baseState,
       settings: {
         ...baseState.settings,
-        polish: { enabled: true, rulePresetId: null },
+        polish: { ...baseState.settings.polish, rulePresetId: null },
       },
     };
     const selectedState = {
       ...baseState,
       settings: {
         ...baseState.settings,
-        polish: { enabled: true, rulePresetId: 'engineer' },
+        polish: { ...baseState.settings.polish, rulePresetId: 'engineer' },
       },
     };
     const setActivePolishRulePreset = vi.fn<DesktopApi['setActivePolishRulePreset']>(
@@ -492,7 +492,7 @@ describe('HomeApp', () => {
             ...selectedState,
             settings: {
               ...selectedState.settings,
-              polish: { enabled: true, rulePresetId },
+              polish: { ...selectedState.settings.polish, rulePresetId },
             },
           });
         });
@@ -538,7 +538,7 @@ describe('HomeApp', () => {
       ...baseState,
       settings: {
         ...baseState.settings,
-        polish: { enabled: true, rulePresetId: null },
+        polish: { ...baseState.settings.polish, rulePresetId: null },
       },
     };
 
@@ -622,7 +622,7 @@ describe('HomeApp', () => {
             ...baseState,
             settings: {
               ...baseState.settings,
-              polish: { enabled: true, rulePresetId: null },
+              polish: { ...baseState.settings.polish, rulePresetId: null },
             },
           },
           { setActivePolishRulePreset },

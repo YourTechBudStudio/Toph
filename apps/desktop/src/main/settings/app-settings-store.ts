@@ -29,6 +29,7 @@ export interface AppSettingsStore {
   setPolishEnabled: (enabled: boolean) => Promise<AppSettings>;
   setTypingWpm: (typingWpm: number) => Promise<AppSettings>;
   setPolishRulePreset: (rulePresetId: string) => Promise<AppSettings>;
+  markDictionaryDefaultsSeeded: () => Promise<AppSettings>;
 }
 
 function cloneSettings(settings: AppSettings): AppSettings {
@@ -211,6 +212,12 @@ export async function createAppSettingsStore(options: {
     setPolishRulePreset(rulePresetId) {
       return commit((draft) => {
         draft.polish.rulePresetId = rulePresetId;
+      });
+    },
+
+    markDictionaryDefaultsSeeded() {
+      return commit((draft) => {
+        draft.polish.dictionaryDefaultsSeeded = true;
       });
     },
   };

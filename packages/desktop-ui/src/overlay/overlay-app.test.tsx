@@ -73,7 +73,7 @@ const baseState: AppState = {
       inputDevice: { id: 'default', label: null },
       outputDevice: { id: 'default', label: null },
     },
-    polish: { enabled: true, rulePresetId: 'general' },
+    polish: { enabled: true, rulePresetId: 'general', dictionaryDefaultsSeeded: false },
     dashboard: { typingWpm: 50 },
   },
   polish: {
