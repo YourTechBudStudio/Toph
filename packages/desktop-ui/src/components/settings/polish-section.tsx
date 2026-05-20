@@ -15,6 +15,7 @@ import {
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
+import { WandSparkles } from 'lucide-react';
 import { useEffect, useLayoutEffect, useRef, useState, type TextareaHTMLAttributes } from 'react';
 
 import type {
@@ -524,6 +525,7 @@ function DictionaryModal({
 }
 
 export function PolishSection({
+  id,
   enabled,
   activeRulePresetId,
   rulePresets,
@@ -534,6 +536,7 @@ export function PolishSection({
   onEnabledChange,
   onTypingWpmChange,
 }: {
+  id?: string;
   enabled: boolean;
   activeRulePresetId: string | null;
   rulePresets: PolishRulePresetSummary[];
@@ -552,6 +555,7 @@ export function PolishSection({
   return (
     <>
       <SettingsSection
+        id={id}
         eyebrow="Writing & Dictionary"
         description="Control how Toph rewrites your dictation and teach it the words it should know."
       >
@@ -560,19 +564,7 @@ export function PolishSection({
           description="When disabled, Toph pastes the raw assembled transcript."
           icon={
             <SettingsIcon tone="green">
-              <svg
-                width="17"
-                height="17"
-                viewBox="0 0 20 20"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.6"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <path d="M4 10h12M10 4v12" />
-                <circle cx="10" cy="10" r="7" />
-              </svg>
+              <WandSparkles size={17} strokeWidth={1.8} />
             </SettingsIcon>
           }
         >

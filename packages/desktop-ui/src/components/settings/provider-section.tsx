@@ -1,14 +1,18 @@
+import { Bot } from 'lucide-react';
+
 import type { ProviderConnection } from '@toph/desktop-contracts';
 
 import { Button } from '../button';
 import { SettingsIcon, SettingsRow, SettingsSection, StatusBadge } from './settings-controls';
 
 export function ProviderSection({
+  id,
   provider,
   busy,
   onConnect,
   onRemove,
 }: {
+  id?: string;
   provider: ProviderConnection | undefined;
   busy: boolean;
   onConnect: () => void;
@@ -20,6 +24,7 @@ export function ProviderSection({
 
   return (
     <SettingsSection
+      id={id}
       eyebrow="Providers"
       description="Connect your transcription service to enable dictation."
     >
@@ -37,19 +42,7 @@ export function ProviderSection({
             description={provider.description}
             icon={
               <SettingsIcon tone="blue">
-                <svg
-                  width="17"
-                  height="17"
-                  viewBox="0 0 20 20"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1.6"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <circle cx="10" cy="7" r="4" />
-                  <path d="M4 17c0-3.3 2.7-6 6-6s6 2.7 6 6" />
-                </svg>
+                <Bot size={17} strokeWidth={1.8} />
               </SettingsIcon>
             }
           >

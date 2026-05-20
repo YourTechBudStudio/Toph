@@ -1,3 +1,5 @@
+import { Mic, Volume2 } from 'lucide-react';
+
 import {
   SYSTEM_DEFAULT_AUDIO_DEVICE_ID,
   type AudioDeviceInfo,
@@ -83,6 +85,7 @@ function InputMeter({ energy }: { energy: number }) {
 }
 
 export function AudioSection({
+  id,
   state,
   inputPreference,
   outputPreference,
@@ -95,6 +98,7 @@ export function AudioSection({
   onStopInputTest,
   onPlayOutputTest,
 }: {
+  id?: string;
   state: AudioDeviceState;
   inputPreference: AudioDevicePreference;
   outputPreference: AudioDevicePreference;
@@ -114,6 +118,7 @@ export function AudioSection({
 
   return (
     <SettingsSection
+      id={id}
       eyebrow="Audio"
       description="Choose where Toph listens and where the tiny confirmation sounds go. System Default follows your OS dynamically."
       footer={
@@ -126,19 +131,13 @@ export function AudioSection({
       <SettingsRow
         label="Input device"
         description={
-          state.input.fallbackUsed ? (
-            `Selected microphone: ${selectedInputLabel ?? 'Unavailable device'}`
-          ) : (
-            `Currently using ${inputPreference.id === SYSTEM_DEFAULT_AUDIO_DEVICE_ID ? 'System Default - ' : ''}${state.input.resolvedLabel}`
-          )
+          state.input.fallbackUsed
+            ? `Selected microphone: ${selectedInputLabel ?? 'Unavailable device'}`
+            : `Currently using ${inputPreference.id === SYSTEM_DEFAULT_AUDIO_DEVICE_ID ? 'System Default - ' : ''}${state.input.resolvedLabel}`
         }
         icon={
           <SettingsIcon tone="cyan">
-            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z" />
-              <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
-              <path d="M12 19v3" />
-            </svg>
+            <Mic size={17} strokeWidth={1.9} />
           </SettingsIcon>
         }
         className={`${state.input.fallbackUsed ? 'border-b-0 pb-2' : ''} max-[760px]:items-start max-[760px]:flex-col`}
@@ -165,15 +164,18 @@ export function AudioSection({
             <span className="mt-1 size-1.5 shrink-0 rounded-full bg-accent-amber shadow-[0_0_0_4px_rgba(245,169,127,0.12)]" />
             <span>
               <span className="font-semibold text-accent-amber">Using default input.</span>{' '}
-              {selectedInputLabel ?? 'The selected microphone'} is unavailable, so Toph is
-              listening through {state.input.resolvedLabel} for now.
+              {selectedInputLabel ?? 'The selected microphone'} is unavailable, so Toph is listening
+              through {state.input.resolvedLabel} for now.
             </span>
           </div>
         </div>
       )}
 
       {inputTesting && (
-        <SettingsRow label="Input level" description="Actual microphone energy, not decorative lies.">
+        <SettingsRow
+          label="Input level"
+          description="Actual microphone energy, not decorative lies."
+        >
           <InputMeter energy={inputEnergy} />
         </SettingsRow>
       )}
@@ -192,11 +194,7 @@ export function AudioSection({
         }
         icon={
           <SettingsIcon tone="violet">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M11 5 6 9H2v6h4l5 4V5Z" />
-              <path d="M15.54 8.46a5 5 0 0 1 0 7.07" />
-              <path d="M19.07 4.93a10 10 0 0 1 0 14.14" />
-            </svg>
+            <Volume2 size={18} strokeWidth={1.9} />
           </SettingsIcon>
         }
         className="max-[760px]:items-start max-[760px]:flex-col"

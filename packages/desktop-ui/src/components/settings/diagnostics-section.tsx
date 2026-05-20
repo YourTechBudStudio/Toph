@@ -1,6 +1,7 @@
 import { SettingsSection } from './settings-controls';
 
 export function DiagnosticsSection({
+  id,
   providerLabel,
   currentDesktop,
   sessionType,
@@ -12,6 +13,7 @@ export function DiagnosticsSection({
   pasteHelper,
   pasteDetail,
 }: {
+  id?: string;
   providerLabel: string | null;
   currentDesktop: string;
   sessionType: string;
@@ -37,6 +39,7 @@ export function DiagnosticsSection({
 
   return (
     <SettingsSection
+      id={id}
       eyebrow="Advanced"
       description="Troubleshooting details for support. Hidden until you need them."
     >
