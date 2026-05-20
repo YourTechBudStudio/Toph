@@ -85,7 +85,7 @@ function SortableRuleButton({
               </span>
             )}
           </span>
-          <span className="mt-1 block overflow-hidden text-xs leading-snug text-text-tertiary [display:-webkit-box] [-webkit-box-orient:vertical] [-webkit-line-clamp:2]">
+          <span className="mt-1 line-clamp-2 text-xs leading-snug text-text-tertiary">
             {preset.description}
           </span>
         </span>
@@ -463,7 +463,7 @@ function DictionaryModal({
                     {entry.term}
                   </span>
                 </div>
-                <span className="mt-1 block overflow-hidden text-xs leading-snug text-text-tertiary [display:-webkit-box] [-webkit-box-orient:vertical] [-webkit-line-clamp:2]">
+                <span className="mt-1 line-clamp-2 text-xs leading-snug text-text-tertiary">
                   {entry.hint || 'No hint yet'}
                 </span>
               </button>

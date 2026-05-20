@@ -103,7 +103,10 @@ export function OverlayApp({
   useOverlaySounds(
     client,
     soundsEnabled,
-    state?.settings.audio.outputDevice ?? { id: SYSTEM_DEFAULT_AUDIO_DEVICE_ID, label: null },
+    state?.settings.audio.outputDevice ?? {
+      id: SYSTEM_DEFAULT_AUDIO_DEVICE_ID,
+      label: null,
+    },
     showAudioFallback,
   );
 
@@ -355,7 +358,7 @@ export function OverlayApp({
           </div>
         ) : (
           <div
-            className={`flex h-full items-center gap-(--overlay-content-gap) transition-[opacity,visibility] duration-200 ease-out ${activeInputFallback ? 'min-w-0 max-w-full pl-[22px] pr-[18px]' : 'px-(--overlay-content-padding-x)'} ${isIdle && !audioFallbackNotice && !activeInputFallback ? 'invisible opacity-0 delay-0' : 'visible opacity-100 delay-150'}`}
+            className={`flex h-full items-center gap-(--overlay-content-gap) transition-[opacity,visibility] duration-200 ease-out ${activeInputFallback ? 'min-w-0 max-w-full pl-5.5 pr-4.5' : 'px-(--overlay-content-padding-x)'} ${isIdle && !audioFallbackNotice && !activeInputFallback ? 'invisible opacity-0 delay-0' : 'visible opacity-100 delay-150'}`}
           >
             <div
               className={`flex size-(--overlay-activity-slot-size) shrink-0 items-center justify-center ${activeInputFallback ? 'mr-1' : ''}`}
@@ -533,7 +536,7 @@ function RuleSwitcherContent({
                     <span className="shrink-0 text-xs text-accent-green">Active</span>
                   )}
                 </span>
-                <span className="mt-1 block overflow-hidden text-xs leading-snug text-text-tertiary [display:-webkit-box] [-webkit-box-orient:vertical] [-webkit-line-clamp:2]">
+                <span className="mt-1 line-clamp-2 text-xs leading-snug text-text-tertiary">
                   {rulePreset.description}
                 </span>
               </span>
