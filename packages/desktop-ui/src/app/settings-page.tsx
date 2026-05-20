@@ -15,7 +15,6 @@ import {
   type SettingsSideNavSection,
 } from '../components/settings/settings-side-nav';
 import { ShortcutSection } from '../components/settings/shortcut-section';
-import { WindowDragRegion } from '../components/window-drag-region';
 import { useAudioDevices } from '../hooks/use-audio-devices';
 
 const settingsSectionIds = {
@@ -183,7 +182,6 @@ export function SettingsPage({
       ref={mainRef}
       className="relative h-screen overflow-y-auto bg-canvas px-6 pt-8 pb-10 [scrollbar-width:none] max-[640px]:px-5 [&::-webkit-scrollbar]:hidden"
     >
-      {state.environment.platform === 'darwin' && <WindowDragRegion />}
       <AppBackdrop variant="settings" fixed />
 
       <section className="relative mx-auto grid max-w-245 grid-cols-[13.5rem_minmax(0,1fr)] gap-x-6 gap-y-5 max-[820px]:block">

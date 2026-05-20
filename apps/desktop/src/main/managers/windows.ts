@@ -9,12 +9,20 @@ import {
   type AppState,
   type OverlaySize,
   type SoundEventKind,
+  type WindowBounds,
+  type WindowPosition,
 } from '@toph/desktop-contracts';
+
+import { getSettingsWindowChromeOptions } from './window-chrome';
 
 export interface WindowManager {
   create: () => Promise<void>;
   showSettings: () => void;
   hideSettings: () => void;
+  minimizeSettings: () => void;
+  toggleSettingsMaximized: () => void;
+  getSettingsBounds: () => WindowBounds | null;
+  moveSettings: (position: WindowPosition) => void;
   showOverlay: () => void;
   resizeOverlay: (size: OverlaySize) => void;
   sendState: (state: AppState) => void;
@@ -136,12 +144,7 @@ export function createWindowManager(options: {
       icon: options.appIconPath,
       backgroundColor: '#24273a',
       autoHideMenuBar: true,
-      ...(process.platform === 'darwin'
-        ? {
-            titleBarStyle: 'hiddenInset' as const,
-            trafficLightPosition: { x: 18, y: 18 },
-          }
-        : {}),
+      ...getSettingsWindowChromeOptions(process.platform),
       show: false,
       webPreferences: {
         preload: preloadPath,
@@ -220,6 +223,31 @@ export function createWindowManager(options: {
 
     hideSettings() {
       settingsWindow?.hide();
+    },
+
+    minimizeSettings() {
+      settingsWindow?.minimize();
+    },
+
+    toggleSettingsMaximized() {
+      if (!settingsWindow) {
+        return;
+      }
+
+      if (settingsWindow.isMaximized()) {
+        settingsWindow.unmaximize();
+        return;
+      }
+
+      settingsWindow.maximize();
+    },
+
+    getSettingsBounds() {
+      return settingsWindow?.getBounds() ?? null;
+    },
+
+    moveSettings(position) {
+      settingsWindow?.setPosition(Math.round(position.x), Math.round(position.y));
     },
 
     showOverlay() {

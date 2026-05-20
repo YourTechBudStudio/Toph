@@ -15,6 +15,8 @@ import {
   type PolishRulePresetDraft,
   type ProviderId,
   type ShortcutChord,
+  type WindowBounds,
+  type WindowPosition,
 } from '@toph/desktop-contracts';
 
 function isPermissionRequirementId(value: unknown): value is PermissionRequirementId {
@@ -26,6 +28,15 @@ function isPermissionRequirementId(value: unknown): value is PermissionRequireme
 
 function isProviderId(value: unknown): value is ProviderId {
   return typeof value === 'string' && PROVIDER_IDS.includes(value as ProviderId);
+}
+
+function isWindowPosition(value: unknown): value is WindowPosition {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    Number.isFinite((value as WindowPosition).x) &&
+    Number.isFinite((value as WindowPosition).y)
+  );
 }
 
 function isAudioDevicePreference(value: unknown): value is AudioDevicePreference {
@@ -75,6 +86,10 @@ export function registerDesktopIpc(options: {
   resizeOverlay: (size: OverlaySize) => void;
   showSettings: () => void;
   hideSettings: () => void;
+  minimizeSettings: () => void;
+  toggleSettingsMaximized: () => void;
+  getSettingsBounds: () => WindowBounds | null;
+  moveSettings: (position: WindowPosition) => void;
   installShortcut: (chord: ShortcutChord) => Promise<void>;
   installRuleSwitcherShortcut: (chord: ShortcutChord) => Promise<void>;
   suspendShortcut: () => Promise<void>;
@@ -136,6 +151,20 @@ export function registerDesktopIpc(options: {
   });
   ipcMain.handle(DESKTOP_IPC_CHANNELS.hideSettings, async () => {
     options.hideSettings();
+  });
+  ipcMain.handle(DESKTOP_IPC_CHANNELS.minimizeSettings, async () => {
+    options.minimizeSettings();
+  });
+  ipcMain.handle(DESKTOP_IPC_CHANNELS.toggleSettingsMaximized, async () => {
+    options.toggleSettingsMaximized();
+  });
+  ipcMain.handle(DESKTOP_IPC_CHANNELS.getSettingsWindowBounds, async () => options.getSettingsBounds());
+  ipcMain.handle(DESKTOP_IPC_CHANNELS.moveSettingsWindow, async (_event, position: unknown) => {
+    if (!isWindowPosition(position)) {
+      throw new Error('Invalid window position.');
+    }
+
+    options.moveSettings(position);
   });
   ipcMain.handle(DESKTOP_IPC_CHANNELS.installShortcut, async (_event, chord: unknown) => {
     if (!isShortcutChord(chord)) {
@@ -387,6 +416,10 @@ export function registerDesktopIpc(options: {
     ipcMain.removeHandler(DESKTOP_IPC_CHANNELS.resizeOverlay);
     ipcMain.removeHandler(DESKTOP_IPC_CHANNELS.showSettings);
     ipcMain.removeHandler(DESKTOP_IPC_CHANNELS.hideSettings);
+    ipcMain.removeHandler(DESKTOP_IPC_CHANNELS.minimizeSettings);
+    ipcMain.removeHandler(DESKTOP_IPC_CHANNELS.toggleSettingsMaximized);
+    ipcMain.removeHandler(DESKTOP_IPC_CHANNELS.getSettingsWindowBounds);
+    ipcMain.removeHandler(DESKTOP_IPC_CHANNELS.moveSettingsWindow);
     ipcMain.removeHandler(DESKTOP_IPC_CHANNELS.installShortcut);
     ipcMain.removeHandler(DESKTOP_IPC_CHANNELS.installRuleSwitcherShortcut);
     ipcMain.removeHandler(DESKTOP_IPC_CHANNELS.suspendShortcut);

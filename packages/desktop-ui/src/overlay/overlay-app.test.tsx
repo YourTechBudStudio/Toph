@@ -135,6 +135,7 @@ afterEach(() => {
 
 function createClient(state: AppState, overrides: Partial<DesktopApi> = {}): DesktopApi {
   return {
+    platform: state.environment.platform,
     subscribeState: (listener) => {
       listener(state);
       return () => {};
@@ -144,6 +145,10 @@ function createClient(state: AppState, overrides: Partial<DesktopApi> = {}): Des
     resizeOverlay: async () => {},
     showSettings: async () => {},
     hideSettings: async () => {},
+    minimizeSettings: async () => {},
+    toggleSettingsMaximized: async () => {},
+    getSettingsWindowBounds: async () => null,
+    moveSettingsWindow: async () => {},
     installShortcut: async () => {},
     installRuleSwitcherShortcut: async () => {},
     suspendShortcut: async () => {},

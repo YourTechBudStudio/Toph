@@ -11,7 +11,7 @@ import {
 
 import { AppBackdrop } from '../components/app-backdrop';
 import { DictationCard } from '../components/dictation-card';
-import { WindowDragRegion } from '../components/window-drag-region';
+import { MainWindowChrome } from '../components/main-window-chrome';
 import { useDesktopState } from '../hooks/use-desktop-state';
 import { OnboardingScreen } from './onboarding/onboarding-screen';
 import { SettingsPage } from './settings-page';
@@ -135,7 +135,6 @@ function HomeScreen({
 
   return (
     <main className="relative min-h-screen overflow-hidden px-10 pt-12 pb-10 max-[980px]:px-6 max-[980px]:pb-6">
-      {state.environment.platform === 'darwin' && <WindowDragRegion />}
       <AppBackdrop variant="home" />
 
       <section className="relative mx-auto max-w-180">
@@ -352,13 +351,15 @@ export function HomeApp({ client }: { client: DesktopApi }) {
 
   if (!state) {
     return (
-      <main className="relative min-h-screen overflow-hidden px-10 pt-12 pb-10 max-[980px]:px-6 max-[980px]:pb-6">
-        <AppBackdrop variant="home" />
-        <section className="relative mx-auto max-w-180">
-          <h1 className="m-0 font-display text-[2.4rem] tracking-[-0.04em]">Toph</h1>
-          <p className="mt-3 mb-0 text-text-secondary">Connecting to the desktop runtime...</p>
-        </section>
-      </main>
+      <MainWindowChrome platform={client.platform} client={client}>
+        <main className="relative min-h-screen overflow-hidden px-10 pt-12 pb-10 max-[980px]:px-6 max-[980px]:pb-6">
+          <AppBackdrop variant="home" />
+          <section className="relative mx-auto max-w-180">
+            <h1 className="m-0 font-display text-[2.4rem] tracking-[-0.04em]">Toph</h1>
+            <p className="mt-3 mb-0 text-text-secondary">Connecting to the desktop runtime...</p>
+          </section>
+        </main>
+      </MainWindowChrome>
     );
   }
 
@@ -366,27 +367,34 @@ export function HomeApp({ client }: { client: DesktopApi }) {
 
   if (showOnboarding) {
     return (
-      <OnboardingScreen
-        platform={state.environment.platform}
-        providers={state.providers}
-        permissionsReady={state.permissions.ready}
-        rulePresets={state.polish.rulePresets}
-        activeRulePresetId={state.settings.polish.rulePresetId}
-        audioInputDevice={state.settings.audio.inputDevice}
-        audioOutputDevice={state.settings.audio.outputDevice}
-        requirements={state.permissions.requirements}
-        client={client}
-        onSetupAction={() => setAwaitingSetupContinue(true)}
-        onContinue={() => setAwaitingSetupContinue(false)}
-      />
+      <MainWindowChrome platform={client.platform} client={client}>
+        <OnboardingScreen
+          providers={state.providers}
+          permissionsReady={state.permissions.ready}
+          rulePresets={state.polish.rulePresets}
+          activeRulePresetId={state.settings.polish.rulePresetId}
+          audioInputDevice={state.settings.audio.inputDevice}
+          audioOutputDevice={state.settings.audio.outputDevice}
+          requirements={state.permissions.requirements}
+          client={client}
+          onSetupAction={() => setAwaitingSetupContinue(true)}
+          onContinue={() => setAwaitingSetupContinue(false)}
+        />
+      </MainWindowChrome>
     );
   }
 
   if (view === 'settings') {
-    return <SettingsPage state={state} client={client} onBack={() => setView('home')} />;
+    return (
+      <MainWindowChrome platform={client.platform} client={client}>
+        <SettingsPage state={state} client={client} onBack={() => setView('home')} />
+      </MainWindowChrome>
+    );
   }
 
   return (
-    <HomeScreen state={state} client={client} onNavigateSettings={() => setView('settings')} />
+    <MainWindowChrome platform={client.platform} client={client}>
+      <HomeScreen state={state} client={client} onNavigateSettings={() => setView('settings')} />
+    </MainWindowChrome>
   );
 }

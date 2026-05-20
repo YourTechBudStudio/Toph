@@ -135,6 +135,7 @@ const baseState: AppState = {
 
 function createClient(state: AppState, overrides: Partial<DesktopApi> = {}): DesktopApi {
   return {
+    platform: state.environment.platform,
     subscribeState: (listener) => {
       listener(state);
       return () => {};
@@ -144,6 +145,10 @@ function createClient(state: AppState, overrides: Partial<DesktopApi> = {}): Des
     resizeOverlay: async () => {},
     showSettings: async () => {},
     hideSettings: async () => {},
+    minimizeSettings: async () => {},
+    toggleSettingsMaximized: async () => {},
+    getSettingsWindowBounds: async () => null,
+    moveSettingsWindow: async () => {},
     installShortcut: async () => {},
     installRuleSwitcherShortcut: async () => {},
     suspendShortcut: async () => {},
@@ -193,6 +198,48 @@ describe('HomeApp', () => {
     expect(screen.getByText('Your last 28 days. Tiny wins, conveniently quantified.')).toBeTruthy();
     expect(screen.getByText('28 days')).toBeTruthy();
     expect(screen.getByText('time saved')).toBeTruthy();
+  });
+
+  it('renders Linux window controls that call native window actions', async () => {
+    const minimizeSettings = vi.fn<() => Promise<void>>(async () => {});
+    const toggleSettingsMaximized = vi.fn<() => Promise<void>>(async () => {});
+    const hideSettings = vi.fn<() => Promise<void>>(async () => {});
+
+    render(
+      <HomeApp
+        client={createClient(baseState, {
+          minimizeSettings,
+          toggleSettingsMaximized,
+          hideSettings,
+        })}
+      />,
+    );
+
+    await screen.findByRole('heading', { name: 'Toph' });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Minimize window' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Maximize or restore window' }));
+    fireEvent.doubleClick(screen.getByLabelText('Window drag region'));
+    fireEvent.click(screen.getByRole('button', { name: 'Close window' }));
+
+    expect(minimizeSettings).toHaveBeenCalledTimes(1);
+    expect(toggleSettingsMaximized).toHaveBeenCalledTimes(2);
+    expect(hideSettings).toHaveBeenCalledTimes(1);
+  });
+
+  it('renders Linux window controls before desktop state arrives', () => {
+    render(
+      <HomeApp
+        client={createClient(baseState, {
+          subscribeState: () => () => {},
+        })}
+      />,
+    );
+
+    expect(screen.getByText('Connecting to the desktop runtime...')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Minimize window' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Maximize or restore window' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Close window' })).toBeTruthy();
   });
 
   it('refreshes home readiness when the window regains focus', async () => {

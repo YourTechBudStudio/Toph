@@ -120,12 +120,17 @@ function createClient(
   onSubscribe: (listener: (state: AppState) => void) => () => void,
 ): DesktopApi {
   return {
+    platform: baseState.environment.platform,
     subscribeState: onSubscribe,
     toggleCapture: async () => {},
     cancelCapture: async () => {},
     resizeOverlay: async () => {},
     showSettings: async () => {},
     hideSettings: async () => {},
+    minimizeSettings: async () => {},
+    toggleSettingsMaximized: async () => {},
+    getSettingsWindowBounds: async () => null,
+    moveSettingsWindow: async () => {},
     installShortcut: async () => {},
     installRuleSwitcherShortcut: async () => {},
     suspendShortcut: async () => {},

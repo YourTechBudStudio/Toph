@@ -17,11 +17,9 @@ import { PermissionCard } from '../../components/onboarding/permission-card';
 import { ProviderCard } from '../../components/onboarding/provider-card';
 import { StepSection } from '../../components/onboarding/step-section';
 import { AudioSection } from '../../components/settings/audio-section';
-import { WindowDragRegion } from '../../components/window-drag-region';
 import { useAudioDevices } from '../../hooks/use-audio-devices';
 
 export function OnboardingScreen({
-  platform,
   providers,
   permissionsReady,
   rulePresets,
@@ -33,7 +31,6 @@ export function OnboardingScreen({
   onSetupAction,
   onContinue,
 }: {
-  platform: NodeJS.Platform;
   providers: ProviderState;
   permissionsReady: boolean;
   rulePresets: PolishRulePresetSummary[];
@@ -174,7 +171,6 @@ export function OnboardingScreen({
 
   return (
     <main className="relative h-screen overflow-hidden px-10 pt-20 pb-32 max-[980px]:px-6 max-[980px]:pt-14 max-[980px]:pb-36">
-      {platform === 'darwin' && <WindowDragRegion />}
       <AppBackdrop variant="onboarding" />
 
       <section className="relative mx-auto h-full max-w-275">

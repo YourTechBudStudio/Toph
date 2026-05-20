@@ -6,6 +6,10 @@ export const DESKTOP_IPC_CHANNELS = {
   resizeOverlay: 'toph:resize-overlay',
   showSettings: 'toph:show-settings',
   hideSettings: 'toph:hide-settings',
+  minimizeSettings: 'toph:minimize-settings',
+  toggleSettingsMaximized: 'toph:toggle-settings-maximized',
+  getSettingsWindowBounds: 'toph:get-settings-window-bounds',
+  moveSettingsWindow: 'toph:move-settings-window',
   installShortcut: 'toph:install-shortcut',
   installRuleSwitcherShortcut: 'toph:install-rule-switcher-shortcut',
   suspendShortcut: 'toph:suspend-shortcut',
@@ -647,6 +651,7 @@ export interface AppState {
 }
 
 export interface DesktopApi {
+  platform: NodeJS.Platform;
   /**
    * Subscribe to the desktop state stream.
    * The listener receives the current snapshot first, then later updates in send order.
@@ -657,6 +662,10 @@ export interface DesktopApi {
   resizeOverlay: (size: OverlaySize) => Promise<void>;
   showSettings: () => Promise<void>;
   hideSettings: () => Promise<void>;
+  minimizeSettings: () => Promise<void>;
+  toggleSettingsMaximized: () => Promise<void>;
+  getSettingsWindowBounds: () => Promise<WindowBounds | null>;
+  moveSettingsWindow: (position: WindowPosition) => Promise<void>;
   installShortcut: (chord: ShortcutChord) => Promise<void>;
   installRuleSwitcherShortcut: (chord: ShortcutChord) => Promise<void>;
   suspendShortcut: () => Promise<void>;
@@ -695,6 +704,16 @@ export interface DesktopApi {
 }
 
 export interface OverlaySize {
+  width: number;
+  height: number;
+}
+
+export interface WindowPosition {
+  x: number;
+  y: number;
+}
+
+export interface WindowBounds extends WindowPosition {
   width: number;
   height: number;
 }
