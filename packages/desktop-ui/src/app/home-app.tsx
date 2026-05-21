@@ -416,6 +416,10 @@ function LinuxUpdateStepsModal({
       console.error('Toph could not copy Linux update commands.', error);
     }
   };
+  const downloadCommand = [
+    `wget -O ~/.local/share/toph/Toph.AppImage "${instructions.downloadUrl ?? 'https://github.com/YourTechBudStudio/Toph/releases/latest'}"`,
+    'chmod +x ~/.local/share/toph/Toph.AppImage',
+  ].join('\n');
 
   return (
     <ModalShell
@@ -470,10 +474,7 @@ function LinuxUpdateStepsModal({
               The command below points at the latest stable Toph release for Linux x64.
             </p>
             <pre className="mt-3 overflow-x-auto rounded-2xl border border-white/8 bg-[#11131f]/52 p-4 text-xs leading-relaxed text-text-primary">
-              <code>
-                {`wget -O ~/.local/share/toph/Toph.AppImage \\\n+  "${instructions.downloadUrl ?? 'https://github.com/YourTechBudStudio/Toph/releases/latest'}"
-chmod +x ~/.local/share/toph/Toph.AppImage`}
-              </code>
+              <code>{downloadCommand}</code>
             </pre>
           </section>
 

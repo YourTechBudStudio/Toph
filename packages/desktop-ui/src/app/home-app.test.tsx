@@ -450,6 +450,14 @@ describe('HomeApp', () => {
       name: 'I can’t safely replace this AppImage from here.',
     });
     expect(screen.getByText(/Current path: \/opt\/Toph.AppImage/)).toBeTruthy();
+    expect(
+      screen.getByText(
+        (_content, element) =>
+          element?.tagName.toLowerCase() === 'code' &&
+          element.textContent ===
+            'wget -O ~/.local/share/toph/Toph.AppImage "https://github.com/YourTechBudStudio/Toph/releases/download/v0.0.4/Toph-0.0.4-linux-x86_64.AppImage"\nchmod +x ~/.local/share/toph/Toph.AppImage',
+      ),
+    ).toBeTruthy();
 
     fireEvent.click(screen.getByRole('button', { name: 'Open README' }));
     await waitFor(() => expect(openUpdateReadme).toHaveBeenCalledTimes(1));
