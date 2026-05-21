@@ -22,7 +22,7 @@ if [ -n "\${ELECTRON_RUN_AS_NODE:-}" ]; then
   exec "$APP_DIR/${executableName}.bin" "$@"
 fi
 
-exec "$APP_DIR/${executableName}.bin" --no-sandbox --disable-gpu "$@"
+exec "$APP_DIR/${executableName}.bin" --no-sandbox "$@"
 `,
   );
   await chmod(executablePath, 0o755);

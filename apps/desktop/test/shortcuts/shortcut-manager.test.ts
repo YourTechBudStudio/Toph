@@ -537,11 +537,11 @@ test('production manager uses stable AppImage launcher for GNOME fallback', asyn
     [
       {
         path: '/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/toph/',
-        command: "'/bin/sh' --no-sandbox --disable-gpu --toggle-capture",
+        command: "'/bin/sh' --no-sandbox --toggle-capture",
       },
       {
         path: '/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/toph-rule-switcher/',
-        command: "'/bin/sh' --no-sandbox --disable-gpu --rule-switcher",
+        command: "'/bin/sh' --no-sandbox --rule-switcher",
       },
     ],
   );

@@ -117,7 +117,7 @@ function getShortcutLauncherCommand(
   }
 
   if (isPackaged) {
-    return `${shellQuote(launcherPath)} --no-sandbox --disable-gpu ${flag}`;
+    return `${shellQuote(launcherPath)} --no-sandbox ${flag}`;
   }
 
   return `sh ${shellQuote(launcherPath)} ${flag}`;

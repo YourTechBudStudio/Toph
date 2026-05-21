@@ -8,7 +8,6 @@ const shouldToggleOnLaunch = process.argv.includes(toggleCaptureFlag);
 const shouldOpenRuleSwitcherOnLaunch = process.argv.includes(ruleSwitcherFlag);
 
 if (process.platform === 'linux') {
-  app.disableHardwareAcceleration();
   app.commandLine.appendSwitch('enable-features', 'GlobalShortcutsPortal');
 }
 
