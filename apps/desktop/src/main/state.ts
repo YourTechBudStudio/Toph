@@ -8,6 +8,7 @@ import {
   type ActiveInputDeviceFallback,
   type AppState,
   type AppSettings,
+  type AppUpdateState,
   type DashboardStats,
   type DictationSessionRecord,
   type DictationPhase,
@@ -32,6 +33,7 @@ export interface ShortcutStateSupport {
 export interface DesktopStateStore {
   getState: () => AppState;
   subscribe: (listener: (state: AppState) => void) => () => void;
+  setAppUpdate: (update: AppUpdateState) => void;
   setShortcut: (
     kind: 'dictation' | 'ruleSwitcher',
     chord: ShortcutChord,
@@ -93,6 +95,7 @@ function createInitialState(options: { appVersion: string }): AppState {
   return {
     app: {
       version: options.appVersion,
+      update: { kind: 'idle', lastCheckedAt: null },
     },
     phase: 'idle',
     activeInputDeviceFallback: null,
@@ -194,6 +197,12 @@ export function createDesktopStateStore(initialStateOptions: {
       return () => {
         listeners.delete(listener);
       };
+    },
+
+    setAppUpdate(update) {
+      commit((draft) => {
+        draft.app.update = update;
+      });
     },
 
     setShortcut(kind, chord, support) {

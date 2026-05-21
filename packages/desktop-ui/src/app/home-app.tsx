@@ -3,20 +3,26 @@ import { useEffect, useRef, useState } from 'react';
 import {
   formatShortcutChordKeys,
   normalizeShortcutModifiers,
+  type AppUpdateState,
   type AppState,
   type DesktopApi,
+  type LinuxUpdateInstructions,
   type ShortcutChord,
   type ShortcutModifier,
 } from '@toph/desktop-contracts';
 
 import { AppBackdrop } from '../components/app-backdrop';
+import { Button } from '../components/button';
 import { DictationCard } from '../components/dictation-card';
 import { MainWindowChrome } from '../components/main-window-chrome';
+import { ModalShell } from '../components/modal';
 import { useDesktopState } from '../hooks/use-desktop-state';
 import { OnboardingScreen } from './onboarding/onboarding-screen';
 import { SettingsPage } from './settings-page';
 
 type ActiveView = 'home' | 'settings';
+
+const hiddenScrollbarClass = 'scrollbar-none [scrollbar-width:none] [&::-webkit-scrollbar]:hidden';
 
 function formatDuration(minutesSaved: number): string {
   if (minutesSaved < 1) {
@@ -132,9 +138,26 @@ function HomeScreen({
 }) {
   const systemStatus = deriveSystemStatus(state);
   const dashboardStats = state.dashboardStats;
+  const [showLinuxUpdateSteps, setShowLinuxUpdateSteps] = useState(
+    state.app.update.kind === 'linux_fallback',
+  );
+
+  useEffect(() => {
+    if (state.app.update.kind === 'linux_fallback') {
+      setShowLinuxUpdateSteps(true);
+    }
+  }, [state.app.update.kind]);
+
+  const runUpdateAction = (action: () => Promise<void>) => {
+    void action().catch((error) => {
+      console.error('Toph update action failed.', error);
+    });
+  };
 
   return (
-    <main className="relative min-h-screen overflow-hidden px-10 pt-12 pb-10 max-[980px]:px-6 max-[980px]:pb-6">
+    <main
+      className={`relative h-screen overflow-y-auto px-10 pt-12 pb-10 max-[980px]:px-6 max-[980px]:pb-6 ${hiddenScrollbarClass}`}
+    >
       <AppBackdrop variant="home" />
 
       <section className="relative mx-auto max-w-180">
@@ -262,10 +285,212 @@ function HomeScreen({
             </span>
             <span aria-hidden="true">·</span>
             <span className="text-text-secondary">v{state.app.version}</span>
+            <UpdateActionButton
+              update={state.app.update}
+              onCheck={() => runUpdateAction(client.checkForUpdates)}
+              onDownload={() => runUpdateAction(client.downloadUpdate)}
+              onRestart={() => runUpdateAction(client.restartToUpdate)}
+              onOpenLinuxSteps={() => setShowLinuxUpdateSteps(true)}
+            />
           </span>
         </footer>
       </section>
+
+      {state.app.update.kind === 'linux_fallback' && showLinuxUpdateSteps && (
+        <LinuxUpdateStepsModal
+          instructions={state.app.update.instructions}
+          onClose={() => {
+            setShowLinuxUpdateSteps(false);
+            runUpdateAction(client.dismissUpdateNotice);
+          }}
+          onOpenReadme={() => runUpdateAction(client.openUpdateReadme)}
+        />
+      )}
     </main>
+  );
+}
+
+function formatUpdatePercent(percent: number): string {
+  return `${Math.round(percent)}%`;
+}
+
+function UpdateActionButton({
+  update,
+  onCheck,
+  onDownload,
+  onRestart,
+  onOpenLinuxSteps,
+}: {
+  update: AppUpdateState;
+  onCheck: () => void;
+  onDownload: () => void;
+  onRestart: () => void;
+  onOpenLinuxSteps: () => void;
+}) {
+  const baseClass =
+    'inline-flex cursor-pointer items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-semibold transition-[transform,border-color,background-color,color,opacity] duration-200 ease-out hover:-translate-y-px disabled:cursor-default disabled:opacity-70 disabled:hover:translate-y-0';
+  const ghostClass = 'border-white/8 bg-white/3 text-text-secondary hover:bg-white/7 hover:text-text-primary';
+  const blueClass = 'border-accent-blue/30 bg-accent-blue/10 text-accent-blue hover:bg-accent-blue/16';
+  const greenClass =
+    'border-accent-green/30 bg-accent-green/10 text-accent-green hover:bg-accent-green/16';
+  const amberClass =
+    'border-accent-amber/30 bg-accent-amber/10 text-accent-amber hover:bg-accent-amber/16';
+  const redClass = 'border-accent-red/30 bg-accent-red/10 text-accent-red';
+
+  if (update.kind === 'checking') {
+    return (
+      <button type="button" className={`${baseClass} ${ghostClass}`} disabled>
+        Checking…
+      </button>
+    );
+  }
+
+  if (update.kind === 'up_to_date') {
+    return (
+      <button type="button" className={`${baseClass} ${greenClass}`} disabled>
+        Toph is up to date
+      </button>
+    );
+  }
+
+  if (update.kind === 'available') {
+    return (
+      <button type="button" className={`${baseClass} ${blueClass}`} onClick={onDownload}>
+        Download v{update.version}
+      </button>
+    );
+  }
+
+  if (update.kind === 'downloading') {
+    return (
+      <button type="button" className={`${baseClass} ${blueClass}`} disabled>
+        Downloading {formatUpdatePercent(update.percent)}
+      </button>
+    );
+  }
+
+  if (update.kind === 'ready_to_restart') {
+    return (
+      <button type="button" className={`${baseClass} ${greenClass}`} onClick={onRestart}>
+        Restart to update
+      </button>
+    );
+  }
+
+  if (update.kind === 'linux_fallback') {
+    return (
+      <button type="button" className={`${baseClass} ${amberClass}`} onClick={onOpenLinuxSteps}>
+        Open Linux update steps
+      </button>
+    );
+  }
+
+  if (update.kind === 'failed') {
+    return (
+      <button type="button" className={`${baseClass} ${redClass}`} disabled>
+        {update.message}
+      </button>
+    );
+  }
+
+  return (
+    <button type="button" className={`${baseClass} ${ghostClass}`} onClick={onCheck}>
+      Check for updates
+    </button>
+  );
+}
+
+function LinuxUpdateStepsModal({
+  instructions,
+  onClose,
+  onOpenReadme,
+}: {
+  instructions: LinuxUpdateInstructions;
+  onClose: () => void;
+  onOpenReadme: () => void;
+}) {
+  const copyCommands = async () => {
+    try {
+      await navigator.clipboard.writeText(instructions.commands);
+    } catch (error) {
+      console.error('Toph could not copy Linux update commands.', error);
+    }
+  };
+
+  return (
+    <ModalShell
+      eyebrow="Linux update"
+      title="I can’t safely replace this AppImage from here."
+      description="Toph will not YOLO-overwrite a file it cannot prove is safe to replace. These steps install the latest release into the supported layout so future updates can happen inside the app."
+      size="lg"
+      onClose={onClose}
+      footer={
+        <>
+          <Button variant="ghost" onClick={onOpenReadme}>
+            Open README
+          </Button>
+          <Button onClick={() => void copyCommands()}>Copy commands</Button>
+          <Button variant="primary" onClick={onClose}>
+            Done
+          </Button>
+        </>
+      }
+    >
+      <div className={`h-full overflow-y-auto p-6 ${hiddenScrollbarClass}`}>
+        <div className="grid max-w-3xl gap-4">
+          <section className="rounded-2xl border border-accent-amber/20 bg-accent-amber/10 p-4">
+            <h3 className="m-0 mb-2 font-display text-base tracking-[-0.02em] text-accent-amber">
+              Why you’re seeing this
+            </h3>
+            <p className="m-0 text-sm leading-relaxed text-text-secondary">
+              {instructions.reason}{' '}
+              {instructions.currentPath
+                ? `Current path: ${instructions.currentPath}`
+                : 'Toph could not find a replaceable AppImage path.'}
+            </p>
+          </section>
+
+          <section className="rounded-2xl border border-white/6 bg-white/3 p-4">
+            <h3 className="m-0 mb-2 font-display text-base tracking-[-0.02em] text-text-primary">
+              1. Create the supported folders
+            </h3>
+            <p className="m-0 text-sm leading-relaxed text-text-secondary">
+              This keeps app files separate from the command you run.
+            </p>
+            <pre className="mt-3 overflow-x-auto rounded-2xl border border-white/8 bg-[#11131f]/52 p-4 text-xs leading-relaxed text-text-primary">
+              <code>mkdir -p ~/.local/share/toph ~/.local/bin ~/.local/share/applications</code>
+            </pre>
+          </section>
+
+          <section className="rounded-2xl border border-white/6 bg-white/3 p-4">
+            <h3 className="m-0 mb-2 font-display text-base tracking-[-0.02em] text-text-primary">
+              2. Download the latest AppImage
+            </h3>
+            <p className="m-0 text-sm leading-relaxed text-text-secondary">
+              The command below points at the latest stable Toph release for Linux x64.
+            </p>
+            <pre className="mt-3 overflow-x-auto rounded-2xl border border-white/8 bg-[#11131f]/52 p-4 text-xs leading-relaxed text-text-primary">
+              <code>
+                {`wget -O ~/.local/share/toph/Toph.AppImage \\\n+  "${instructions.downloadUrl ?? 'https://github.com/YourTechBudStudio/Toph/releases/latest'}"
+chmod +x ~/.local/share/toph/Toph.AppImage`}
+              </code>
+            </pre>
+          </section>
+
+          <section className="rounded-2xl border border-white/6 bg-white/3 p-4">
+            <h3 className="m-0 mb-2 font-display text-base tracking-[-0.02em] text-text-primary">
+              3. Add the command-line and desktop launchers
+            </h3>
+            <p className="m-0 text-sm leading-relaxed text-text-secondary">
+              Future updates can use this stable AppImage path instead of chasing a file in Downloads.
+            </p>
+            <pre className="mt-3 overflow-x-auto rounded-2xl border border-white/8 bg-[#11131f]/52 p-4 text-xs leading-relaxed text-text-primary">
+              <code>{instructions.commands}</code>
+            </pre>
+          </section>
+        </div>
+      </div>
+    </ModalShell>
   );
 }
 

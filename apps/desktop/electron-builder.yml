@@ -3,6 +3,11 @@ productName: Toph
 artifactName: ${productName}-${version}-${os}-${arch}.${ext}
 afterPack: build/after-pack.cjs
 
+publish:
+  provider: github
+  owner: YourTechBudStudio
+  repo: Toph
+
 directories:
   output: dist
   buildResources: ../../assets/app-icons

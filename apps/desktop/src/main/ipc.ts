@@ -123,6 +123,11 @@ export function registerDesktopIpc(options: {
   refreshPermissions: () => Promise<void>;
   rerunSession: (sessionId: string) => Promise<void>;
   deleteSession: (sessionId: string) => Promise<void>;
+  checkForUpdates: () => Promise<void>;
+  downloadUpdate: () => Promise<void>;
+  restartToUpdate: () => Promise<void>;
+  dismissUpdateNotice: () => Promise<void>;
+  openUpdateReadme: () => Promise<void>;
   quit: () => void;
 }) {
   ipcMain.handle(DESKTOP_IPC_CHANNELS.subscribeState, (event) => {
@@ -407,6 +412,21 @@ export function registerDesktopIpc(options: {
 
     await options.deleteSession(sessionId);
   });
+  ipcMain.handle(DESKTOP_IPC_CHANNELS.checkForUpdates, async () => {
+    await options.checkForUpdates();
+  });
+  ipcMain.handle(DESKTOP_IPC_CHANNELS.downloadUpdate, async () => {
+    await options.downloadUpdate();
+  });
+  ipcMain.handle(DESKTOP_IPC_CHANNELS.restartToUpdate, async () => {
+    await options.restartToUpdate();
+  });
+  ipcMain.handle(DESKTOP_IPC_CHANNELS.dismissUpdateNotice, async () => {
+    await options.dismissUpdateNotice();
+  });
+  ipcMain.handle(DESKTOP_IPC_CHANNELS.openUpdateReadme, async () => {
+    await options.openUpdateReadme();
+  });
   ipcMain.handle(DESKTOP_IPC_CHANNELS.quit, async () => {
     options.quit();
   });
@@ -454,6 +474,11 @@ export function registerDesktopIpc(options: {
     ipcMain.removeHandler(DESKTOP_IPC_CHANNELS.refreshPermissions);
     ipcMain.removeHandler(DESKTOP_IPC_CHANNELS.rerunSession);
     ipcMain.removeHandler(DESKTOP_IPC_CHANNELS.deleteSession);
+    ipcMain.removeHandler(DESKTOP_IPC_CHANNELS.checkForUpdates);
+    ipcMain.removeHandler(DESKTOP_IPC_CHANNELS.downloadUpdate);
+    ipcMain.removeHandler(DESKTOP_IPC_CHANNELS.restartToUpdate);
+    ipcMain.removeHandler(DESKTOP_IPC_CHANNELS.dismissUpdateNotice);
+    ipcMain.removeHandler(DESKTOP_IPC_CHANNELS.openUpdateReadme);
     ipcMain.removeHandler(DESKTOP_IPC_CHANNELS.quit);
   };
 }

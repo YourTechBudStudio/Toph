@@ -20,6 +20,7 @@
     "test:segmentation": "node --experimental-strip-types --test test/segmentation/*.test.ts",
     "test:settings": "node --experimental-strip-types --test test/settings/*.test.ts",
     "test:shortcuts": "node --experimental-strip-types --test test/shortcuts/*.test.ts",
+    "test:updater": "node --experimental-strip-types --test test/updater/*.test.ts",
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
@@ -28,6 +29,7 @@
     "@toph/desktop-ui": "workspace:*",
     "better-sqlite3": "^12.9.0",
     "drizzle-orm": "^0.45.2",
+    "electron-updater": "^6.8.3",
     "zod": "^4.4.3"
   },
   "devDependencies": {

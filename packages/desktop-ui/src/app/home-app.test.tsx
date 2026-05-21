@@ -8,6 +8,7 @@ import { HomeApp } from './home-app';
 const baseState: AppState = {
   app: {
     version: '0.0.2',
+    update: { kind: 'idle', lastCheckedAt: null },
   },
   phase: 'idle',
   activeInputDeviceFallback: null,
@@ -182,6 +183,11 @@ function createClient(state: AppState, overrides: Partial<DesktopApi> = {}): Des
     refreshPermissions: async () => {},
     rerunSession: async () => {},
     deleteSession: async () => {},
+    checkForUpdates: async () => {},
+    downloadUpdate: async () => {},
+    restartToUpdate: async () => {},
+    dismissUpdateNotice: async () => {},
+    openUpdateReadme: async () => {},
     onSoundEvent: () => () => {},
     quit: async () => {},
     ...overrides,
@@ -337,6 +343,119 @@ describe('HomeApp', () => {
 
     await screen.findByRole('heading', { name: 'Settings' });
     expect(screen.queryByText('v0.0.2')).toBeNull();
+  });
+
+  it('checks for updates from the home footer', async () => {
+    const checkForUpdates = vi.fn<DesktopApi['checkForUpdates']>(async () => {});
+    render(<HomeApp client={createClient(baseState, { checkForUpdates })} />);
+
+    await screen.findByRole('heading', { name: 'Toph' });
+    fireEvent.click(screen.getByRole('button', { name: 'Check for updates' }));
+
+    await waitFor(() => expect(checkForUpdates).toHaveBeenCalledTimes(1));
+  });
+
+  it('downloads an available update from the home footer', async () => {
+    const downloadUpdate = vi.fn<DesktopApi['downloadUpdate']>(async () => {});
+    render(
+      <HomeApp
+        client={createClient(
+          {
+            ...baseState,
+            app: {
+              ...baseState.app,
+              update: { kind: 'available', version: '0.0.4', releaseDate: null },
+            },
+          },
+          { downloadUpdate },
+        )}
+      />,
+    );
+
+    await screen.findByRole('heading', { name: 'Toph' });
+    fireEvent.click(screen.getByRole('button', { name: 'Download v0.0.4' }));
+
+    await waitFor(() => expect(downloadUpdate).toHaveBeenCalledTimes(1));
+  });
+
+  it('shows downloading and restart update footer states', async () => {
+    const restartToUpdate = vi.fn<DesktopApi['restartToUpdate']>(async () => {});
+    const { rerender } = render(
+      <HomeApp
+        client={createClient({
+          ...baseState,
+          app: {
+            ...baseState.app,
+            update: { kind: 'downloading', version: '0.0.4', percent: 57.8 },
+          },
+        })}
+      />,
+    );
+
+    await screen.findByRole('heading', { name: 'Toph' });
+    expect(screen.getByRole<HTMLButtonElement>('button', { name: 'Downloading 58%' }).disabled).toBe(
+      true,
+    );
+
+    rerender(
+      <HomeApp
+        client={createClient(
+          {
+            ...baseState,
+            app: {
+              ...baseState.app,
+              update: { kind: 'ready_to_restart', version: '0.0.4' },
+            },
+          },
+          { restartToUpdate },
+        )}
+      />,
+    );
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Restart to update' }));
+    await waitFor(() => expect(restartToUpdate).toHaveBeenCalledTimes(1));
+  });
+
+  it('shows Linux fallback update steps', async () => {
+    const dismissUpdateNotice = vi.fn<DesktopApi['dismissUpdateNotice']>(async () => {});
+    const openUpdateReadme = vi.fn<DesktopApi['openUpdateReadme']>(async () => {});
+    render(
+      <HomeApp
+        client={createClient(
+          {
+            ...baseState,
+            app: {
+              ...baseState.app,
+              update: {
+                kind: 'linux_fallback',
+                version: '0.0.4',
+                reason: 'The current AppImage is not writable by this user.',
+                instructions: {
+                  reason: 'The current AppImage is not writable by this user.',
+                  currentPath: '/opt/Toph.AppImage',
+                  downloadUrl:
+                    'https://github.com/YourTechBudStudio/Toph/releases/download/v0.0.4/Toph-0.0.4-linux-x86_64.AppImage',
+                  readmeUrl: 'https://github.com/YourTechBudStudio/Toph#linux-installupdate',
+                  commands: 'mkdir -p ~/.local/share/toph',
+                },
+              },
+            },
+          },
+          { dismissUpdateNotice, openUpdateReadme },
+        )}
+      />,
+    );
+
+    await screen.findByRole('dialog', {
+      name: 'I can’t safely replace this AppImage from here.',
+    });
+    expect(screen.getByText(/Current path: \/opt\/Toph.AppImage/)).toBeTruthy();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open README' }));
+    await waitFor(() => expect(openUpdateReadme).toHaveBeenCalledTimes(1));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Done' }));
+    await waitFor(() => expect(dismissUpdateNotice).toHaveBeenCalledTimes(1));
   });
 
   it('rounds positive usage cost up to the nearest cent', async () => {

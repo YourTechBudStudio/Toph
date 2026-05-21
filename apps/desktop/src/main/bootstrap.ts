@@ -1,7 +1,9 @@
 import { dirname, join } from 'node:path';
+import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 
 import { app, shell } from 'electron';
+import type { autoUpdater as electronAutoUpdater } from 'electron-updater';
 
 import {
   DEFAULT_APP_SETTINGS,
@@ -42,8 +44,13 @@ import { createRecordingSessionStore } from './stores/session-store';
 import { createOpenAiSubTranscriptionProvider } from './transcription/providers/openai-sub-transcription-provider';
 import { createSessionTranscriptionCoordinator } from './transcription/session-transcription-coordinator';
 import { createDesktopTrayController } from './tray';
+import { createDesktopUpdateCoordinator } from './updater/update-coordinator';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
+const require = createRequire(import.meta.url);
+const { autoUpdater } = require('electron-updater') as {
+  autoUpdater: typeof electronAutoUpdater;
+};
 const appName = 'Toph';
 
 const defaultAppSettings = {
@@ -114,6 +121,17 @@ export async function bootstrap(options: {
   if (process.platform === 'darwin') {
     app.dock?.setIcon(macAppIconPath);
   }
+
+  const updates = createDesktopUpdateCoordinator({
+    stateStore,
+    updater: autoUpdater,
+    openExternal: shell.openExternal,
+    canRestartToUpdate: () => stateStore.getState().phase === 'idle',
+    prepareToRestart: () => {
+      isQuitting = true;
+      app.releaseSingleInstanceLock();
+    },
+  });
 
   const dataPaths = await resolveTophDataPaths();
   const sessionStore = await createRecordingSessionStore({
@@ -439,6 +457,10 @@ export async function bootstrap(options: {
   });
 
   app.on('second-instance', (_event, argv) => {
+    if (isQuitting) {
+      return;
+    }
+
     if (argv.includes(options.toggleCaptureFlag)) {
       if (!app.isReady()) {
         pendingToggle = true;
@@ -662,6 +684,13 @@ export async function bootstrap(options: {
       await refreshDashboardStats();
       await refreshRecentSessions();
     },
+    checkForUpdates: updates.checkForUpdates,
+    downloadUpdate: updates.downloadUpdate,
+    restartToUpdate: updates.restartToUpdate,
+    dismissUpdateNotice: async () => {
+      updates.dismissUpdateNotice();
+    },
+    openUpdateReadme: updates.openUpdateReadme,
     quit: () => {
       isQuitting = true;
       app.quit();
@@ -710,6 +739,7 @@ export async function bootstrap(options: {
     unsubscribeState();
     unsubscribeSettings();
     clearRuleSwitcherTimer();
+    updates.dispose();
     shortcuts.unregister();
 
     void dictation.dispose().finally(async () => {

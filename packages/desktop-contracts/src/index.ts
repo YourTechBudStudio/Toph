@@ -43,6 +43,11 @@ export const DESKTOP_IPC_CHANNELS = {
   refreshPermissions: 'toph:refresh-permissions',
   rerunSession: 'toph:rerun-session',
   deleteSession: 'toph:delete-session',
+  checkForUpdates: 'toph:check-for-updates',
+  downloadUpdate: 'toph:download-update',
+  restartToUpdate: 'toph:restart-to-update',
+  dismissUpdateNotice: 'toph:dismiss-update-notice',
+  openUpdateReadme: 'toph:open-update-readme',
   sound: 'toph:sound',
   quit: 'toph:quit',
 } as const;
@@ -607,6 +612,56 @@ export interface ProviderState {
   providers: ProviderConnection[];
 }
 
+export type UpdateCheckTrigger = 'manual' | 'scheduled';
+
+export interface LinuxUpdateInstructions {
+  reason: string;
+  currentPath: string | null;
+  downloadUrl: string | null;
+  readmeUrl: string;
+  commands: string;
+}
+
+export type AppUpdateState =
+  | {
+      kind: 'idle';
+      lastCheckedAt: number | null;
+    }
+  | {
+      kind: 'checking';
+      trigger: UpdateCheckTrigger;
+      lastCheckedAt: number | null;
+    }
+  | {
+      kind: 'up_to_date';
+      checkedAt: number;
+    }
+  | {
+      kind: 'available';
+      version: string;
+      releaseDate: string | null;
+    }
+  | {
+      kind: 'downloading';
+      version: string;
+      percent: number;
+    }
+  | {
+      kind: 'ready_to_restart';
+      version: string;
+    }
+  | {
+      kind: 'linux_fallback';
+      version: string | null;
+      reason: string;
+      instructions: LinuxUpdateInstructions;
+    }
+  | {
+      kind: 'failed';
+      trigger: 'manual';
+      message: string;
+    };
+
 export type VadRuntimeStatus =
   | {
       kind: 'ready';
@@ -622,6 +677,7 @@ export type VadRuntimeStatus =
 export interface AppState {
   app: {
     version: string;
+    update: AppUpdateState;
   };
   phase: DictationPhase;
   activeInputDeviceFallback: ActiveInputDeviceFallback | null;
@@ -699,6 +755,11 @@ export interface DesktopApi {
   refreshPermissions: () => Promise<void>;
   rerunSession: (sessionId: string) => Promise<void>;
   deleteSession: (sessionId: string) => Promise<void>;
+  checkForUpdates: () => Promise<void>;
+  downloadUpdate: () => Promise<void>;
+  restartToUpdate: () => Promise<void>;
+  dismissUpdateNotice: () => Promise<void>;
+  openUpdateReadme: () => Promise<void>;
   onSoundEvent: (listener: (kind: SoundEventKind) => void) => () => void;
   quit: () => Promise<void>;
 }

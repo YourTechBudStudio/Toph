@@ -8,6 +8,7 @@ import { OverlayApp } from './overlay-app';
 const baseState: AppState = {
   app: {
     version: '0.0.2',
+    update: { kind: 'idle', lastCheckedAt: null },
   },
   phase: 'transcribing',
   activeInputDeviceFallback: null,
@@ -182,6 +183,11 @@ function createClient(state: AppState, overrides: Partial<DesktopApi> = {}): Des
     refreshPermissions: async () => {},
     rerunSession: async () => {},
     deleteSession: async () => {},
+    checkForUpdates: async () => {},
+    downloadUpdate: async () => {},
+    restartToUpdate: async () => {},
+    dismissUpdateNotice: async () => {},
+    openUpdateReadme: async () => {},
     onSoundEvent: () => () => {},
     quit: async () => {},
     ...overrides,

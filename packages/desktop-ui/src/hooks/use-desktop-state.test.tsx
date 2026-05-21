@@ -7,6 +7,7 @@ import { useDesktopState, useRelativeTime } from './use-desktop-state';
 const baseState: AppState = {
   app: {
     version: '0.0.2',
+    update: { kind: 'idle', lastCheckedAt: null },
   },
   phase: 'idle',
   activeInputDeviceFallback: null,
@@ -164,6 +165,11 @@ function createClient(
     refreshPermissions: async () => {},
     rerunSession: async () => {},
     deleteSession: async () => {},
+    checkForUpdates: async () => {},
+    downloadUpdate: async () => {},
+    restartToUpdate: async () => {},
+    dismissUpdateNotice: async () => {},
+    openUpdateReadme: async () => {},
     onSoundEvent: () => () => {},
     quit: async () => {},
   };

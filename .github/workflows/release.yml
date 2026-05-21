@@ -57,6 +57,7 @@ jobs:
             apps/desktop/dist/Toph-*-mac-arm64.zip.blockmap
             apps/desktop/dist/Toph-*-mac-x64.dmg.blockmap
             apps/desktop/dist/Toph-*-mac-x64.zip.blockmap
+            apps/desktop/dist/latest-mac.yml
           if-no-files-found: error
 
       - name: Attach artifacts to GitHub Release
@@ -73,6 +74,7 @@ jobs:
             apps/desktop/dist/Toph-*-mac-arm64.zip.blockmap \
             apps/desktop/dist/Toph-*-mac-x64.dmg.blockmap \
             apps/desktop/dist/Toph-*-mac-x64.zip.blockmap \
+            apps/desktop/dist/latest-mac.yml \
             --clobber
 
   build-linux:
@@ -106,7 +108,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: toph-linux
-          path: apps/desktop/dist/Toph-*-linux-x86_64.AppImage
+          path: |
+            apps/desktop/dist/Toph-*-linux-x86_64.AppImage
+            apps/desktop/dist/latest-linux.yml
           if-no-files-found: error
 
       - name: Attach artifacts to GitHub Release
@@ -116,4 +120,5 @@ jobs:
         run: |
           gh release upload "${{ github.event.release.tag_name }}" \
             apps/desktop/dist/Toph-*-linux-x86_64.AppImage \
+            apps/desktop/dist/latest-linux.yml \
             --clobber

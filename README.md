@@ -34,18 +34,44 @@ A few stubborn principles, in rough order of stubbornness:
 
 Download Toph from the [latest release](https://github.com/YourTechBudStudio/Toph/releases/latest):
 
-| Platform            | Download                       | Notes                                                          |
-| ------------------- | ------------------------------ | -------------------------------------------------------------- |
-| macOS Apple silicon | `Toph-*-mac-arm64.dmg`         | Open the DMG and drag Toph into Applications.                  |
-| macOS Intel         | `Toph-*-mac-x64.dmg`           | Open the DMG and drag Toph into Applications.                  |
-| Linux x64           | `Toph-*-linux-x86_64.AppImage` | Mark it executable, then run it. Tested first on Ubuntu GNOME. |
+| Platform            | Download                       | Notes                                         |
+| ------------------- | ------------------------------ | --------------------------------------------- |
+| macOS Apple silicon | `Toph-*-mac-arm64.dmg`         | Open the DMG and drag Toph into Applications. |
+| macOS Intel         | `Toph-*-mac-x64.dmg`           | Open the DMG and drag Toph into Applications. |
+| Linux x64           | `Toph-*-linux-x86_64.AppImage` | Use the install/update steps below.           |
 
-On Linux:
+### Linux install/update
+
+Install Toph into a user-owned location so in-app updates can replace the
+AppImage without `sudo`:
 
 ```bash
-chmod +x Toph-*-linux-x86_64.AppImage
-./Toph-*-linux-x86_64.AppImage
+mkdir -p "$HOME/.local/share/toph" "$HOME/.local/bin" "$HOME/.local/share/applications"
+
+TOPH_VERSION="$(curl -fsSIL -o /dev/null -w '%{url_effective}' \
+  https://github.com/YourTechBudStudio/Toph/releases/latest | sed 's#.*/v##')"
+
+wget -O "$HOME/.local/share/toph/Toph.AppImage" \
+  "https://github.com/YourTechBudStudio/Toph/releases/download/v${TOPH_VERSION}/Toph-${TOPH_VERSION}-linux-x86_64.AppImage"
+
+chmod +x "$HOME/.local/share/toph/Toph.AppImage"
+ln -sfn "$HOME/.local/share/toph/Toph.AppImage" "$HOME/.local/bin/toph"
+
+cat > "$HOME/.local/share/applications/toph.desktop" <<EOF
+[Desktop Entry]
+Name=Toph
+Exec=$HOME/.local/bin/toph
+Type=Application
+Terminal=false
+Categories=Utility;
+EOF
+
+update-desktop-database "$HOME/.local/share/applications" 2>/dev/null || true
 ```
+
+After that, launch Toph from your app launcher or run `toph` from a terminal.
+If Toph cannot safely update this AppImage later, it will show these steps in
+the app before sending you back here.
 
 Windows builds are not part of the official release flow yet.
 
