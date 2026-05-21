@@ -43,7 +43,8 @@ Download Toph from the [latest release](https://github.com/YourTechBudStudio/Top
 ### Linux install/update
 
 Install Toph into a user-owned location so in-app updates can replace the
-AppImage without `sudo`:
+AppImage without `sudo`. The commands below need `curl`, `wget`, and the usual
+desktop-file tools available on most Linux desktops:
 
 ```bash
 mkdir -p "$HOME/.local/share/toph" "$HOME/.local/bin" "$HOME/.local/share/applications"
@@ -100,7 +101,7 @@ We're still iterating on these prompts. Worth checking back every so often.
 
 ## Want to get your hands dirty?
 
-Building from source is two commands:
+Building from source is straightforward:
 
 ```bash
 pnpm install
