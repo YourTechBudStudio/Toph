@@ -76,7 +76,7 @@ function ChromeButton({
     <button
       type="button"
       aria-label={label}
-      className={`grid size-[34px] cursor-pointer place-items-center rounded-lg transition-[background-color,color] duration-200 ease-out [-webkit-app-region:no-drag] hover:bg-white/7 hover:text-text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-blue ${tone}`}
+      className={`grid size-8.5 cursor-pointer place-items-center rounded-lg transition-[background-color,color] duration-200 ease-out [-webkit-app-region:no-drag] hover:bg-white/7 hover:text-text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-blue ${tone}`}
       onClick={onClick}
     >
       <WindowControlIcon kind={kind} />

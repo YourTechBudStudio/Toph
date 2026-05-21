@@ -101,7 +101,7 @@ export function DiagnosticsSection({
                 <dt className="text-[13px] leading-snug font-semibold text-text-tertiary">
                   {label}
                 </dt>
-                <dd className="m-0 min-w-0 text-sm leading-snug font-semibold text-text-primary [overflow-wrap:anywhere]">
+                <dd className="m-0 min-w-0 text-sm leading-snug font-semibold text-text-primary wrap-anywhere">
                   {value}
                 </dd>
               </div>

@@ -15,8 +15,8 @@ importers:
         specifier: ^1.61.0
         version: 1.61.0
       oxlint-tailwindcss:
-        specifier: ^0.7.1
-        version: 0.7.1(@oxlint/plugins@1.64.0)
+        specifier: ^0.8.0
+        version: 0.8.0(@oxlint/plugins@1.64.0)
       sharp:
         specifier: ^0.34.5
         version: 0.34.5
@@ -1448,6 +1448,9 @@ packages:
   '@tailwindcss/node@4.2.4':
     resolution: {integrity: sha512-Ai7+yQPxz3ddrDQzFfBKdHEVBg0w3Zl83jnjuwxnZOsnH9pGn93QHQtpU0p/8rYWxvbFZHneni6p1BSLK4DkGA==}
 
+  '@tailwindcss/node@4.3.0':
+    resolution: {integrity: sha512-aFb4gUhFOgdh9AXo4IzBEOzBkkAxm9VigwDJnMIYv3lcfXCJVesNfbEaBl4BNgVRyid92AmdviqwBUBRKSeY3g==}
+
   '@tailwindcss/oxide-android-arm64@4.2.4':
     resolution: {integrity: sha512-e7MOr1SAn9U8KlZzPi1ZXGZHeC5anY36qjNwmZv9pOJ8E4Q6jmD1vyEHkQFmNOIN7twGPEMXRHmitN4zCMN03g==}
     engines: {node: '>= 20'}
@@ -2717,8 +2720,8 @@ packages:
     engines: {node: ^20.19.0 || >=22.12.0}
     hasBin: true
 
-  oxlint-tailwindcss@0.7.1:
-    resolution: {integrity: sha512-l4WuZt/iKvMwggwnfsIPCNvY/GDMK9FffXiYTWfXrh+PR0WeItRwqzU5UD1iFfV5CC0bfsiYZbLFt1CJLT6t3g==}
+  oxlint-tailwindcss@0.8.0:
+    resolution: {integrity: sha512-vfWnQ9S3AZXb9oqQPxilz9UlUcFvuKKJh7mT7vHw0lyHQVpKPOx117oS5y1/FuSAGSJAZa1gUeXCFNF8Ax28jA==}
     engines: {node: '>=20'}
     peerDependencies:
       '@oxlint/plugins': '>=1.43.0'
@@ -3033,6 +3036,9 @@ packages:
 
   tailwindcss@4.2.4:
     resolution: {integrity: sha512-HhKppgO81FQof5m6TEnuBWCZGgfRAWbaeOaGT00KOy/Pf/j6oUihdvBpA7ltCeAvZpFhW3j0PTclkxsd4IXYDA==}
+
+  tailwindcss@4.3.0:
+    resolution: {integrity: sha512-y6nxMGB1nMW9R6k96e5gdIFzcfL/gTJRNaqGes1YvkLnPVXzWgbqFF2yLC0T8G774n24cx3Pe8XrKoniCOAH+Q==}
 
   tapable@2.3.3:
     resolution: {integrity: sha512-uxc/zpqFg6x7C8vOE7lh6Lbda8eEL9zmVm/PLeTPBRhh1xCgdWaQ+J1CUieGpIfm2HdtsUpRv+HshiasBMcc6A==}
@@ -4272,6 +4278,16 @@ snapshots:
       magic-string: 0.30.21
       source-map-js: 1.2.1
       tailwindcss: 4.2.4
+
+  '@tailwindcss/node@4.3.0':
+    dependencies:
+      '@jridgewell/remapping': 2.3.5
+      enhanced-resolve: 5.21.0
+      jiti: 2.6.1
+      lightningcss: 1.32.0
+      magic-string: 0.30.21
+      source-map-js: 1.2.1
+      tailwindcss: 4.3.0
 
   '@tailwindcss/oxide-android-arm64@4.2.4':
     optional: true
@@ -5617,11 +5633,11 @@ snapshots:
       '@oxfmt/binding-win32-ia32-msvc': 0.46.0
       '@oxfmt/binding-win32-x64-msvc': 0.46.0
 
-  oxlint-tailwindcss@0.7.1(@oxlint/plugins@1.64.0):
+  oxlint-tailwindcss@0.8.0(@oxlint/plugins@1.64.0):
     dependencies:
       '@oxlint/plugins': 1.64.0
-      '@tailwindcss/node': 4.2.4
-      tailwindcss: 4.2.4
+      '@tailwindcss/node': 4.3.0
+      tailwindcss: 4.3.0
 
   oxlint@1.61.0:
     optionalDependencies:
@@ -5996,6 +6012,8 @@ snapshots:
   symbol-tree@3.2.4: {}
 
   tailwindcss@4.2.4: {}
+
+  tailwindcss@4.3.0: {}
 
   tapable@2.3.3: {}
 

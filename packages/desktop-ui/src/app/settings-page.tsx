@@ -180,7 +180,7 @@ export function SettingsPage({
   return (
     <main
       ref={mainRef}
-      className="relative h-screen overflow-y-auto bg-canvas px-6 pt-8 pb-10 [scrollbar-width:none] max-[640px]:px-5 [&::-webkit-scrollbar]:hidden"
+      className="relative h-screen overflow-y-auto bg-canvas px-6 pt-8 pb-10 scrollbar-none max-[640px]:px-5 [&::-webkit-scrollbar]:hidden"
     >
       <AppBackdrop variant="settings" fixed />
 

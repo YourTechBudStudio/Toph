@@ -200,7 +200,7 @@ export function OnboardingScreen({
             </div>
           </header>
 
-          <div className="min-h-0 overflow-y-auto pr-2 pb-8 [scrollbar-width:none] max-[980px]:pr-0 [&::-webkit-scrollbar]:hidden">
+          <div className="min-h-0 overflow-y-auto pr-2 pb-8 scrollbar-none max-[980px]:pr-0 [&::-webkit-scrollbar]:hidden">
             <div className="pb-8">
               <StepSection
                 complete={providerComplete}

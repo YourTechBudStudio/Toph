@@ -34,11 +34,11 @@ A few stubborn principles, in rough order of stubbornness:
 
 Download Toph from the [latest release](https://github.com/YourTechBudStudio/Toph/releases/latest):
 
-| Platform | Download | Notes |
-| --- | --- | --- |
-| macOS Apple silicon | `Toph-*-mac-arm64.dmg` | Open the DMG and drag Toph into Applications. |
-| macOS Intel | `Toph-*-mac-x64.dmg` | Open the DMG and drag Toph into Applications. |
-| Linux x64 | `Toph-*-linux-x86_64.AppImage` | Mark it executable, then run it. Tested first on Ubuntu GNOME. |
+| Platform            | Download                       | Notes                                                          |
+| ------------------- | ------------------------------ | -------------------------------------------------------------- |
+| macOS Apple silicon | `Toph-*-mac-arm64.dmg`         | Open the DMG and drag Toph into Applications.                  |
+| macOS Intel         | `Toph-*-mac-x64.dmg`           | Open the DMG and drag Toph into Applications.                  |
+| Linux x64           | `Toph-*-linux-x86_64.AppImage` | Mark it executable, then run it. Tested first on Ubuntu GNOME. |
 
 On Linux:
 

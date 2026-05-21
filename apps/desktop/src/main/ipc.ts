@@ -158,7 +158,9 @@ export function registerDesktopIpc(options: {
   ipcMain.handle(DESKTOP_IPC_CHANNELS.toggleSettingsMaximized, async () => {
     options.toggleSettingsMaximized();
   });
-  ipcMain.handle(DESKTOP_IPC_CHANNELS.getSettingsWindowBounds, async () => options.getSettingsBounds());
+  ipcMain.handle(DESKTOP_IPC_CHANNELS.getSettingsWindowBounds, async () =>
+    options.getSettingsBounds(),
+  );
   ipcMain.handle(DESKTOP_IPC_CHANNELS.moveSettingsWindow, async (_event, position: unknown) => {
     if (!isWindowPosition(position)) {
       throw new Error('Invalid window position.');

@@ -18,7 +18,7 @@ export function SettingsSideNav<TId extends string>({
   return (
     <nav
       aria-label="Settings sections"
-      className="sticky top-6 h-fit max-h-[calc(100vh-4rem)] self-start overflow-y-auto overscroll-contain rounded-[20px] border border-white/6 bg-canvas-elevated/40 p-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] [scrollbar-width:none] max-[820px]:static max-[820px]:mb-7 max-[820px]:max-h-none max-[820px]:overflow-x-auto max-[820px]:overflow-y-visible [&::-webkit-scrollbar]:hidden"
+      className="sticky top-6 h-fit max-h-[calc(100vh-4rem)] self-start overflow-y-auto overscroll-contain rounded-[20px] border border-white/6 bg-canvas-elevated/40 p-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] scrollbar-none max-[820px]:static max-[820px]:mb-7 max-[820px]:max-h-none max-[820px]:overflow-x-auto max-[820px]:overflow-y-visible [&::-webkit-scrollbar]:hidden"
     >
       <div className="px-2.5 pt-1.5 pb-2 text-[11px] font-bold tracking-[0.12em] text-text-tertiary uppercase max-[820px]:sr-only">
         Sections
