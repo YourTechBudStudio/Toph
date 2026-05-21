@@ -11,7 +11,7 @@ permissions:
 jobs:
   build-macos:
     name: Build signed macOS artifacts
-    if: github.event_name == 'release' || github.ref == 'refs/heads/main'
+    if: github.event_name == 'release' || github.ref == 'refs/heads/master'
     runs-on: macos-14
     environment: Production
 
@@ -79,7 +79,7 @@ jobs:
 
   build-linux:
     name: Build Linux AppImage
-    if: github.event_name == 'release' || github.ref == 'refs/heads/main'
+    if: github.event_name == 'release' || github.ref == 'refs/heads/master'
     runs-on: ubuntu-24.04
 
     steps:
