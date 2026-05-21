@@ -108,9 +108,10 @@ export async function bootstrap(options: {
   let pendingRuleSwitcher = options.shouldOpenRuleSwitcherOnLaunch;
 
   const stateStore = createDesktopStateStore({ appVersion: app.getVersion() });
+  const runtimeAppIconPath = process.platform === 'darwin' ? macAppIconPath : appIconPath;
   const windows = createWindowManager({
     appName,
-    appIconPath,
+    appIconPath: runtimeAppIconPath,
     isQuitting: () => isQuitting,
   });
   const permissions = createPermissionManager();
