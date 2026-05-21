@@ -357,4 +357,25 @@ describe('OverlayApp', () => {
 
     expect(closeRuleSwitcher).toHaveBeenCalledOnce();
   });
+
+  it('closes the rule switcher from the overlay button', async () => {
+    const closeRuleSwitcher = vi.fn<DesktopApi['closeRuleSwitcher']>(async () => {});
+    render(
+      <OverlayApp
+        client={createClient(
+          {
+            ...baseState,
+            phase: 'idle',
+            ruleSwitcher: { mode: 'selecting', selectedRulePresetId: null, message: null },
+          },
+          { closeRuleSwitcher },
+        )}
+        soundsEnabled={false}
+      />,
+    );
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Close rule switcher' }));
+
+    expect(closeRuleSwitcher).toHaveBeenCalledOnce();
+  });
 });

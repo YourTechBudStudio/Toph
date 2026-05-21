@@ -266,6 +266,12 @@ export function OverlayApp({
     });
   };
 
+  const closeRuleSwitcher = () => {
+    void client.closeRuleSwitcher().catch((error: unknown) => {
+      console.error('Toph could not close the rule switcher.', error);
+    });
+  };
+
   const selectRulePreset = (rulePresetId: string) => {
     setPendingRuleSelection((current) => ({
       rulePresetId,
@@ -286,7 +292,7 @@ export function OverlayApp({
       if (event.key === 'Escape') {
         event.preventDefault();
         if (ruleSwitcherMode !== 'idle') {
-          void client.closeRuleSwitcher();
+          closeRuleSwitcher();
           return;
         }
 
@@ -314,7 +320,7 @@ export function OverlayApp({
   }, [
     activeDictationVisible,
     cancelCapture,
-    client,
+    closeRuleSwitcher,
     rulePresets,
     ruleSwitcherMode,
     ruleSwitcherSelecting,
@@ -354,6 +360,7 @@ export function OverlayApp({
               selectedRulePresetId={state?.ruleSwitcher.selectedRulePresetId ?? null}
               message={state?.ruleSwitcher.message ?? null}
               onSelect={selectRulePreset}
+              onClose={closeRuleSwitcher}
             />
           </div>
         ) : (
@@ -414,16 +421,13 @@ export function OverlayApp({
             )}
 
             {!isIdle ? (
-              <button
-                type="button"
-                className="flex size-(--overlay-cancel-button-size) shrink-0 items-center justify-center rounded-full border border-white/8 bg-white/6 text-[1.05rem] leading-none text-text-secondary transition-[background-color,color,transform] duration-200 ease-out hover:scale-105 hover:bg-accent-red/18 hover:text-accent-red active:scale-95"
+              <OverlayCloseButton
                 aria-label={
                   listening || transcribing || polishing ? 'Cancel dictation' : 'Dismiss status'
                 }
                 onClick={cancelCapture}
-              >
-                &#215;
-              </button>
+                className="size-(--overlay-cancel-button-size) text-[1.05rem]"
+              />
             ) : null}
           </div>
         )}
@@ -443,6 +447,27 @@ function ListeningWave() {
   );
 }
 
+function OverlayCloseButton({
+  'aria-label': ariaLabel,
+  onClick,
+  className = '',
+}: {
+  'aria-label': string;
+  onClick: () => void;
+  className?: string;
+}) {
+  return (
+    <button
+      type="button"
+      className={`flex shrink-0 items-center justify-center rounded-full border border-white/8 bg-white/6 leading-none text-text-secondary transition-[background-color,color,transform] duration-200 ease-out hover:scale-105 hover:bg-accent-red/18 hover:text-accent-red active:scale-95 ${className}`}
+      aria-label={ariaLabel}
+      onClick={onClick}
+    >
+      &#215;
+    </button>
+  );
+}
+
 function RuleSwitcherContent({
   mode,
   rulePresets,
@@ -451,6 +476,7 @@ function RuleSwitcherContent({
   selectedRulePresetId,
   message,
   onSelect,
+  onClose,
 }: {
   mode: 'selecting' | 'selected' | 'disabled';
   rulePresets: Array<{ id: string; title: string; description: string }>;
@@ -459,6 +485,7 @@ function RuleSwitcherContent({
   selectedRulePresetId: string | null;
   message: string | null;
   onSelect: (rulePresetId: string) => void;
+  onClose: () => void;
 }) {
   if (mode === 'disabled') {
     return (
@@ -506,9 +533,11 @@ function RuleSwitcherContent({
             Press 1-{rulePresets.length} or click a card.
           </p>
         </div>
-        <span className="rounded-full border border-white/8 bg-white/5 px-2.5 py-1 text-[11px] font-semibold text-text-tertiary">
-          Esc closes
-        </span>
+        <OverlayCloseButton
+          aria-label="Close rule switcher"
+          onClick={onClose}
+          className="size-7 text-[1.15rem]"
+        />
       </div>
       <div className="grid grid-cols-[repeat(auto-fit,minmax(11.5rem,1fr))] gap-2.5">
         {rulePresets.map((rulePreset, index) => {
