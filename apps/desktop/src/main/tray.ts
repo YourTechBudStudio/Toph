@@ -85,6 +85,7 @@ function createTrayIcon() {
 export interface DesktopTrayController {
   create: () => void;
   refresh: () => void;
+  dispose: () => void;
 }
 
 export function createDesktopTrayController(options: {
@@ -95,6 +96,7 @@ export function createDesktopTrayController(options: {
 }): DesktopTrayController {
   let tray: Tray | null = null;
   let contextMenu: Menu | null = null;
+  let nativeThemeUpdated: (() => void) | null = null;
 
   const refresh = () => {
     if (!tray) {
@@ -139,15 +141,26 @@ export function createDesktopTrayController(options: {
       });
 
       if (process.platform !== 'darwin') {
-        nativeTheme.on('updated', () => {
+        nativeThemeUpdated = () => {
           if (tray) {
             tray.setImage(createTrayIcon());
           }
-        });
+        };
+        nativeTheme.on('updated', nativeThemeUpdated);
       }
 
       refresh();
     },
     refresh,
+    dispose() {
+      if (nativeThemeUpdated) {
+        nativeTheme.off('updated', nativeThemeUpdated);
+        nativeThemeUpdated = null;
+      }
+
+      contextMenu = null;
+      tray?.destroy();
+      tray = null;
+    },
   };
 }

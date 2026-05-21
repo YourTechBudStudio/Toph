@@ -703,6 +703,7 @@ export async function bootstrap(options: {
   await ensureWritingReady();
   const stopTrackingOverlayPlacement = windows.trackOverlayPlacement();
   tray.create();
+  let quitCleanupStarted = false;
   let quitCleanupComplete = false;
 
   await shortcuts.registerSavedShortcuts({
@@ -734,6 +735,12 @@ export async function bootstrap(options: {
     }
 
     event.preventDefault();
+    if (quitCleanupStarted) {
+      return;
+    }
+
+    quitCleanupStarted = true;
+    tray.dispose();
     stopTrackingOverlayPlacement();
     unregisterIpc();
     unsubscribeState();
@@ -742,13 +749,25 @@ export async function bootstrap(options: {
     updates.dispose();
     shortcuts.unregister();
 
-    void dictation.dispose().finally(async () => {
-      await transcription.dispose();
-      await vadRuntime.dispose();
-      await providerAuth.dispose();
-      sessionStore.close();
+    void (async () => {
+      const cleanupTasks: Array<[string, () => Promise<void> | void]> = [
+        ['dictation', () => dictation.dispose()],
+        ['transcription', () => transcription.dispose()],
+        ['VAD runtime', () => vadRuntime.dispose()],
+        ['provider auth', () => providerAuth.dispose()],
+        ['session store', () => sessionStore.close()],
+      ];
+
+      for (const [name, cleanup] of cleanupTasks) {
+        try {
+          await cleanup();
+        } catch (error) {
+          console.error(`Toph quit cleanup failed for ${name}.`, error);
+        }
+      }
+
       quitCleanupComplete = true;
-      app.quit();
-    });
+      app.exit(0);
+    })();
   });
 }
