@@ -15,9 +15,8 @@ registerHooks({
   },
 });
 
-const { createSessionTranscriptionCoordinator } = await import(
-  '../src/main/transcription/session-transcription-coordinator.ts'
-);
+const { createSessionTranscriptionCoordinator } =
+  await import('../src/main/transcription/session-transcription-coordinator.ts');
 
 function createBatch() {
   return {

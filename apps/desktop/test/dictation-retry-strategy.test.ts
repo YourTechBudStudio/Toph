@@ -7,7 +7,9 @@ const settings = {
   transcription: { providerId: 'openai-sub' as const, model: 'chatgpt-backend-transcribe' },
 };
 
-function session(overrides: Partial<Parameters<typeof resolveDictationRetryStrategy>[0]['session']> = {}) {
+function session(
+  overrides: Partial<Parameters<typeof resolveDictationRetryStrategy>[0]['session']> = {},
+) {
   return {
     status: 'failed' as const,
     transcriptionProviderId: 'openai-sub',

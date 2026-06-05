@@ -394,9 +394,9 @@ describe('HomeApp', () => {
     );
 
     await screen.findByRole('heading', { name: 'Toph' });
-    expect(screen.getByRole<HTMLButtonElement>('button', { name: 'Downloading 58%' }).disabled).toBe(
-      true,
-    );
+    expect(
+      screen.getByRole<HTMLButtonElement>('button', { name: 'Downloading 58%' }).disabled,
+    ).toBe(true);
 
     rerender(
       <HomeApp

@@ -329,8 +329,10 @@ function UpdateActionButton({
 }) {
   const baseClass =
     'inline-flex cursor-pointer items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-semibold transition-[transform,border-color,background-color,color,opacity] duration-200 ease-out hover:-translate-y-px disabled:cursor-default disabled:opacity-70 disabled:hover:translate-y-0';
-  const ghostClass = 'border-white/8 bg-white/3 text-text-secondary hover:bg-white/7 hover:text-text-primary';
-  const blueClass = 'border-accent-blue/30 bg-accent-blue/10 text-accent-blue hover:bg-accent-blue/16';
+  const ghostClass =
+    'border-white/8 bg-white/3 text-text-secondary hover:bg-white/7 hover:text-text-primary';
+  const blueClass =
+    'border-accent-blue/30 bg-accent-blue/10 text-accent-blue hover:bg-accent-blue/16';
   const greenClass =
     'border-accent-green/30 bg-accent-green/10 text-accent-green hover:bg-accent-green/16';
   const amberClass =
@@ -483,7 +485,8 @@ function LinuxUpdateStepsModal({
               3. Add the command-line and desktop launchers
             </h3>
             <p className="m-0 text-sm leading-relaxed text-text-secondary">
-              Future updates can use this stable AppImage path instead of chasing a file in Downloads.
+              Future updates can use this stable AppImage path instead of chasing a file in
+              Downloads.
             </p>
             <pre className="mt-3 overflow-x-auto rounded-2xl border border-white/8 bg-[#11131f]/52 p-4 text-xs leading-relaxed text-text-primary">
               <code>{instructions.commands}</code>

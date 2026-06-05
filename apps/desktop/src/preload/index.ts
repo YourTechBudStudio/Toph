@@ -136,11 +136,9 @@ const api: DesktopApi = {
     ipcRenderer.invoke(DESKTOP_IPC_CHANNELS.rerunSession, sessionId) as Promise<void>,
   deleteSession: (sessionId: string) =>
     ipcRenderer.invoke(DESKTOP_IPC_CHANNELS.deleteSession, sessionId) as Promise<void>,
-  checkForUpdates: () =>
-    ipcRenderer.invoke(DESKTOP_IPC_CHANNELS.checkForUpdates) as Promise<void>,
+  checkForUpdates: () => ipcRenderer.invoke(DESKTOP_IPC_CHANNELS.checkForUpdates) as Promise<void>,
   downloadUpdate: () => ipcRenderer.invoke(DESKTOP_IPC_CHANNELS.downloadUpdate) as Promise<void>,
-  restartToUpdate: () =>
-    ipcRenderer.invoke(DESKTOP_IPC_CHANNELS.restartToUpdate) as Promise<void>,
+  restartToUpdate: () => ipcRenderer.invoke(DESKTOP_IPC_CHANNELS.restartToUpdate) as Promise<void>,
   dismissUpdateNotice: () =>
     ipcRenderer.invoke(DESKTOP_IPC_CHANNELS.dismissUpdateNotice) as Promise<void>,
   openUpdateReadme: () =>

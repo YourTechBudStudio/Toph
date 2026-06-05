@@ -4,11 +4,11 @@ import test from 'node:test';
 
 import type { AppState, AppUpdateState } from '@toph/desktop-contracts';
 
+import type { DesktopStateStore } from '../../src/main/state.ts';
 import {
   createDesktopUpdateCoordinator,
   type UpdateCoordinatorUpdater,
 } from '../../src/main/updater/update-coordinator.ts';
-import type { DesktopStateStore } from '../../src/main/state.ts';
 
 class FakeUpdater extends EventEmitter implements UpdateCoordinatorUpdater {
   autoDownload = true;

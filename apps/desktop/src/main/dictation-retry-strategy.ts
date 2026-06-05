@@ -25,13 +25,8 @@ function transcriptionSnapshotMatchesCurrentSettings(
 }
 
 export function resolveDictationRetryStrategy(input: {
-  session: Pick<
-    RecordingSession,
-    'status' | 'transcriptionProviderId' | 'transcriptionModel'
-  >;
-  batches: Array<
-    Pick<TranscriptionBatch, 'id' | 'status' | 'derivedAudioPath'>
-  >;
+  session: Pick<RecordingSession, 'status' | 'transcriptionProviderId' | 'transcriptionModel'>;
+  batches: Array<Pick<TranscriptionBatch, 'id' | 'status' | 'derivedAudioPath'>>;
   settings: Pick<AppSettings, 'transcription'>;
   batchAudioExists: (path: string) => boolean;
 }): DictationRetryStrategy {

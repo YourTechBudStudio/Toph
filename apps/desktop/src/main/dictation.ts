@@ -483,7 +483,9 @@ export function createDictationController(options: {
   const rerunRecordedWorkflow = async (requestedSessionId: string) => {
     const { phase, ruleSwitcher, activeFailure } = options.stateStore.getState();
     const retryingVisibleFailure =
-      phase === 'failed' && activeFailure?.canRetry && activeFailure.sessionId === requestedSessionId;
+      phase === 'failed' &&
+      activeFailure?.canRetry &&
+      activeFailure.sessionId === requestedSessionId;
     if (
       lifecycle !== 'idle' ||
       (phase !== 'idle' && !retryingVisibleFailure) ||
