@@ -259,7 +259,7 @@ test('queues installs so later shortcut requests win in order', async () => {
   const stateStore = createStateStore();
   const shortcutBackend = createShortcutBackend([{}, {}]);
   const persisted: ShortcutChord[] = [];
-  let releaseFirstPersist: (() => void) | null = null;
+  let releaseFirstPersist!: () => void;
   const firstPersist = new Promise<void>((resolve) => {
     releaseFirstPersist = resolve;
   });
@@ -284,7 +284,7 @@ test('queues installs so later shortcut requests win in order', async () => {
 
   const firstInstall = manager.installDictationShortcut(alternateChord);
   const secondInstall = manager.installDictationShortcut(thirdChord);
-  releaseFirstPersist?.();
+  releaseFirstPersist();
   await Promise.all([firstInstall, secondInstall]);
 
   assert.deepEqual(persisted, [alternateChord, thirdChord]);

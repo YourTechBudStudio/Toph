@@ -2,9 +2,10 @@ import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
 import test from 'node:test';
 
-import type { AppState, AppUpdateState } from '@toph/desktop-contracts';
+import type { UpdateInfo } from 'electron-updater';
 
-import type { DesktopStateStore } from '../../src/main/state.ts';
+import type { AppUpdateState } from '@toph/desktop-contracts';
+
 import {
   createDesktopUpdateCoordinator,
   type UpdateCoordinatorUpdater,
@@ -49,21 +50,24 @@ class FakeUpdater extends EventEmitter implements UpdateCoordinatorUpdater {
   }
 }
 
+function createUpdateInfo(version: string): UpdateInfo {
+  return { version, files: [], path: '', sha512: '', releaseDate: '2026-01-01T00:00:00.000Z' };
+}
+
 function createStateStore(initialUpdate: AppUpdateState = { kind: 'idle', lastCheckedAt: null }) {
   let state = {
     app: {
       version: '0.0.3',
       update: initialUpdate,
     },
-  } as AppState;
+  };
 
   const store = {
     getState: () => state,
     setAppUpdate(update: AppUpdateState) {
       state = { ...state, app: { ...state.app, update } };
     },
-    subscribe: () => () => {},
-  } as DesktopStateStore;
+  };
 
   return { store, getState: () => state };
 }
@@ -77,12 +81,12 @@ function createTimers() {
     intervals,
     setTimeout(handler: () => void) {
       timeouts.push(handler);
-      return { kind: 'timeout' } as NodeJS.Timeout;
+      return { kind: 'timeout' };
     },
     clearTimeout() {},
     setInterval(handler: () => void) {
       intervals.push(handler);
-      return { kind: 'interval' } as NodeJS.Timeout;
+      return { kind: 'interval' };
     },
     clearInterval() {},
   };
@@ -92,8 +96,8 @@ test('manual check shows up-to-date state, then resets to idle', async () => {
   const updater = new FakeUpdater();
   updater.checkResult = {
     isUpdateAvailable: false,
-    updateInfo: { version: '0.0.3', files: [], path: '', sha512: '' },
-    versionInfo: { version: '0.0.3', files: [], path: '', sha512: '' },
+    updateInfo: createUpdateInfo('0.0.3'),
+    versionInfo: createUpdateInfo('0.0.3'),
   };
   const state = createStateStore();
   const timers = createTimers();
@@ -124,8 +128,8 @@ test('Linux preflight failure shows fallback instructions instead of download st
   const updater = new FakeUpdater();
   updater.checkResult = {
     isUpdateAvailable: true,
-    updateInfo: { version: '0.0.4', files: [], path: '', sha512: '' },
-    versionInfo: { version: '0.0.4', files: [], path: '', sha512: '' },
+    updateInfo: createUpdateInfo('0.0.4'),
+    versionInfo: createUpdateInfo('0.0.4'),
   };
   const state = createStateStore();
   const timers = createTimers();

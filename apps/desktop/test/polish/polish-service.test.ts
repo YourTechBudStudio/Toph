@@ -7,6 +7,7 @@ import {
   type InferenceProvider,
 } from '../../src/main/inference/inference-provider.ts';
 import { createPolishService } from '../../src/main/polish/polish-service.ts';
+import { defaultAppSettings } from '../../src/main/settings/app-settings-schema.ts';
 
 const rulePreset = {
   id: 'general',
@@ -19,6 +20,28 @@ const rulePreset = {
   createdAt: 1,
   updatedAt: 1,
 };
+
+function createInferenceResult(text = 'Polished text.') {
+  return {
+    text,
+    provider: 'test',
+    model: 'test-model',
+    usage: {
+      billingMode: 'subscription' as const,
+      audioDurationMs: null,
+      billableDurationMs: null,
+      inputTokens: null,
+      cachedInputTokens: null,
+      outputTokens: null,
+      estimatedCostUsdMicros: 0,
+      costSource: 'none' as const,
+      pricingCatalogProviderId: null,
+      pricingCatalogModelId: null,
+    },
+    providerRequestId: null,
+    providerResponseJson: null,
+  };
+}
 
 function createService(
   provider: InferenceProvider,
@@ -33,7 +56,7 @@ function createService(
     settingsStore: {
       getSettings() {
         return {
-          version: 1,
+          ...defaultAppSettings,
           shortcut: { chord: { modifiers: ['control', 'alt'], key: 'Space' } },
           ruleSwitcherShortcut: { chord: { modifiers: ['control'], key: 'Space' } },
           auth: { providerId: 'openai-sub' },
@@ -81,13 +104,7 @@ test('retries transient empty inference output failures', async () => {
         throw new TransientInferenceProviderError('empty output');
       }
 
-      return {
-        text: 'Polished text.',
-        provider: 'test',
-        model: 'test-model',
-        providerRequestId: null,
-        providerResponseJson: null,
-      };
+      return createInferenceResult();
     },
   });
 
@@ -109,13 +126,7 @@ test('escapes dictionary delimiter text before composing inference instructions'
       id: 'test',
       async inferText(input) {
         instructions = input.instructions;
-        return {
-          text: 'Polished text.',
-          provider: 'test',
-          model: 'test-model',
-          providerRequestId: null,
-          providerResponseJson: null,
-        };
+        return createInferenceResult();
       },
     },
     {
@@ -147,13 +158,7 @@ test('passes a requested output id through to polished output creation', async (
     {
       id: 'test',
       async inferText() {
-        return {
-          text: 'Polished text.',
-          provider: 'test',
-          model: 'test-model',
-          providerRequestId: null,
-          providerResponseJson: null,
-        };
+        return createInferenceResult();
       },
     },
     {

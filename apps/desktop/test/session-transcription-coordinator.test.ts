@@ -2,6 +2,8 @@ import assert from 'node:assert/strict';
 import { registerHooks } from 'node:module';
 import test from 'node:test';
 
+import type { RecordingSession, TranscriptionBatch } from '../src/main/db/schema.ts';
+
 registerHooks({
   resolve(specifier, context, nextResolve) {
     try {
@@ -18,7 +20,27 @@ registerHooks({
 const { createSessionTranscriptionCoordinator } =
   await import('../src/main/transcription/session-transcription-coordinator.ts');
 
-function createBatch() {
+function createSession(options: {
+  transcriptionProviderId: string;
+  transcriptionModel: string;
+}): RecordingSession {
+  const now = Date.now();
+  return {
+    id: 'session-1',
+    createdAt: now,
+    startedAt: now,
+    endedAt: null,
+    durationMs: null,
+    rawAudioPath: '/tmp/session.wav',
+    transcriptionProviderId: options.transcriptionProviderId,
+    transcriptionModel: options.transcriptionModel,
+    status: 'segmented',
+    selectedOutputId: null,
+    errorMessage: null,
+  };
+}
+
+function createBatch(): TranscriptionBatch {
   return {
     id: 'batch-1',
     sessionId: 'session-1',
@@ -40,13 +62,13 @@ test('transcribes with the session snapshot model instead of live provider setti
   const batch = createBatch();
   let receivedModel: string | null = null;
   const store = {
-    getSession: async () => ({
-      id: 'session-1',
-      transcriptionProviderId: 'openai-sub',
-      transcriptionModel: 'snapshot-model',
-    }),
+    getSession: async () =>
+      createSession({
+        transcriptionProviderId: 'openai-sub',
+        transcriptionModel: 'snapshot-model',
+      }),
     getTranscriptionBatch: async () => batch,
-    listTranscriptionBatchesForSession: async () => [{ ...batch, status: 'transcribed' }],
+    listTranscriptionBatchesForSession: async () => [{ ...batch, status: 'transcribed' as const }],
     markBatchTranscribing: async ({ attempts }: { attempts: number }) => {
       batch.status = 'transcribing';
       batch.transcriptionAttempts = attempts;
@@ -102,11 +124,11 @@ test('fails the batch when the session snapshot provider does not match the runt
   let providerCalled = false;
   const coordinator = createSessionTranscriptionCoordinator({
     sessionStore: {
-      getSession: async () => ({
-        id: 'session-1',
-        transcriptionProviderId: 'other-provider',
-        transcriptionModel: 'snapshot-model',
-      }),
+      getSession: async () =>
+        createSession({
+          transcriptionProviderId: 'other-provider',
+          transcriptionModel: 'snapshot-model',
+        }),
       getTranscriptionBatch: async () => batch,
       listTranscriptionBatchesForSession: async () => [batch],
       markBatchTranscribing: async () => {},

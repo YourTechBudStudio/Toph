@@ -14,6 +14,8 @@ function recordWithErrors(): RetainedSessionRecord {
       endedAt: now,
       durationMs: 1000,
       rawAudioPath: '/Users/Jane Doe/.toph/recordings/session_123/raw.wav',
+      transcriptionProviderId: 'openai-sub',
+      transcriptionModel: 'chatgpt-backend-transcribe',
       status: 'failed',
       selectedOutputId: 'output_123',
       errorMessage:

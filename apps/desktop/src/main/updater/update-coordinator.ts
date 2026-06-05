@@ -17,6 +17,24 @@ import type {
 
 import type { DesktopStateStore } from '../state';
 
+type UpdateCoordinatorState = { app: { update: AppUpdateState } };
+type UpdateCoordinatorStateStore = {
+  getState: () => UpdateCoordinatorState;
+  setAppUpdate: DesktopStateStore['setAppUpdate'];
+};
+type UpdateCoordinatorIntervalHandle = unknown;
+type UpdateCoordinatorTimeoutHandle = unknown;
+type UpdateCoordinatorScheduleInterval = (
+  handler: () => void,
+  delayMs: number,
+) => UpdateCoordinatorIntervalHandle;
+type UpdateCoordinatorCancelInterval = (timer: UpdateCoordinatorIntervalHandle) => void;
+type UpdateCoordinatorScheduleTimeout = (
+  handler: () => void,
+  delayMs: number,
+) => UpdateCoordinatorTimeoutHandle;
+type UpdateCoordinatorCancelTimeout = (timer: UpdateCoordinatorTimeoutHandle) => void;
+
 const updateReadmeUrl = 'https://github.com/YourTechBudStudio/Toph#linux-installupdate';
 const pollIntervalMs = 3 * 60 * 60 * 1000;
 const upToDateVisibleMs = 2_000;
@@ -178,7 +196,7 @@ function configureAutoUpdater(options: {
 }
 
 export function createDesktopUpdateCoordinator(options: {
-  stateStore: DesktopStateStore;
+  stateStore: UpdateCoordinatorStateStore;
   updater: UpdateCoordinatorUpdater;
   platform?: NodeJS.Platform;
   env?: NodeJS.ProcessEnv;
@@ -186,10 +204,10 @@ export function createDesktopUpdateCoordinator(options: {
   prepareToRestart?: () => void;
   canRestartToUpdate?: () => boolean;
   canAccessPath?: (path: string, mode: number) => Promise<boolean>;
-  setInterval?: typeof setInterval;
-  clearInterval?: typeof clearInterval;
-  setTimeout?: typeof setTimeout;
-  clearTimeout?: typeof clearTimeout;
+  setInterval?: UpdateCoordinatorScheduleInterval;
+  clearInterval?: UpdateCoordinatorCancelInterval;
+  setTimeout?: UpdateCoordinatorScheduleTimeout;
+  clearTimeout?: UpdateCoordinatorCancelTimeout;
 }) {
   const updater = options.updater;
   const platform = options.platform ?? process.platform;
@@ -198,16 +216,20 @@ export function createDesktopUpdateCoordinator(options: {
   const prepareToRestart = options.prepareToRestart ?? (() => {});
   const canRestartToUpdate = options.canRestartToUpdate ?? (() => true);
   const checkPathAccess = options.canAccessPath ?? canAccessPath;
-  const scheduleInterval = options.setInterval ?? setInterval;
-  const cancelInterval = options.clearInterval ?? clearInterval;
-  const scheduleTimeout = options.setTimeout ?? setTimeout;
-  const cancelTimeout = options.clearTimeout ?? clearTimeout;
+  const scheduleInterval: UpdateCoordinatorScheduleInterval =
+    options.setInterval ?? ((handler, delayMs) => setInterval(handler, delayMs));
+  const cancelInterval: UpdateCoordinatorCancelInterval =
+    options.clearInterval ?? ((timer) => clearInterval(timer as ReturnType<typeof setInterval>));
+  const scheduleTimeout: UpdateCoordinatorScheduleTimeout =
+    options.setTimeout ?? ((handler, delayMs) => setTimeout(handler, delayMs));
+  const cancelTimeout: UpdateCoordinatorCancelTimeout =
+    options.clearTimeout ?? ((timer) => clearTimeout(timer as ReturnType<typeof setTimeout>));
 
   configureAutoUpdater({ updater, env });
 
   let disposed = false;
-  let pollTimer: NodeJS.Timeout | null = null;
-  let resetTimer: NodeJS.Timeout | null = null;
+  let pollTimer: UpdateCoordinatorIntervalHandle | null = null;
+  let resetTimer: UpdateCoordinatorTimeoutHandle | null = null;
   let latestAvailableInfo: UpdateInfo | null = null;
   let restartBlockedVersion: string | null = null;
 
