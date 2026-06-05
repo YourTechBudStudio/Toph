@@ -9,7 +9,7 @@ import {
 } from './transcription-provider';
 
 export interface SessionTranscriptionCoordinator {
-  onBatchReady: (batchId: string) => Promise<void>;
+  onBatchReady: (batchId: string, options?: { resetAttempts?: boolean }) => Promise<void>;
   cancelSession: (sessionId: string) => Promise<void>;
   waitForSession: (sessionId: string) => Promise<SessionTranscriptionOutcome>;
   dispose: () => Promise<void>;
@@ -31,7 +31,13 @@ function createUsageEventId() {
 }
 
 function describeError(error: unknown) {
-  return error instanceof Error ? error.message : 'Unknown transcription error.';
+  if (error instanceof Error) {
+    return error.message;
+  }
+  if (typeof error === 'string') {
+    return error;
+  }
+  return 'Unknown transcription error.';
 }
 
 function isTranscriptionAbortError(error: unknown) {
@@ -101,6 +107,7 @@ function toTranscriptRows(options: {
 export function createSessionTranscriptionCoordinator(options: {
   sessionStore: Pick<
     RecordingSessionStore,
+    | 'getSession'
     | 'getTranscriptionBatch'
     | 'listTranscriptionBatchesForSession'
     | 'markBatchTranscribing'
@@ -164,13 +171,35 @@ export function createSessionTranscriptionCoordinator(options: {
     failedBatchIds.add(batch.id);
   };
 
-  const transcribeBatch = async (batch: TranscriptionBatch, abortController: AbortController) => {
+  const transcribeBatch = async (
+    batch: TranscriptionBatch,
+    abortController: AbortController,
+    transcribeOptions: { resetAttempts?: boolean } = {},
+  ) => {
     if (!batch.derivedAudioPath) {
       await markFailed(batch, batch.transcriptionAttempts, 'Batch audio was not generated.');
       return;
     }
 
-    let attempt = batch.transcriptionAttempts;
+    const session = await options.sessionStore.getSession(batch.sessionId);
+    if (!session?.transcriptionProviderId || !session.transcriptionModel) {
+      await markFailed(
+        batch,
+        batch.transcriptionAttempts,
+        'Session transcription provider/model was not recorded.',
+      );
+      return;
+    }
+    if (session.transcriptionProviderId !== options.provider.id) {
+      await markFailed(
+        batch,
+        batch.transcriptionAttempts,
+        `Session transcription provider "${session.transcriptionProviderId}" is not available in this runtime.`,
+      );
+      return;
+    }
+
+    let attempt = transcribeOptions.resetAttempts ? 0 : batch.transcriptionAttempts;
     let lastError: unknown = null;
     while (attempt < maxAttempts) {
       attempt += 1;
@@ -185,6 +214,7 @@ export function createSessionTranscriptionCoordinator(options: {
           batchId: batch.id,
           audioPath: batch.derivedAudioPath,
           durationMs: batch.derivedAudioDurationMs,
+          model: session.transcriptionModel,
           signal: abortController.signal,
         });
         const createdAt = Date.now();
@@ -210,7 +240,7 @@ export function createSessionTranscriptionCoordinator(options: {
   };
 
   return {
-    async onBatchReady(batchId) {
+    async onBatchReady(batchId, batchOptions) {
       if (batchTasks.has(batchId)) {
         return;
       }
@@ -224,7 +254,7 @@ export function createSessionTranscriptionCoordinator(options: {
       rememberAbortController(batch, abortController);
       const task = (async () => {
         try {
-          await transcribeBatch(batch, abortController);
+          await transcribeBatch(batch, abortController, batchOptions);
         } finally {
           forgetAbortController(batch, abortController);
         }

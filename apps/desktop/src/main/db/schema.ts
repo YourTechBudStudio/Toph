@@ -27,6 +27,8 @@ export const recordingSessions = sqliteTable('recording_sessions', {
   endedAt: integer('ended_at'),
   durationMs: integer('duration_ms'),
   rawAudioPath: text('raw_audio_path').notNull(),
+  transcriptionProviderId: text('transcription_provider_id'),
+  transcriptionModel: text('transcription_model'),
   status: text('status', {
     enum: [
       'recording',

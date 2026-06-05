@@ -674,12 +674,18 @@ export type VadRuntimeStatus =
       detail: string;
     };
 
+export interface ActiveDictationFailure {
+  sessionId: string | null;
+  canRetry: boolean;
+}
+
 export interface AppState {
   app: {
     version: string;
     update: AppUpdateState;
   };
   phase: DictationPhase;
+  activeFailure: ActiveDictationFailure | null;
   activeInputDeviceFallback: ActiveInputDeviceFallback | null;
   shortcut: ShortcutRegistrationState;
   ruleSwitcherShortcut: ShortcutRegistrationState;

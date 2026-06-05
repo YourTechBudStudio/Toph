@@ -8,6 +8,13 @@
       "when": 1778698915019,
       "tag": "0000_omniscient_hiroim",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1780640731499,
+      "tag": "0001_fast_winter_soldier",
+      "breakpoints": true
     }
   ]
 }

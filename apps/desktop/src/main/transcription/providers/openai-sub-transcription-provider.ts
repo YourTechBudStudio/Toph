@@ -5,7 +5,6 @@ import { PROVIDER_BILLING_MODES } from '@toph/desktop-contracts';
 
 import type { ProviderAuthService } from '../../auth/provider-auth-service';
 import type { PricingService } from '../../pricing/pricing-service';
-import type { AppSettingsStore } from '../../settings/app-settings-store';
 import {
   TransientTranscriptionProviderError,
   type TranscriptionProvider,
@@ -53,14 +52,13 @@ async function readResponseBody(response: Response) {
 export function createOpenAiSubTranscriptionProvider(options: {
   auth: Pick<ProviderAuthService, 'resolveCredentials'>;
   pricing: Pick<PricingService, 'estimateCost'>;
-  settingsStore: Pick<AppSettingsStore, 'getSettings'>;
 }): TranscriptionProvider {
   return {
     id: providerId,
 
     async transcribeBatch(input): Promise<TranscriptionProviderResult> {
       const credentials = await options.auth.resolveCredentials(providerId);
-      const model = options.settingsStore.getSettings().transcription.model;
+      const model = input.model;
       const audio = await readFile(input.audioPath);
       const form = new FormData();
       form.set('file', new Blob([audio], { type: 'audio/wav' }), basename(input.audioPath));

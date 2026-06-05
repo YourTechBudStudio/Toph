@@ -15,6 +15,7 @@ export interface TranscriptionProvider {
     batchId: string;
     audioPath: string;
     durationMs: number;
+    model: string;
     signal?: AbortSignal;
   }) => Promise<TranscriptionProviderResult>;
 }

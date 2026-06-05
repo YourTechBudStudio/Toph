@@ -252,7 +252,6 @@ export async function bootstrap(options: {
   const transcriptionProvider = createOpenAiSubTranscriptionProvider({
     auth: providerAuth,
     pricing,
-    settingsStore,
   });
   const inferenceProvider = createOpenAiSubInferenceProvider({
     auth: providerAuth,

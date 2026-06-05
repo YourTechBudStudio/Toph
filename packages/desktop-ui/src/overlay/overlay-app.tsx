@@ -1,3 +1,4 @@
+import { RefreshCcw } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react';
 
 import {
@@ -94,6 +95,7 @@ export function OverlayApp({
     null,
   );
   const [audioFallbackNotice, setAudioFallbackNotice] = useState<string | null>(null);
+  const [retryingFailureSessionId, setRetryingFailureSessionId] = useState<string | null>(null);
   const state = useDesktopState(client);
   const showAudioFallback = useCallback((device: { label: string | null }) => {
     setAudioFallbackNotice(
@@ -123,6 +125,8 @@ export function OverlayApp({
   const noSpeech = phase === 'no_speech';
   const cancelled = phase === 'cancelled';
   const failed = phase === 'failed';
+  const retryableFailureSessionId =
+    failed && state?.activeFailure?.canRetry ? state.activeFailure.sessionId : null;
   const activeInputFallback =
     listening && !ruleSwitcherVisible ? (state?.activeInputDeviceFallback ?? null) : null;
   const activeDictationVisible = phase !== 'idle';
@@ -264,6 +268,22 @@ export function OverlayApp({
     void client.cancelCapture().catch((error: unknown) => {
       console.error('Toph could not cancel dictation.', error);
     });
+  };
+
+  const retryFailedSession = () => {
+    if (!retryableFailureSessionId) {
+      return;
+    }
+
+    setRetryingFailureSessionId(retryableFailureSessionId);
+    void client
+      .rerunSession(retryableFailureSessionId)
+      .catch((error: unknown) => {
+        console.error('Toph could not retry the failed dictation.', error);
+      })
+      .finally(() => {
+        setRetryingFailureSessionId(null);
+      });
   };
 
   const closeRuleSwitcher = () => {
@@ -421,13 +441,23 @@ export function OverlayApp({
             )}
 
             {!isIdle ? (
-              <OverlayCloseButton
-                aria-label={
-                  listening || transcribing || polishing ? 'Cancel dictation' : 'Dismiss status'
-                }
-                onClick={cancelCapture}
-                className="size-(--overlay-cancel-button-size) text-[1.05rem]"
-              />
+              <>
+                {retryableFailureSessionId ? (
+                  <OverlayRetryButton
+                    aria-label="Retry this session"
+                    onClick={retryFailedSession}
+                    retrying={retryingFailureSessionId === retryableFailureSessionId}
+                    className="size-(--overlay-cancel-button-size)"
+                  />
+                ) : null}
+                <OverlayCloseButton
+                  aria-label={
+                    listening || transcribing || polishing ? 'Cancel dictation' : 'Dismiss status'
+                  }
+                  onClick={cancelCapture}
+                  className="size-(--overlay-cancel-button-size) text-[1.05rem]"
+                />
+              </>
             ) : null}
           </div>
         )}
@@ -444,6 +474,30 @@ function ListeningWave() {
       <span className="h-3.5 w-1 animate-wave rounded-full bg-text-primary [animation-delay:0.24s]" />
       <span className="h-2.5 w-1 animate-wave rounded-full bg-text-primary [animation-delay:0.36s]" />
     </div>
+  );
+}
+
+function OverlayRetryButton({
+  'aria-label': ariaLabel,
+  onClick,
+  retrying,
+  className = '',
+}: {
+  'aria-label': string;
+  onClick: () => void;
+  retrying: boolean;
+  className?: string;
+}) {
+  return (
+    <button
+      type="button"
+      className={`flex shrink-0 items-center justify-center rounded-full border border-white/8 bg-white/6 text-text-secondary transition-[background-color,color,transform] duration-200 ease-out hover:scale-105 hover:bg-white/10 hover:text-text-primary active:scale-95 disabled:cursor-not-allowed disabled:opacity-60 ${className}`}
+      aria-label={ariaLabel}
+      onClick={onClick}
+      disabled={retrying}
+    >
+      <RefreshCcw size={14} className={retrying ? 'animate-spin' : undefined} />
+    </button>
   );
 }
 

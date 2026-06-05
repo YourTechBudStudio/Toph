@@ -61,7 +61,10 @@ export interface DesktopStateStore {
   completeRecording: () => void;
   noSpeechDetected: () => void;
   cancelDictation: () => void;
-  failDictation: (detail: string) => void;
+  failDictation: (
+    detail: string,
+    options?: { sessionId?: string | null; canRetry?: boolean },
+  ) => void;
   completeTranscription: (
     transcript: string,
     pasteAttempt: PasteAttempt,
@@ -98,6 +101,7 @@ function createInitialState(options: { appVersion: string }): AppState {
       update: { kind: 'idle', lastCheckedAt: null },
     },
     phase: 'idle',
+    activeFailure: null,
     activeInputDeviceFallback: null,
     shortcut: toShortcutState(defaultShortcutChord, 'Inspecting dictation shortcut support...'),
     ruleSwitcherShortcut: toShortcutState(
@@ -302,6 +306,9 @@ export function createDesktopStateStore(initialStateOptions: {
     setPhase(phase) {
       commit((draft) => {
         draft.phase = phase;
+        if (phase !== 'failed') {
+          draft.activeFailure = null;
+        }
         if (phase !== 'listening') {
           draft.activeInputDeviceFallback = null;
         }
@@ -311,6 +318,7 @@ export function createDesktopStateStore(initialStateOptions: {
     startListening(options) {
       commit((draft) => {
         draft.phase = 'listening';
+        draft.activeFailure = null;
         draft.activeInputDeviceFallback = options?.inputDeviceFallback ?? null;
         draft.lastPasteAttempt = {
           helper: draft.lastPasteAttempt.helper,
@@ -323,6 +331,7 @@ export function createDesktopStateStore(initialStateOptions: {
     startTranscribing() {
       commit((draft) => {
         draft.phase = 'transcribing';
+        draft.activeFailure = null;
         draft.activeInputDeviceFallback = null;
         draft.lastPasteAttempt = {
           helper: draft.lastPasteAttempt.helper,
@@ -335,6 +344,7 @@ export function createDesktopStateStore(initialStateOptions: {
     startPolishing() {
       commit((draft) => {
         draft.phase = 'polishing';
+        draft.activeFailure = null;
         draft.activeInputDeviceFallback = null;
         draft.lastPasteAttempt = {
           helper: draft.lastPasteAttempt.helper,
@@ -347,6 +357,7 @@ export function createDesktopStateStore(initialStateOptions: {
     completeRecording() {
       commit((draft) => {
         draft.phase = 'idle';
+        draft.activeFailure = null;
         draft.activeInputDeviceFallback = null;
         draft.lastPasteAttempt = {
           helper: draft.lastPasteAttempt.helper,
@@ -359,6 +370,7 @@ export function createDesktopStateStore(initialStateOptions: {
     noSpeechDetected() {
       commit((draft) => {
         draft.phase = 'no_speech';
+        draft.activeFailure = null;
         draft.activeInputDeviceFallback = null;
         draft.lastPasteAttempt = {
           helper: draft.lastPasteAttempt.helper,
@@ -371,6 +383,7 @@ export function createDesktopStateStore(initialStateOptions: {
     cancelDictation() {
       commit((draft) => {
         draft.phase = 'cancelled';
+        draft.activeFailure = null;
         draft.activeInputDeviceFallback = null;
         draft.lastPasteAttempt = {
           helper: draft.lastPasteAttempt.helper,
@@ -380,9 +393,12 @@ export function createDesktopStateStore(initialStateOptions: {
       });
     },
 
-    failDictation(detail) {
+    failDictation(detail, options) {
       commit((draft) => {
         draft.phase = 'failed';
+        draft.activeFailure = options
+          ? { sessionId: options.sessionId ?? null, canRetry: options.canRetry ?? false }
+          : null;
         draft.activeInputDeviceFallback = null;
         draft.lastPasteAttempt = {
           helper: draft.lastPasteAttempt.helper,
@@ -417,6 +433,7 @@ export function createDesktopStateStore(initialStateOptions: {
         };
 
         draft.phase = 'idle';
+        draft.activeFailure = null;
         draft.activeInputDeviceFallback = null;
         draft.lastTranscript = transcript;
         draft.lastPasteAttempt = pasteAttempt;

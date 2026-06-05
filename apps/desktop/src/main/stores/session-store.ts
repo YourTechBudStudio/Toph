@@ -32,7 +32,10 @@ import type { TophDataPaths } from '../paths';
 import type { PlannedTranscriptionBatch, TimelineRegionDraft } from '../segmentation/types';
 
 export interface RecordingSessionStore {
-  createRecordingSession: () => Promise<RecordingSession>;
+  createRecordingSession: (options: {
+    transcriptionProviderId: string;
+    transcriptionModel: string;
+  }) => Promise<RecordingSession>;
   getSession: (sessionId: string) => Promise<RecordingSession | null>;
   markRecorded: (options: {
     sessionId: string;
@@ -108,6 +111,7 @@ export interface RecordingSessionStore {
   }) => Promise<DashboardStats>;
   prepareSessionForRerun: (
     sessionId: string,
+    options: { transcriptionProviderId: string; transcriptionModel: string },
   ) => Promise<{ session: RecordingSession; outputId: string | null }>;
   removeSession: (sessionId: string) => Promise<void>;
   syncDefaultPolishRulePreset: (rulePreset: {
@@ -235,6 +239,8 @@ function ensureCurrentWritableSchema(sqlite: Database.Database) {
       ended_at integer,
       duration_ms integer,
       raw_audio_path text not null,
+      transcription_provider_id text,
+      transcription_model text,
       status text not null,
       selected_output_id text,
       error_message text
@@ -346,6 +352,12 @@ function ensureCurrentWritableSchema(sqlite: Database.Database) {
     );
   `);
 
+  if (!columnExists(sqlite, 'recording_sessions', 'transcription_provider_id')) {
+    sqlite.exec('alter table recording_sessions add column transcription_provider_id text');
+  }
+  if (!columnExists(sqlite, 'recording_sessions', 'transcription_model')) {
+    sqlite.exec('alter table recording_sessions add column transcription_model text');
+  }
   if (!columnExists(sqlite, 'polish_rule_presets', 'description')) {
     sqlite.exec("alter table polish_rule_presets add column description text not null default ''");
   }
@@ -430,7 +442,7 @@ export async function createRecordingSessionStore(options: {
   };
 
   return {
-    async createRecordingSession() {
+    async createRecordingSession(createOptions) {
       const now = Date.now();
       const id = createSessionId();
       const rawAudioPath = join(options.paths.recordingsDirectory, id, 'raw.wav');
@@ -444,6 +456,8 @@ export async function createRecordingSessionStore(options: {
         endedAt: null,
         durationMs: null,
         rawAudioPath,
+        transcriptionProviderId: createOptions.transcriptionProviderId,
+        transcriptionModel: createOptions.transcriptionModel,
         status: 'recording' as const,
         selectedOutputId: null,
         errorMessage: null,
@@ -743,6 +757,26 @@ export async function createRecordingSessionStore(options: {
 
     async createBatchTranscript({ transcript, usageEvent }) {
       db.transaction(() => {
+        const existingTranscripts = db
+          .select({ id: batchTranscripts.id })
+          .from(batchTranscripts)
+          .where(eq(batchTranscripts.batchId, transcript.batchId))
+          .all();
+        const existingTranscriptIds = existingTranscripts.map((existing) => existing.id);
+        if (existingTranscriptIds.length > 0) {
+          db.delete(providerUsageEvents)
+            .where(
+              and(
+                eq(providerUsageEvents.relatedEntityKind, 'batch_transcript'),
+                inArray(providerUsageEvents.relatedEntityId, existingTranscriptIds),
+              ),
+            )
+            .run();
+          db.delete(batchTranscripts)
+            .where(inArray(batchTranscripts.id, existingTranscriptIds))
+            .run();
+        }
+
         db.insert(batchTranscripts).values(transcript).run();
         db.insert(providerUsageEvents).values(usageEvent).run();
       });
@@ -935,7 +969,7 @@ export async function createRecordingSessionStore(options: {
       };
     },
 
-    async prepareSessionForRerun(sessionId) {
+    async prepareSessionForRerun(sessionId, prepareOptions) {
       const row = db
         .select({ session: recordingSessions, output: sessionOutputs })
         .from(recordingSessions)
@@ -961,6 +995,8 @@ export async function createRecordingSessionStore(options: {
         .set({
           status: 'recorded',
           selectedOutputId: outputId,
+          transcriptionProviderId: prepareOptions.transcriptionProviderId,
+          transcriptionModel: prepareOptions.transcriptionModel,
           errorMessage: null,
         })
         .where(eq(recordingSessions.id, row.session.id))
@@ -971,6 +1007,8 @@ export async function createRecordingSessionStore(options: {
           ...row.session,
           status: 'recorded',
           selectedOutputId: outputId,
+          transcriptionProviderId: prepareOptions.transcriptionProviderId,
+          transcriptionModel: prepareOptions.transcriptionModel,
           errorMessage: null,
         },
         outputId,

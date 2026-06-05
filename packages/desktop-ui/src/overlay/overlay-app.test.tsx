@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeAll, vi } from 'vitest';
 
 import type { AppState, DesktopApi } from '@toph/desktop-contracts';
@@ -11,6 +11,7 @@ const baseState: AppState = {
     update: { kind: 'idle', lastCheckedAt: null },
   },
   phase: 'transcribing',
+  activeFailure: null,
   activeInputDeviceFallback: null,
   shortcut: {
     chord: { modifiers: ['control', 'alt'], key: 'Space' },
@@ -261,6 +262,31 @@ describe('OverlayApp', () => {
     fireEvent.keyDown(window, { key: 'Escape' });
 
     expect(cancelCapture).toHaveBeenCalledOnce();
+  });
+
+  it('retries a retryable failed session from the overlay', async () => {
+    const rerunSession = vi.fn<DesktopApi['rerunSession']>(async () => {});
+    render(
+      <OverlayApp
+        client={createClient(
+          {
+            ...baseState,
+            phase: 'failed',
+            activeFailure: { sessionId: 'session-failed', canRetry: true },
+          },
+          { rerunSession },
+        )}
+        soundsEnabled={false}
+      />,
+    );
+
+    await screen.findByRole('heading', { name: 'Failed' });
+    const retryButton = await screen.findByRole('button', { name: 'Retry this session' });
+    await act(async () => {
+      fireEvent.click(retryButton);
+    });
+
+    expect(rerunSession).toHaveBeenCalledWith('session-failed');
   });
 
   it('renders and dismisses the cancelled state', async () => {

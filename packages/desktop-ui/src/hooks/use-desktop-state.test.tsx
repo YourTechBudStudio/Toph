@@ -10,6 +10,7 @@ const baseState: AppState = {
     update: { kind: 'idle', lastCheckedAt: null },
   },
   phase: 'idle',
+  activeFailure: null,
   activeInputDeviceFallback: null,
   shortcut: {
     chord: { modifiers: ['control', 'alt'], key: 'Space' },

@@ -1,5 +1,8 @@
+import { existsSync } from 'node:fs';
+
 import type { ActiveInputDeviceFallback } from '@toph/desktop-contracts';
 
+import { resolveDictationRetryStrategy } from './dictation-retry-strategy';
 import type { RawAudioRecorder } from './managers/audio-recorder';
 import type { ClipboardManager } from './managers/clipboard';
 import type { WindowManager } from './managers/windows';
@@ -41,6 +44,7 @@ export function createDictationController(options: {
   sessionStore: Pick<
     RecordingSessionStore,
     | 'createRecordingSession'
+    | 'getSession'
     | 'markRecorded'
     | 'markSegmented'
     | 'markPolishing'
@@ -76,7 +80,10 @@ export function createDictationController(options: {
     id: string;
     rawAudioPath: string;
     preserveArtifactsOnCancel?: boolean;
+    clearGeneratedDataOnCancel?: boolean;
     rerunOutputId?: string | null;
+    rerunRestoreErrorMessage?: string | null;
+    rerunRestoreNoSpeech?: boolean;
   } | null = null;
   let activeLivePipeline: SegmentationPipelineSession | null = null;
   let liveProcessingErrorMessage: string | null = null;
@@ -118,6 +125,11 @@ export function createDictationController(options: {
 
   const returnToIdleAfterFailure = () => {
     clearFailureTimer();
+    const activeFailure = options.stateStore.getState().activeFailure;
+    if (activeFailure?.canRetry) {
+      return;
+    }
+
     failureTimer = setTimeout(() => {
       failureTimer = null;
       options.stateStore.setPhase('idle');
@@ -170,7 +182,10 @@ export function createDictationController(options: {
     lifecycle = 'idle';
     await pipeline?.dispose();
     console.error('Toph could not complete live segmentation for the recording session.', error);
-    options.stateStore.failDictation('Unable to transcribe.');
+    options.stateStore.failDictation('Unable to transcribe.', {
+      sessionId: session?.id ?? null,
+      canRetry: session ? existsSync(session.rawAudioPath) : false,
+    });
     options.windows.showOverlay();
     await pruneSessions();
     await refreshRecentSessionsBestEffort();
@@ -211,7 +226,10 @@ export function createDictationController(options: {
     }
 
     console.error(message, error);
-    options.stateStore.failDictation(message);
+    options.stateStore.failDictation(message, {
+      sessionId: failedSession?.id ?? null,
+      canRetry: failedSession ? existsSync(failedSession.rawAudioPath) : false,
+    });
     options.windows.showOverlay();
     await pruneSessions();
     await refreshRecentSessionsBestEffort();
@@ -226,9 +244,251 @@ export function createDictationController(options: {
     returnToIdleAfterNoSpeech();
   };
 
+  const currentTranscriptionSnapshot = () => {
+    const transcription = options.settingsStore.getSettings().transcription;
+    return {
+      transcriptionProviderId: transcription.providerId,
+      transcriptionModel: transcription.model,
+    };
+  };
+
+  const restoreRerunBaseline = async (input: {
+    sessionId: string;
+    existingOutputId: string | null;
+    restoreErrorMessage?: string | null;
+    restoreNoSpeech?: boolean;
+  }) => {
+    if (input.existingOutputId) {
+      await options.outputs.selectOutput({
+        sessionId: input.sessionId,
+        outputId: input.existingOutputId,
+      });
+      return;
+    }
+
+    if (input.restoreErrorMessage) {
+      await options.sessionStore.markFailed({
+        sessionId: input.sessionId,
+        errorMessage: input.restoreErrorMessage,
+      });
+      return;
+    }
+
+    if (input.restoreNoSpeech) {
+      await options.sessionStore.markNoSpeech(input.sessionId);
+    }
+  };
+
+  const restoreExistingOutput = async (sessionId: string, existingOutputId: string | null) => {
+    await restoreRerunBaseline({ sessionId, existingOutputId });
+  };
+
+  const completeRerunFromExistingTranscripts = async (input: {
+    sessionId: string;
+    existingOutputId: string | null;
+    operationGeneration: number;
+  }) => {
+    const polishSettings = options.settingsStore.getSettings().polish;
+    if (!polishSettings.enabled) {
+      const rawOutput = await options.outputs.createRawConcatOutput(
+        input.sessionId,
+        input.existingOutputId ? { outputId: input.existingOutputId } : undefined,
+      );
+      if (!isCurrentOperation(input.operationGeneration)) {
+        await restoreExistingOutput(input.sessionId, input.existingOutputId);
+        return;
+      }
+
+      await options.outputs.selectOutput({ sessionId: input.sessionId, outputId: rawOutput.id });
+      activeSession = null;
+      lifecycle = 'idle';
+      options.stateStore.setPhase('idle');
+      options.windows.emitSound('done');
+      void refreshRecentSessionsBestEffort();
+      return;
+    }
+
+    const rawOutput = await options.outputs.createRawConcatOutput(input.sessionId);
+    if (!isCurrentOperation(input.operationGeneration)) {
+      await restoreExistingOutput(input.sessionId, input.existingOutputId);
+      return;
+    }
+
+    await options.sessionStore.markPolishing(input.sessionId);
+    options.stateStore.startPolishing();
+    if (!isCurrentOperation(input.operationGeneration)) {
+      await restoreExistingOutput(input.sessionId, input.existingOutputId);
+      return;
+    }
+
+    activePolishAbortController = new AbortController();
+    const polishedOutput = await options.polish.polishOutput({
+      sessionId: input.sessionId,
+      rawOutput,
+      signal: activePolishAbortController.signal,
+      outputId: input.existingOutputId ?? undefined,
+    });
+    activePolishAbortController = null;
+    if (!isCurrentOperation(input.operationGeneration)) {
+      await restoreExistingOutput(input.sessionId, input.existingOutputId);
+      return;
+    }
+
+    await options.outputs.selectOutput({ sessionId: input.sessionId, outputId: polishedOutput.id });
+    activeSession = null;
+    lifecycle = 'idle';
+    options.stateStore.setPhase('idle');
+    options.windows.emitSound('done');
+    void refreshRecentSessionsBestEffort();
+  };
+
+  const runFullRecordedWorkflowRerun = async (input: {
+    requestedSessionId: string;
+    rawAudioPath: string;
+    existingOutputId: string | null;
+    restoreErrorMessage: string | null;
+    restoreNoSpeech: boolean;
+    operationGeneration: number;
+  }) => {
+    activeSession = {
+      id: input.requestedSessionId,
+      rawAudioPath: input.rawAudioPath,
+      preserveArtifactsOnCancel: true,
+      rerunOutputId: input.existingOutputId,
+      clearGeneratedDataOnCancel: true,
+      rerunRestoreErrorMessage: input.restoreErrorMessage,
+      rerunRestoreNoSpeech: input.restoreNoSpeech,
+    };
+
+    const prepared = await options.sessionStore.prepareSessionForRerun(
+      input.requestedSessionId,
+      currentTranscriptionSnapshot(),
+    );
+    const sessionId = prepared.session.id;
+    const existingOutputId = prepared.outputId;
+    activeSession = {
+      id: prepared.session.id,
+      rawAudioPath: prepared.session.rawAudioPath,
+      preserveArtifactsOnCancel: true,
+      rerunOutputId: existingOutputId,
+      clearGeneratedDataOnCancel: true,
+      rerunRestoreErrorMessage: input.restoreErrorMessage,
+      rerunRestoreNoSpeech: input.restoreNoSpeech,
+    };
+    if (!isCurrentOperation(input.operationGeneration)) {
+      activeSession = null;
+      lifecycle = 'idle';
+      await restoreRerunBaseline({
+        sessionId,
+        existingOutputId,
+        restoreErrorMessage: input.restoreErrorMessage,
+        restoreNoSpeech: input.restoreNoSpeech,
+      });
+      return;
+    }
+
+    const segmentationOutcome = await options.segmentation.segmentRecordedSession({
+      sessionId,
+      generateBatchAudio: true,
+      preserveSelectedOutput: true,
+    });
+    if (!isCurrentOperation(input.operationGeneration)) {
+      activeSession = null;
+      lifecycle = 'idle';
+      await options.sessionStore.clearSegmentationData(sessionId, {
+        preserveSelectedOutput: true,
+      });
+      await restoreRerunBaseline({
+        sessionId,
+        existingOutputId,
+        restoreErrorMessage: input.restoreErrorMessage,
+        restoreNoSpeech: input.restoreNoSpeech,
+      });
+      return;
+    }
+
+    if (segmentationOutcome === 'no_speech') {
+      if (existingOutputId) {
+        await options.outputs.selectOutput({ sessionId, outputId: existingOutputId });
+      } else {
+        await options.sessionStore.markNoSpeech(sessionId);
+      }
+      activeSession = null;
+      lifecycle = 'idle';
+      await completeNoSpeechRecording();
+      return;
+    }
+
+    const batches = await options.sessionStore.listTranscriptionBatchesForSession(sessionId);
+    await Promise.all(batches.map((batch) => options.transcription.onBatchReady(batch.id)));
+    const transcriptionOutcome = await options.transcription.waitForSession(sessionId);
+    if (!isCurrentOperation(input.operationGeneration)) {
+      activeSession = null;
+      lifecycle = 'idle';
+      await options.sessionStore.clearSegmentationData(sessionId, {
+        preserveSelectedOutput: true,
+      });
+      await restoreRerunBaseline({
+        sessionId,
+        existingOutputId,
+        restoreErrorMessage: input.restoreErrorMessage,
+        restoreNoSpeech: input.restoreNoSpeech,
+      });
+      return;
+    }
+
+    if (transcriptionOutcome.failedOrIncompleteBatchCount > 0) {
+      throw new Error(
+        `${transcriptionOutcome.failedOrIncompleteBatchCount} transcription batch${transcriptionOutcome.failedOrIncompleteBatchCount === 1 ? '' : 'es'} failed or did not finish.`,
+      );
+    }
+
+    await completeRerunFromExistingTranscripts({
+      sessionId,
+      existingOutputId,
+      operationGeneration: input.operationGeneration,
+    });
+  };
+
+  const runPartialTranscriptionRetry = async (input: {
+    sessionId: string;
+    batchIds: string[];
+    existingOutputId: string | null;
+    operationGeneration: number;
+  }) => {
+    await options.sessionStore.markSegmented(input.sessionId);
+    await Promise.all(
+      input.batchIds.map((batchId) =>
+        options.transcription.onBatchReady(batchId, { resetAttempts: true }),
+      ),
+    );
+    const transcriptionOutcome = await options.transcription.waitForSession(input.sessionId);
+    if (!isCurrentOperation(input.operationGeneration)) {
+      return;
+    }
+
+    if (transcriptionOutcome.failedOrIncompleteBatchCount > 0) {
+      throw new Error(
+        `${transcriptionOutcome.failedOrIncompleteBatchCount} transcription batch${transcriptionOutcome.failedOrIncompleteBatchCount === 1 ? '' : 'es'} failed or did not finish.`,
+      );
+    }
+
+    await completeRerunFromExistingTranscripts({
+      sessionId: input.sessionId,
+      existingOutputId: input.existingOutputId,
+      operationGeneration: input.operationGeneration,
+    });
+  };
+
   const rerunRecordedWorkflow = async (requestedSessionId: string) => {
-    const { phase, ruleSwitcher } = options.stateStore.getState();
-    if (lifecycle !== 'idle' || phase !== 'idle' || ruleSwitcher.mode !== 'idle') {
+    const { phase, ruleSwitcher, activeFailure } = options.stateStore.getState();
+    const retryingVisibleFailure =
+      phase === 'failed' && activeFailure?.canRetry && activeFailure.sessionId === requestedSessionId;
+    if (
+      lifecycle !== 'idle' ||
+      (phase !== 'idle' && !retryingVisibleFailure) ||
+      ruleSwitcher.mode !== 'idle'
+    ) {
       return;
     }
     if (!(await options.ensurePermissionsReady())) {
@@ -244,150 +504,71 @@ export function createDictationController(options: {
     options.stateStore.startTranscribing();
     options.windows.showOverlay();
 
-    let sessionId: string | null = null;
+    let sessionId: string | null = requestedSessionId;
     let existingOutputId: string | null = null;
+    let retryableSession = false;
 
     try {
-      const prepared = await options.sessionStore.prepareSessionForRerun(requestedSessionId);
-      sessionId = prepared.session.id;
-      existingOutputId = prepared.outputId;
+      const session = await options.sessionStore.getSession(requestedSessionId);
+      if (!session) {
+        throw new Error(`Session ${requestedSessionId} is not available.`);
+      }
+      if (!existsSync(session.rawAudioPath)) {
+        throw new Error(`Session ${requestedSessionId} no longer has retained audio.`);
+      }
+      retryableSession = true;
+
+      sessionId = session.id;
+      existingOutputId = session.selectedOutputId;
       activeSession = {
-        id: prepared.session.id,
-        rawAudioPath: prepared.session.rawAudioPath,
+        id: session.id,
+        rawAudioPath: session.rawAudioPath,
         preserveArtifactsOnCancel: true,
         rerunOutputId: existingOutputId,
+        clearGeneratedDataOnCancel: false,
+        rerunRestoreErrorMessage: session.errorMessage,
+        rerunRestoreNoSpeech: session.status === 'no_speech',
       };
-      if (!isCurrentOperation(operationGeneration)) {
-        activeSession = null;
-        lifecycle = 'idle';
-        if (existingOutputId) {
-          await options.outputs.selectOutput({ sessionId, outputId: existingOutputId });
-        }
-        return;
-      }
 
-      const segmentationOutcome = await options.segmentation.segmentRecordedSession({
-        sessionId,
-        generateBatchAudio: true,
-        preserveSelectedOutput: true,
+      const batches = await options.sessionStore.listTranscriptionBatchesForSession(session.id);
+      const strategy = resolveDictationRetryStrategy({
+        session,
+        batches,
+        settings: options.settingsStore.getSettings(),
+        batchAudioExists: existsSync,
       });
-      if (!isCurrentOperation(operationGeneration)) {
-        activeSession = null;
-        lifecycle = 'idle';
-        await options.sessionStore.clearSegmentationData(sessionId, {
-          preserveSelectedOutput: true,
+
+      if (strategy.kind === 'not-retryable') {
+        throw new Error(strategy.reason);
+      }
+
+      if (strategy.kind === 'full-rerun') {
+        await runFullRecordedWorkflowRerun({
+          requestedSessionId,
+          rawAudioPath: session.rawAudioPath,
+          existingOutputId,
+          restoreErrorMessage: session.errorMessage,
+          restoreNoSpeech: session.status === 'no_speech',
+          operationGeneration,
         });
-        if (existingOutputId) {
-          await options.outputs.selectOutput({ sessionId, outputId: existingOutputId });
-        }
         return;
       }
 
-      if (segmentationOutcome === 'no_speech') {
-        if (existingOutputId) {
-          await options.outputs.selectOutput({ sessionId, outputId: existingOutputId });
-        } else {
-          await options.sessionStore.markNoSpeech(sessionId);
-        }
-        activeSession = null;
-        lifecycle = 'idle';
-        await completeNoSpeechRecording();
-        return;
-      }
-
-      const batches = await options.sessionStore.listTranscriptionBatchesForSession(sessionId);
-      await Promise.all(batches.map((batch) => options.transcription.onBatchReady(batch.id)));
-      const transcriptionOutcome = await options.transcription.waitForSession(sessionId);
-      if (!isCurrentOperation(operationGeneration)) {
-        activeSession = null;
-        lifecycle = 'idle';
-        await options.sessionStore.clearSegmentationData(sessionId, {
-          preserveSelectedOutput: true,
+      if (strategy.kind === 'retry-failed-transcription-batches') {
+        await runPartialTranscriptionRetry({
+          sessionId: session.id,
+          batchIds: strategy.batchIds,
+          existingOutputId,
+          operationGeneration,
         });
-        if (existingOutputId) {
-          await options.outputs.selectOutput({ sessionId, outputId: existingOutputId });
-        }
         return;
       }
 
-      if (transcriptionOutcome.failedOrIncompleteBatchCount > 0) {
-        throw new Error(
-          `${transcriptionOutcome.failedOrIncompleteBatchCount} transcription batch${transcriptionOutcome.failedOrIncompleteBatchCount === 1 ? '' : 'es'} failed or did not finish.`,
-        );
-      }
-
-      const polishSettings = options.settingsStore.getSettings().polish;
-      if (!polishSettings.enabled) {
-        if (!isCurrentOperation(operationGeneration)) {
-          return;
-        }
-
-        const rawOutput = await options.outputs.createRawConcatOutput(
-          sessionId,
-          existingOutputId ? { outputId: existingOutputId } : undefined,
-        );
-        if (!isCurrentOperation(operationGeneration)) {
-          activeSession = null;
-          lifecycle = 'idle';
-          if (existingOutputId) {
-            await options.outputs.selectOutput({ sessionId, outputId: existingOutputId });
-          }
-          return;
-        }
-
-        await options.outputs.selectOutput({ sessionId, outputId: rawOutput.id });
-        activeSession = null;
-        lifecycle = 'idle';
-        options.stateStore.setPhase('idle');
-        options.windows.emitSound('done');
-        void refreshRecentSessionsBestEffort();
-        return;
-      }
-
-      const rawOutput = await options.outputs.createRawConcatOutput(sessionId);
-      if (!isCurrentOperation(operationGeneration)) {
-        activeSession = null;
-        lifecycle = 'idle';
-        if (existingOutputId) {
-          await options.outputs.selectOutput({ sessionId, outputId: existingOutputId });
-        }
-        return;
-      }
-
-      await options.sessionStore.markPolishing(sessionId);
-      options.stateStore.startPolishing();
-      if (!isCurrentOperation(operationGeneration)) {
-        activeSession = null;
-        lifecycle = 'idle';
-        if (existingOutputId) {
-          await options.outputs.selectOutput({ sessionId, outputId: existingOutputId });
-        }
-        return;
-      }
-
-      activePolishAbortController = new AbortController();
-      const polishedOutput = await options.polish.polishOutput({
-        sessionId,
-        rawOutput,
-        signal: activePolishAbortController.signal,
-        outputId: existingOutputId ?? undefined,
+      await completeRerunFromExistingTranscripts({
+        sessionId: session.id,
+        existingOutputId,
+        operationGeneration,
       });
-      activePolishAbortController = null;
-      if (!isCurrentOperation(operationGeneration)) {
-        activeSession = null;
-        lifecycle = 'idle';
-        if (existingOutputId) {
-          await options.outputs.selectOutput({ sessionId, outputId: existingOutputId });
-        }
-        return;
-      }
-
-      await options.outputs.selectOutput({ sessionId, outputId: polishedOutput.id });
-      activeSession = null;
-      lifecycle = 'idle';
-      options.stateStore.setPhase('idle');
-      options.windows.emitSound('done');
-      void refreshRecentSessionsBestEffort();
     } catch (error) {
       activePolishAbortController = null;
       if (!isCurrentOperation(operationGeneration)) {
@@ -400,16 +581,16 @@ export function createDictationController(options: {
         : describeUnexpectedError('Rerun failed unexpectedly.', error);
       if (sessionId) {
         await options.transcription.cancelSession(sessionId);
-        await options.sessionStore.clearSegmentationData(sessionId, {
-          preserveSelectedOutput: true,
-        });
         if (existingOutputId) {
-          await options.outputs.selectOutput({ sessionId, outputId: existingOutputId });
+          await restoreExistingOutput(sessionId, existingOutputId);
         } else {
           await options.sessionStore.markFailed({ sessionId, errorMessage });
         }
       }
-      options.stateStore.failDictation(errorMessage);
+      options.stateStore.failDictation(errorMessage, {
+        sessionId,
+        canRetry: retryableSession,
+      });
       options.windows.showOverlay();
       returnToIdleAfterFailure();
       void refreshRecentSessionsBestEffort();
@@ -493,7 +674,11 @@ export function createDictationController(options: {
     };
 
     try {
-      const session = await options.sessionStore.createRecordingSession();
+      const transcriptionSettings = options.settingsStore.getSettings().transcription;
+      const session = await options.sessionStore.createRecordingSession({
+        transcriptionProviderId: transcriptionSettings.providerId,
+        transcriptionModel: transcriptionSettings.model,
+      });
       if (!isCurrentOperation(operationGeneration)) {
         await cancelStartedSession(session);
         return;
@@ -725,7 +910,7 @@ export function createDictationController(options: {
         liveProcessingGeneration += 1;
         lifecycle = 'idle';
         await pruneSessions();
-        options.stateStore.failDictation(errorMessage);
+        options.stateStore.failDictation(errorMessage, { sessionId: session.id, canRetry: true });
         options.windows.showOverlay();
         returnToIdleAfterFailure();
         void refreshRecentSessionsBestEffort();
@@ -771,7 +956,7 @@ export function createDictationController(options: {
         await options.sessionStore.markFailed({ sessionId: session.id, errorMessage });
         activeSession = null;
         lifecycle = 'idle';
-        options.stateStore.failDictation(errorMessage);
+        options.stateStore.failDictation(errorMessage, { sessionId: session.id, canRetry: true });
         options.windows.showOverlay();
         returnToIdleAfterFailure();
         void refreshRecentSessionsBestEffort();
@@ -796,7 +981,7 @@ export function createDictationController(options: {
         await options.sessionStore.markFailed({ sessionId: session.id, errorMessage });
         activeSession = null;
         lifecycle = 'idle';
-        options.stateStore.failDictation(errorMessage);
+        options.stateStore.failDictation(errorMessage, { sessionId: session.id, canRetry: true });
         options.windows.showOverlay();
         returnToIdleAfterFailure();
         void refreshRecentSessionsBestEffort();
@@ -867,7 +1052,7 @@ export function createDictationController(options: {
         await options.sessionStore.markFailed({ sessionId: session.id, errorMessage });
         activeSession = null;
         lifecycle = 'idle';
-        options.stateStore.failDictation(errorMessage);
+        options.stateStore.failDictation(errorMessage, { sessionId: session.id, canRetry: true });
         options.windows.showOverlay();
         returnToIdleAfterFailure();
         void refreshRecentSessionsBestEffort();
@@ -981,15 +1166,17 @@ export function createDictationController(options: {
       await options.transcription.cancelSession(session.id);
       await pipeline?.dispose();
       if (session.preserveArtifactsOnCancel) {
-        await options.sessionStore.clearSegmentationData(session.id, {
-          preserveSelectedOutput: true,
-        });
-        if (session.rerunOutputId) {
-          await options.outputs.selectOutput({
-            sessionId: session.id,
-            outputId: session.rerunOutputId,
+        if (session.clearGeneratedDataOnCancel !== false) {
+          await options.sessionStore.clearSegmentationData(session.id, {
+            preserveSelectedOutput: true,
           });
         }
+        await restoreRerunBaseline({
+          sessionId: session.id,
+          existingOutputId: session.rerunOutputId ?? null,
+          restoreErrorMessage: session.rerunRestoreErrorMessage,
+          restoreNoSpeech: session.rerunRestoreNoSpeech,
+        });
       } else {
         await options.sessionStore.markCancelled({
           sessionId: session.id,
