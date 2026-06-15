@@ -40,6 +40,7 @@ function copyText(text: string): PasteAttempt | null {
       helper: null,
       status: 'failed',
       detail: `Transcript could not be copied to the clipboard. ${describeError(error)}.`,
+      copiedToClipboard: false,
     };
   }
 }
@@ -185,6 +186,7 @@ function createLinuxClipboardManager(): ClipboardManager {
           helper: null,
           status: 'failed',
           detail: `Transcript copied to the clipboard, but helper inspection failed. ${describeError(error)}.`,
+          copiedToClipboard: true,
         };
       }
 
@@ -194,6 +196,7 @@ function createLinuxClipboardManager(): ClipboardManager {
           status: 'clipboard-only',
           detail:
             'Transcript copied to the clipboard. Automatic paste is unavailable in this Linux session right now.',
+          copiedToClipboard: true,
         };
       }
 
@@ -204,6 +207,7 @@ function createLinuxClipboardManager(): ClipboardManager {
           helper: helper.name,
           status: 'success',
           detail: `Transcript copied to the clipboard and paste was attempted with ${helper.name}.`,
+          copiedToClipboard: true,
         };
       }
 
@@ -211,6 +215,7 @@ function createLinuxClipboardManager(): ClipboardManager {
         helper: helper.name,
         status: 'failed',
         detail: `Transcript copied to the clipboard. ${helper.name} was found, but the paste attempt failed.`,
+        copiedToClipboard: true,
       };
     },
   };
@@ -245,6 +250,7 @@ function createMacClipboardManager(): ClipboardManager {
           status: 'clipboard-only',
           detail:
             'Transcript copied to the clipboard. Auto-paste needs macOS Accessibility access.',
+          copiedToClipboard: true,
         };
       }
 
@@ -259,12 +265,14 @@ function createMacClipboardManager(): ClipboardManager {
           status: 'success',
           detail:
             'Transcript copied to the clipboard and paste was attempted with macOS Accessibility.',
+          copiedToClipboard: true,
         };
       } catch (error) {
         return {
           helper: 'macos-accessibility',
           status: 'failed',
           detail: `Transcript copied to the clipboard, but macOS automatic paste failed. ${describeError(error)}.`,
+          copiedToClipboard: true,
         };
       }
     },
@@ -291,6 +299,7 @@ function createDefaultClipboardManager(): ClipboardManager {
         status: 'clipboard-only',
         detail:
           'Transcript copied to clipboard. Auto-paste is not implemented for this platform yet.',
+        copiedToClipboard: true,
       };
     },
   };

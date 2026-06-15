@@ -75,6 +75,7 @@ export interface DesktopStateStore {
       kind?: NonNullable<DictationSessionRecord['selectedOutput']>['kind'];
       rulePresetId?: string | null;
       rulePresetHash?: string | null;
+      presentation?: 'idle' | 'copied';
     },
   ) => void;
 }
@@ -432,7 +433,7 @@ export function createDesktopStateStore(initialStateOptions: {
           pasteDetail: pasteAttempt.detail,
         };
 
-        draft.phase = 'idle';
+        draft.phase = options?.presentation === 'copied' ? 'copied' : 'idle';
         draft.activeFailure = null;
         draft.activeInputDeviceFallback = null;
         draft.lastTranscript = transcript;

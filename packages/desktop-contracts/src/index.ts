@@ -339,6 +339,7 @@ export type DictationPhase =
   | 'listening'
   | 'transcribing'
   | 'polishing'
+  | 'copied'
   | 'no_speech'
   | 'cancelled'
   | 'failed';
@@ -415,6 +416,7 @@ export interface PasteAttempt {
   helper: string | null;
   status: PasteAttemptStatus;
   detail: string;
+  copiedToClipboard?: boolean;
 }
 
 export type DictationSessionStatus =

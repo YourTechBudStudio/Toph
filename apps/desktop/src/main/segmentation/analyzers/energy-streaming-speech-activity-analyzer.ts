@@ -29,7 +29,11 @@ function calculateRms(frame: Float32Array) {
 class EnergyStreamingSpeechActivitySession implements StreamingSpeechActivityAnalyzerSession {
   private noiseFloor: number | null = null;
 
-  constructor(private readonly policy: EnergyStreamingSpeechActivityPolicy) {}
+  private readonly policy: EnergyStreamingSpeechActivityPolicy;
+
+  constructor(policy: EnergyStreamingSpeechActivityPolicy) {
+    this.policy = policy;
+  }
 
   async scoreFrame(frame: Float32Array) {
     const rms = calculateRms(frame);

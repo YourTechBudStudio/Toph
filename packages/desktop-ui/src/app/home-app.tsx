@@ -275,13 +275,15 @@ function HomeScreen({
                   ? 'Transcribing...'
                   : state.phase === 'polishing'
                     ? 'Polishing...'
-                    : state.phase === 'no_speech'
-                      ? 'No speech detected'
-                      : state.phase === 'cancelled'
-                        ? 'Cancelled'
-                        : state.phase === 'failed'
-                          ? 'Recording failed'
-                          : 'Ready'}
+                    : state.phase === 'copied'
+                      ? 'Transcription copied'
+                      : state.phase === 'no_speech'
+                        ? 'No speech detected'
+                        : state.phase === 'cancelled'
+                          ? 'Cancelled'
+                          : state.phase === 'failed'
+                            ? 'Recording failed'
+                            : 'Ready'}
             </span>
             <span aria-hidden="true">·</span>
             <span className="text-text-secondary">v{state.app.version}</span>

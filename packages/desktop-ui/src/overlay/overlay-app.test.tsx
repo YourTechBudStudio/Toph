@@ -289,6 +289,17 @@ describe('OverlayApp', () => {
     expect(rerunSession).toHaveBeenCalledWith('session-failed');
   });
 
+  it('renders the copied fallback state', async () => {
+    render(
+      <OverlayApp
+        client={createClient({ ...baseState, phase: 'copied' })}
+        soundsEnabled={false}
+      />,
+    );
+
+    expect(await screen.findByRole('heading', { name: 'Transcription copied' })).toBeTruthy();
+  });
+
   it('renders and dismisses the cancelled state', async () => {
     const cancelCapture = vi.fn<() => Promise<void>>(async () => {});
     render(

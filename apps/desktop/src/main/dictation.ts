@@ -1,6 +1,9 @@
 import { existsSync } from 'node:fs';
 
-import type { ActiveInputDeviceFallback } from '@toph/desktop-contracts';
+import type {
+  ActiveInputDeviceFallback,
+  PasteAttempt,
+} from '@toph/desktop-contracts';
 
 import { resolveDictationRetryStrategy } from './dictation-retry-strategy';
 import type { RawAudioRecorder } from './managers/audio-recorder';
@@ -25,10 +28,12 @@ export interface DictationController {
 
 const toggleDebounceMs = 800;
 const failureVisibleMs = 2_000;
+const copiedVisibleMs = 2_000;
 const noSpeechVisibleMs = 2_000;
 const cancelledVisibleMs = 1_200;
 const maxLiveProcessingBacklog = 100;
 type DictationLifecycle = 'idle' | 'starting' | 'listening' | 'stopping' | 'cancelling';
+type RerunDelivery = 'copy-and-paste';
 
 function describeUnexpectedError(prefix: string, error: unknown) {
   const detail = error instanceof Error ? error.message : 'Unknown error';
@@ -73,6 +78,7 @@ export function createDictationController(options: {
   onRecentSessionsChanged: () => Promise<void>;
 }): DictationController {
   let failureTimer: ReturnType<typeof setTimeout> | null = null;
+  let copiedTimer: ReturnType<typeof setTimeout> | null = null;
   let noSpeechTimer: ReturnType<typeof setTimeout> | null = null;
   let cancelledTimer: ReturnType<typeof setTimeout> | null = null;
   let lastToggleRequestAt = 0;
@@ -105,6 +111,15 @@ export function createDictationController(options: {
     failureTimer = null;
   };
 
+  const clearCopiedTimer = () => {
+    if (!copiedTimer) {
+      return;
+    }
+
+    clearTimeout(copiedTimer);
+    copiedTimer = null;
+  };
+
   const clearNoSpeechTimer = () => {
     if (!noSpeechTimer) {
       return;
@@ -134,6 +149,16 @@ export function createDictationController(options: {
       failureTimer = null;
       options.stateStore.setPhase('idle');
     }, failureVisibleMs);
+  };
+
+  const returnToIdleAfterCopied = () => {
+    clearCopiedTimer();
+    copiedTimer = setTimeout(() => {
+      copiedTimer = null;
+      if (options.stateStore.getState().phase === 'copied') {
+        options.stateStore.setPhase('idle');
+      }
+    }, copiedVisibleMs);
   };
 
   const returnToIdleAfterNoSpeech = () => {
@@ -283,10 +308,92 @@ export function createDictationController(options: {
     await restoreRerunBaseline({ sessionId, existingOutputId });
   };
 
+  type CompletedRerunOutput = {
+    id: string;
+    text: string;
+    createdAt: number;
+    kind: 'raw_concat' | 'polished';
+    rulePresetId: string | null;
+    rulePresetHash: string | null;
+  };
+
+  const transcriptWasCopied = (pasteAttempt: PasteAttempt) => {
+    if (typeof pasteAttempt.copiedToClipboard === 'boolean') {
+      return pasteAttempt.copiedToClipboard;
+    }
+
+    return pasteAttempt.status === 'success' || pasteAttempt.status === 'clipboard-only';
+  };
+
+  const copiedPasteAttempt = (pasteAttempt: PasteAttempt): PasteAttempt => ({
+    helper: pasteAttempt.helper,
+    status: 'clipboard-only',
+    detail: 'Transcription copied.',
+    copiedToClipboard: true,
+  });
+
+  const completeRerunOutput = async (input: {
+    sessionId: string;
+    existingOutputId: string | null;
+    operationGeneration: number;
+    delivery?: RerunDelivery;
+    output: CompletedRerunOutput;
+  }) => {
+    await options.outputs.selectOutput({
+      sessionId: input.sessionId,
+      outputId: input.output.id,
+    });
+    if (!isCurrentOperation(input.operationGeneration)) {
+      await restoreExistingOutput(input.sessionId, input.existingOutputId);
+      return;
+    }
+
+    if (input.delivery === 'copy-and-paste') {
+      const pasteAttempt = await options.clipboard.copyAndPasteText(input.output.text);
+      void options.onPasteSupportMayHaveChanged();
+      if (!isCurrentOperation(input.operationGeneration)) {
+        await restoreExistingOutput(input.sessionId, input.existingOutputId);
+        return;
+      }
+
+      activeSession = null;
+      lifecycle = 'idle';
+
+      const copied = transcriptWasCopied(pasteAttempt);
+      const presentation = pasteAttempt.status === 'success' || !copied ? 'idle' : 'copied';
+      options.stateStore.completeTranscription(
+        input.output.text,
+        copied && presentation === 'copied' ? copiedPasteAttempt(pasteAttempt) : pasteAttempt,
+        {
+          id: input.output.id,
+          sessionId: input.sessionId,
+          createdAt: input.output.createdAt,
+          kind: input.output.kind,
+          rulePresetId: input.output.rulePresetId,
+          rulePresetHash: input.output.rulePresetHash,
+          presentation,
+        },
+      );
+      if (copied && presentation === 'copied') {
+        returnToIdleAfterCopied();
+      }
+      options.windows.emitSound('done');
+      void refreshRecentSessionsBestEffort();
+      return;
+    }
+
+    activeSession = null;
+    lifecycle = 'idle';
+    options.stateStore.setPhase('idle');
+    options.windows.emitSound('done');
+    void refreshRecentSessionsBestEffort();
+  };
+
   const completeRerunFromExistingTranscripts = async (input: {
     sessionId: string;
     existingOutputId: string | null;
     operationGeneration: number;
+    delivery?: RerunDelivery;
   }) => {
     const polishSettings = options.settingsStore.getSettings().polish;
     if (!polishSettings.enabled) {
@@ -299,12 +406,18 @@ export function createDictationController(options: {
         return;
       }
 
-      await options.outputs.selectOutput({ sessionId: input.sessionId, outputId: rawOutput.id });
-      activeSession = null;
-      lifecycle = 'idle';
-      options.stateStore.setPhase('idle');
-      options.windows.emitSound('done');
-      void refreshRecentSessionsBestEffort();
+      await completeRerunOutput({
+        sessionId: input.sessionId,
+        existingOutputId: input.existingOutputId,
+        operationGeneration: input.operationGeneration,
+        delivery: input.delivery,
+        output: {
+          ...rawOutput,
+          kind: 'raw_concat',
+          rulePresetId: null,
+          rulePresetHash: null,
+        },
+      });
       return;
     }
 
@@ -334,12 +447,13 @@ export function createDictationController(options: {
       return;
     }
 
-    await options.outputs.selectOutput({ sessionId: input.sessionId, outputId: polishedOutput.id });
-    activeSession = null;
-    lifecycle = 'idle';
-    options.stateStore.setPhase('idle');
-    options.windows.emitSound('done');
-    void refreshRecentSessionsBestEffort();
+    await completeRerunOutput({
+      sessionId: input.sessionId,
+      existingOutputId: input.existingOutputId,
+      operationGeneration: input.operationGeneration,
+      delivery: input.delivery,
+      output: { ...polishedOutput, kind: 'polished' },
+    });
   };
 
   const runFullRecordedWorkflowRerun = async (input: {
@@ -349,6 +463,7 @@ export function createDictationController(options: {
     restoreErrorMessage: string | null;
     restoreNoSpeech: boolean;
     operationGeneration: number;
+    delivery?: RerunDelivery;
   }) => {
     activeSession = {
       id: input.requestedSessionId,
@@ -447,6 +562,7 @@ export function createDictationController(options: {
       sessionId,
       existingOutputId,
       operationGeneration: input.operationGeneration,
+      delivery: input.delivery,
     });
   };
 
@@ -455,6 +571,7 @@ export function createDictationController(options: {
     batchIds: string[];
     existingOutputId: string | null;
     operationGeneration: number;
+    delivery?: RerunDelivery;
   }) => {
     await options.sessionStore.markSegmented(input.sessionId);
     await Promise.all(
@@ -477,6 +594,7 @@ export function createDictationController(options: {
       sessionId: input.sessionId,
       existingOutputId: input.existingOutputId,
       operationGeneration: input.operationGeneration,
+      delivery: input.delivery,
     });
   };
 
@@ -486,6 +604,9 @@ export function createDictationController(options: {
       phase === 'failed' &&
       activeFailure?.canRetry &&
       activeFailure.sessionId === requestedSessionId;
+    const delivery: RerunDelivery | undefined = retryingVisibleFailure
+      ? 'copy-and-paste'
+      : undefined;
     if (
       lifecycle !== 'idle' ||
       (phase !== 'idle' && !retryingVisibleFailure) ||
@@ -498,6 +619,7 @@ export function createDictationController(options: {
     }
 
     clearFailureTimer();
+    clearCopiedTimer();
     clearNoSpeechTimer();
     clearCancelledTimer();
     activeOperationGeneration += 1;
@@ -552,6 +674,7 @@ export function createDictationController(options: {
           restoreErrorMessage: session.errorMessage,
           restoreNoSpeech: session.status === 'no_speech',
           operationGeneration,
+          delivery,
         });
         return;
       }
@@ -562,6 +685,7 @@ export function createDictationController(options: {
           batchIds: strategy.batchIds,
           existingOutputId,
           operationGeneration,
+          delivery,
         });
         return;
       }
@@ -570,6 +694,7 @@ export function createDictationController(options: {
         sessionId: session.id,
         existingOutputId,
         operationGeneration,
+        delivery,
       });
     } catch (error) {
       activePolishAbortController = null;
@@ -643,6 +768,7 @@ export function createDictationController(options: {
 
   const beginListening = async () => {
     clearFailureTimer();
+    clearCopiedTimer();
     clearNoSpeechTimer();
     clearCancelledTimer();
     liveProcessingErrorMessage = null;
@@ -1097,6 +1223,7 @@ export function createDictationController(options: {
 
   const cancelCapture = async () => {
     clearFailureTimer();
+    clearCopiedTimer();
     clearNoSpeechTimer();
     clearCancelledTimer();
 
@@ -1112,6 +1239,7 @@ export function createDictationController(options: {
     if (!session && lifecycle === 'idle') {
       if (
         currentPhase === 'failed' ||
+        currentPhase === 'copied' ||
         currentPhase === 'no_speech' ||
         currentPhase === 'cancelled'
       ) {
@@ -1203,7 +1331,12 @@ export function createDictationController(options: {
         return;
       }
 
-      if (phase === 'failed' || phase === 'no_speech' || phase === 'cancelled') {
+      if (
+        phase === 'failed' ||
+        phase === 'copied' ||
+        phase === 'no_speech' ||
+        phase === 'cancelled'
+      ) {
         await cancelCapture();
         return;
       }
@@ -1245,6 +1378,7 @@ export function createDictationController(options: {
 
     async dispose() {
       clearFailureTimer();
+      clearCopiedTimer();
       clearNoSpeechTimer();
       clearCancelledTimer();
       const session = activeSession;
