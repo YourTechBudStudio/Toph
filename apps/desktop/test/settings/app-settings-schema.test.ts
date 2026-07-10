@@ -30,7 +30,7 @@ test('normalizes unknown providers, empty models, and unknown rule presets to un
     ruleSwitcherShortcut: { chord: resolveDefaultRuleSwitcherShortcutChord(process.platform) },
     auth: { providerId: 'openai-sub' },
     transcription: { providerId: 'openai-sub', model: 'chatgpt-backend-transcribe' },
-    inference: { providerId: 'openai-sub', model: 'gpt-5.4-mini' },
+    inference: { providerId: 'openai-sub', model: 'gpt-5.6-luna' },
     audio: {
       inputDevice: { id: 'default', label: null },
       outputDevice: { id: 'default', label: null },
