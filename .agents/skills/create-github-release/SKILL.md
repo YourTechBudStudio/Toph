@@ -1,5 +1,7 @@
 ---
+name: create-github-release
 description: Draft GitHub release notes from commits since the last release
+disable-model-invocation: true
 ---
 
 Draft a GitHub release for **Toph**. The version comes from the root `package.json` — the user passes no arguments. Follow the steps in order. Don't write release notes until prerequisites pass and the user has confirmed.
