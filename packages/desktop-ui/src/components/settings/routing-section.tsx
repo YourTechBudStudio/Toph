@@ -63,7 +63,7 @@ export function RoutingSection({
         <SettingsTextInput
           value={transcriptionModel}
           disabled={disabled}
-          onChange={onTranscriptionModelChange}
+          onCommit={onTranscriptionModelChange}
         />
       </SettingsRow>
 
@@ -81,7 +81,7 @@ export function RoutingSection({
         <SettingsTextInput
           value={inferenceModel}
           disabled={disabled}
-          onChange={onInferenceModelChange}
+          onCommit={onInferenceModelChange}
         />
       </SettingsRow>
     </SettingsSection>

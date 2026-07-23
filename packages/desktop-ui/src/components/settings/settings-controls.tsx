@@ -190,18 +190,36 @@ export function SettingsSelect<TValue extends string>({
 export function SettingsTextInput({
   value,
   disabled,
-  onChange,
+  onCommit,
 }: {
   value: string;
   disabled?: boolean;
-  onChange: (value: string) => void;
+  onCommit: (value: string) => void;
 }) {
+  const [draft, setDraft] = useState(value);
+
+  useEffect(() => {
+    setDraft(value);
+  }, [value]);
+
+  const commit = () => {
+    if (draft !== value) {
+      onCommit(draft);
+    }
+  };
+
   return (
     <input
       className="w-40 rounded-lg border border-white/8 bg-white/4 px-3 py-1.5 text-right text-sm font-semibold text-text-primary outline-hidden transition-colors duration-150 hover:bg-white/6 focus:border-accent-blue/70 focus:bg-white/6 disabled:opacity-55"
-      value={value}
+      value={draft}
       disabled={disabled}
-      onChange={(event) => onChange(event.currentTarget.value)}
+      onChange={(event) => setDraft(event.currentTarget.value)}
+      onBlur={commit}
+      onKeyDown={(event) => {
+        if (event.key === 'Enter') {
+          event.currentTarget.blur();
+        }
+      }}
     />
   );
 }
