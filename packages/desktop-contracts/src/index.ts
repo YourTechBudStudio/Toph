@@ -639,6 +639,7 @@ export type AppUpdateState =
       checkedAt: number;
     }
   | {
+      /** A background download failed; the update remains available for a manual retry. */
       kind: 'available';
       version: string;
       releaseDate: string | null;

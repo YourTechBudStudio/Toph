@@ -115,11 +115,16 @@ test('preserves the copied state when Windows input injection fails', async () =
   });
 });
 
-test('caches successful helper inspection and keeps transcript text out of PowerShell', async () => {
+test('compiles once and invokes the cached helper directly for paste', async () => {
   const scripts: string[] = [];
+  const helperInvocations: Array<{ helperPath: string; args: string[] }> = [];
   const runner = createWindowsPasteRunner({
+    helperPath: 'C:\\Temp\\toph-windows-paste.exe',
     async executePowerShell(script) {
       scripts.push(script);
+    },
+    async executeHelper(helperPath, args) {
+      helperInvocations.push({ helperPath, args });
     },
   });
 
@@ -127,8 +132,31 @@ test('caches successful helper inspection and keeps transcript text out of Power
   await runner.inspect();
   await runner.paste();
 
-  assert.equal(scripts.length, 2);
+  assert.equal(scripts.length, 1);
   assert.match(scripts[0]!, /Add-Type/);
-  assert.match(scripts[1]!, /WindowsPaste\]::Paste/);
+  assert.match(scripts[0]!, /-OutputAssembly/);
+  assert.deepEqual(helperInvocations, [
+    { helperPath: 'C:\\Temp\\toph-windows-paste.exe', args: ['--inspect'] },
+    { helperPath: 'C:\\Temp\\toph-windows-paste.exe', args: [] },
+  ]);
   assert.doesNotMatch(scripts.join('\n'), /private transcript/);
+});
+
+test('paste initializes the helper when startup inspection was skipped', async () => {
+  let compilations = 0;
+  const helperArguments: string[][] = [];
+  const runner = createWindowsPasteRunner({
+    async executePowerShell() {
+      compilations += 1;
+    },
+    async executeHelper(_helperPath, args) {
+      helperArguments.push(args);
+    },
+  });
+
+  await runner.paste();
+  await runner.paste();
+
+  assert.equal(compilations, 1);
+  assert.deepEqual(helperArguments, [['--inspect'], [], []]);
 });

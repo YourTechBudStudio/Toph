@@ -1,4 +1,7 @@
 import { execFile } from 'node:child_process';
+import { createHash } from 'node:crypto';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { promisify } from 'node:util';
 
 import type { PasteAttempt } from '@toph/desktop-contracts';
@@ -7,8 +10,7 @@ import type { ClipboardManager } from './clipboard';
 
 const execFileAsync = promisify(execFile);
 
-const windowsSendInputTypeDefinition = String.raw`
-$source = @'
+const windowsSendInputHelperSource = String.raw`
 using System;
 using System.Runtime.InteropServices;
 
@@ -117,33 +119,77 @@ namespace Toph
 
             return sent;
         }
+
+        public static int Main(string[] args)
+        {
+            if (args.Length == 1 && args[0] == "--inspect")
+            {
+                int expectedSize = IntPtr.Size == 8 ? 40 : 28;
+                int actualSize = InputSize();
+                if (actualSize != expectedSize)
+                {
+                    Console.Error.WriteLine(
+                        "Windows INPUT structure has size " + actualSize + "; expected " + expectedSize + "."
+                    );
+                    return 1;
+                }
+
+                return 0;
+            }
+
+            if (args.Length != 0)
+            {
+                Console.Error.WriteLine("The Windows paste helper received an unsupported argument.");
+                return 1;
+            }
+
+            uint sent = Paste();
+            if (sent != 4)
+            {
+                Console.Error.WriteLine(
+                    "Windows accepted " + sent + " of 4 paste input events. Input may be blocked by an elevated application."
+                );
+                return 1;
+            }
+
+            return 0;
+        }
     }
 }
+`;
+
+const helperVersion = createHash('sha256')
+  .update(windowsSendInputHelperSource)
+  .digest('hex')
+  .slice(0, 12);
+const defaultHelperPath = join(tmpdir(), `toph-windows-paste-${helperVersion}.exe`);
+
+function quotePowerShellLiteral(value: string) {
+  return `'${value.replaceAll("'", "''")}'`;
+}
+
+function createCompileScript(helperPath: string) {
+  return String.raw`
+$outputAssembly = ${quotePowerShellLiteral(helperPath)}
+if (-not (Test-Path -LiteralPath $outputAssembly)) {
+    $temporaryAssembly = "$outputAssembly.$PID.tmp.exe"
+    $source = @'
+${windowsSendInputHelperSource}
 '@
 
-Add-Type -TypeDefinition $source
-`;
-
-const windowsSendInputProbeScript = `${windowsSendInputTypeDefinition}
-$expectedSize = if ([IntPtr]::Size -eq 8) { 40 } else { 28 }
-$actualSize = [Toph.WindowsPaste]::InputSize()
-if ($actualSize -ne $expectedSize) {
-    [Console]::Error.WriteLine("Windows INPUT structure has size $actualSize; expected $expectedSize.")
-    exit 1
+    try {
+        Add-Type -TypeDefinition $source -OutputAssembly $temporaryAssembly -OutputType ConsoleApplication
+        Move-Item -LiteralPath $temporaryAssembly -Destination $outputAssembly -Force
+    }
+    finally {
+        Remove-Item -LiteralPath $temporaryAssembly -Force -ErrorAction SilentlyContinue
+    }
 }
-exit 0
 `;
-
-const windowsSendInputPasteScript = `${windowsSendInputTypeDefinition}
-$sent = [Toph.WindowsPaste]::Paste()
-if ($sent -ne 4) {
-    [Console]::Error.WriteLine("Windows accepted $sent of 4 paste input events. Input may be blocked by an elevated application.")
-    exit 1
 }
-exit 0
-`;
 
 type PowerShellExecutor = (script: string) => Promise<void>;
+type HelperExecutor = (helperPath: string, args: string[]) => Promise<void>;
 
 export interface WindowsPasteRunner {
   inspect: () => Promise<void>;
@@ -177,7 +223,7 @@ async function executePowerShell(script: string) {
       'powershell.exe',
       ['-NoLogo', '-NoProfile', '-NonInteractive', '-Command', script],
       {
-        timeout: 3_000,
+        timeout: 15_000,
         windowsHide: true,
       },
     );
@@ -186,26 +232,61 @@ async function executePowerShell(script: string) {
   }
 }
 
+async function executeHelper(helperPath: string, args: string[]) {
+  try {
+    await execFileAsync(helperPath, args, {
+      timeout: 3_000,
+      windowsHide: true,
+    });
+  } catch (error) {
+    if (
+      error &&
+      typeof error === 'object' &&
+      'stderr' in error &&
+      typeof error.stderr === 'string'
+    ) {
+      const stderr = error.stderr.replace(/\s+/g, ' ').trim();
+      if (stderr) {
+        throw new Error(stderr.slice(0, 300), { cause: error });
+      }
+    }
+
+    throw new Error('The Windows SendInput helper could not run', { cause: error });
+  }
+}
+
 export function createWindowsPasteRunner(
-  options: { executePowerShell?: PowerShellExecutor } = {},
+  options: {
+    executePowerShell?: PowerShellExecutor;
+    executeHelper?: HelperExecutor;
+    helperPath?: string;
+  } = {},
 ): WindowsPasteRunner {
   const runPowerShell = options.executePowerShell ?? executePowerShell;
+  const runHelper = options.executeHelper ?? executeHelper;
+  const helperPath = options.helperPath ?? defaultHelperPath;
   let inspection: Promise<void> | null = null;
 
-  return {
-    inspect() {
-      if (!inspection) {
-        inspection = runPowerShell(windowsSendInputProbeScript).catch((error: unknown) => {
-          inspection = null;
-          throw error;
-        });
-      }
+  const inspect = () => {
+    if (!inspection) {
+      inspection = (async () => {
+        await runPowerShell(createCompileScript(helperPath));
+        await runHelper(helperPath, ['--inspect']);
+      })().catch((error: unknown) => {
+        inspection = null;
+        throw error;
+      });
+    }
 
-      return inspection;
-    },
+    return inspection;
+  };
+
+  return {
+    inspect,
 
     async paste() {
-      await runPowerShell(windowsSendInputPasteScript);
+      await inspect();
+      await runHelper(helperPath, []);
     },
   };
 }
