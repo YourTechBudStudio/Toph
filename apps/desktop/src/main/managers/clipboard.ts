@@ -5,6 +5,8 @@ import { clipboard, systemPreferences } from 'electron';
 
 import type { PasteAttempt, PasteSupport } from '@toph/desktop-contracts';
 
+import { createWindowsClipboardManager } from './clipboard.windows';
+
 const execFileAsync = promisify(execFile);
 
 type PasteHelper = {
@@ -308,6 +310,10 @@ function createDefaultClipboardManager(): ClipboardManager {
 export function createClipboardManager(): ClipboardManager {
   if (process.platform === 'darwin') {
     return createMacClipboardManager();
+  }
+
+  if (process.platform === 'win32') {
+    return createWindowsClipboardManager({ copyText });
   }
 
   if (process.platform === 'linux') {
