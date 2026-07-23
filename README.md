@@ -38,7 +38,25 @@ Download Toph from the [latest release](https://github.com/YourTechBudStudio/Top
 | ------------------- | ------------------------------ | --------------------------------------------- |
 | macOS Apple silicon | `Toph-*-mac-arm64.dmg`         | Open the DMG and drag Toph into Applications. |
 | macOS Intel         | `Toph-*-mac-x64.dmg`           | Open the DMG and drag Toph into Applications. |
+| Windows x64         | `Toph-*-win-x64-setup.exe`     | Run the installer; see the notes below.       |
 | Linux x64           | `Toph-*-linux-x86_64.AppImage` | Use the install/update steps below.           |
+
+### Windows install/update
+
+Download and run `Toph-*-win-x64-setup.exe`. Toph installs for the current
+user, so administrator access is not required. The installer is currently
+unsigned, which means Microsoft Defender SmartScreen may warn you the first
+time you run it. Confirm that you downloaded it from Toph's official GitHub
+release, then choose **More info** and **Run anyway**.
+
+Launch Toph from the Start menu or desktop shortcut. It runs in the background
+and is available from the system tray. Toph checks for updates shortly after
+launch and every three hours after that. It downloads available updates in the
+background and offers **Restart to update** when one is ready. Toph will not
+restart while dictation is active.
+
+Toph stores its local data in `%USERPROFILE%\.toph`. To remove the app, open
+**Settings > Apps > Installed apps**, find Toph, and choose **Uninstall**.
 
 ### Linux install/update
 
@@ -74,8 +92,6 @@ After that, launch Toph from your app launcher or run `toph` from a terminal.
 If Toph cannot safely update this AppImage later, it will show these steps in
 the app before sending you back here.
 
-Windows builds are not part of the official release flow yet.
-
 ## Updating your rules
 
 Toph ships with three Polish presets — General, Engineer, and Email & Writing —
@@ -106,11 +122,19 @@ Building from source is straightforward:
 ```bash
 pnpm install
 pnpm build
-pnpm start
 ```
 
-That's it. The build step takes care of compiling native modules against
-Electron automatically.
+The build step takes care of compiling native modules against Electron
+automatically. On macOS or Linux, launch the built app with `pnpm start`. On
+Windows, use `pnpm --filter @toph/desktop preview`.
+
+To create the Windows installer locally, run:
+
+```powershell
+pnpm run dist:win
+```
+
+The installer and its update metadata are written to `apps/desktop/dist`.
 
 ## Development notes
 

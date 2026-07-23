@@ -73,15 +73,21 @@ function createStateStore(initialUpdate: AppUpdateState = { kind: 'idle', lastCh
 }
 
 function createTimers() {
-  const timeouts: Array<() => void> = [];
+  const timeouts: Array<{ handler: () => void; delayMs: number }> = [];
   const intervals: Array<() => void> = [];
 
   return {
     timeouts,
     intervals,
-    setTimeout(handler: () => void) {
-      timeouts.push(handler);
-      return { kind: 'timeout' };
+    runTimeout(delayMs: number) {
+      const timeout = timeouts.find((candidate) => candidate.delayMs === delayMs);
+      assert.ok(timeout, `Expected a timeout scheduled for ${delayMs}ms`);
+      timeout.handler();
+    },
+    setTimeout(handler: () => void, delayMs: number) {
+      const timeout = { handler, delayMs };
+      timeouts.push(timeout);
+      return timeout;
     },
     clearTimeout() {},
     setInterval(handler: () => void) {
@@ -116,11 +122,43 @@ test('manual check shows up-to-date state, then resets to idle', async () => {
   await coordinator.checkForUpdates();
 
   assert.equal(state.getState().app.update.kind, 'up_to_date');
-  assert.equal(timers.timeouts.length, 1);
-
-  timers.timeouts[0]();
+  timers.runTimeout(2_000);
 
   assert.equal(state.getState().app.update.kind, 'idle');
+  coordinator.dispose();
+});
+
+test('startup check downloads an available Windows update in the background', async () => {
+  const updater = new FakeUpdater();
+  updater.checkResult = {
+    isUpdateAvailable: true,
+    updateInfo: createUpdateInfo('0.0.4'),
+    versionInfo: createUpdateInfo('0.0.4'),
+  };
+  const state = createStateStore();
+  const timers = createTimers();
+  const coordinator = createDesktopUpdateCoordinator({
+    stateStore: state.store,
+    updater,
+    platform: 'win32',
+    env: {},
+    openExternal: async () => {},
+    setTimeout: timers.setTimeout,
+    clearTimeout: timers.clearTimeout,
+    setInterval: timers.setInterval,
+    clearInterval: timers.clearInterval,
+  });
+
+  assert.equal(updater.autoDownload, false);
+  assert.equal(updater.allowPrerelease, false);
+  assert.equal(updater.autoInstallOnAppQuit, false);
+
+  timers.runTimeout(30_000);
+  await new Promise((resolve) => setImmediate(resolve));
+  await new Promise((resolve) => setImmediate(resolve));
+
+  assert.equal(updater.downloadCalls, 1);
+  assert.deepEqual(state.getState().app.update, { kind: 'ready_to_restart', version: '0.0.4' });
   coordinator.dispose();
 });
 
@@ -232,7 +270,7 @@ test('restart is blocked while the app is not ready to restart', async () => {
     message: 'Finish dictation before restarting to update',
   });
 
-  timers.timeouts[0]();
+  timers.runTimeout(2_000);
 
   assert.deepEqual(state.getState().app.update, { kind: 'ready_to_restart', version: '0.0.4' });
   coordinator.dispose();

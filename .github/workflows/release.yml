@@ -120,3 +120,62 @@ jobs:
             apps/desktop/dist/Toph-*-linux-x86_64.AppImage \
             apps/desktop/dist/latest-linux.yml \
             --clobber
+
+  build-windows:
+    name: Build unsigned Windows installer
+    if: github.event_name == 'release' || github.ref == 'refs/heads/master'
+    runs-on: windows-2025
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          run_install: false
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build unsigned Windows installer
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+        run: pnpm run dist:win
+
+      - name: Upload workflow artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: toph-windows
+          path: |
+            apps/desktop/dist/Toph-*-win-x64-setup.exe
+            apps/desktop/dist/Toph-*-win-x64-setup.exe.blockmap
+            apps/desktop/dist/latest.yml
+          if-no-files-found: error
+
+      - name: Attach artifacts to GitHub Release
+        if: github.event_name == 'release'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $assets = @(
+            Get-Item "apps/desktop/dist/Toph-*-win-x64-setup.exe"
+            Get-Item "apps/desktop/dist/Toph-*-win-x64-setup.exe.blockmap"
+            Get-Item "apps/desktop/dist/latest.yml"
+          )
+          $arguments = @(
+            "release"
+            "upload"
+            "${{ github.event.release.tag_name }}"
+          ) + $assets.FullName + @("--clobber")
+          & gh @arguments
+          if ($LASTEXITCODE -ne 0) {
+            exit $LASTEXITCODE
+          }

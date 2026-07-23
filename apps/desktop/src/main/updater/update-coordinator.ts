@@ -36,6 +36,7 @@ type UpdateCoordinatorScheduleTimeout = (
 type UpdateCoordinatorCancelTimeout = (timer: UpdateCoordinatorTimeoutHandle) => void;
 
 const updateReadmeUrl = 'https://github.com/YourTechBudStudio/Toph#linux-installupdate';
+const initialCheckDelayMs = 30_000;
 const pollIntervalMs = 3 * 60 * 60 * 1000;
 const upToDateVisibleMs = 2_000;
 
@@ -228,6 +229,7 @@ export function createDesktopUpdateCoordinator(options: {
   configureAutoUpdater({ updater, env });
 
   let disposed = false;
+  let initialCheckTimer: UpdateCoordinatorTimeoutHandle | null = null;
   let pollTimer: UpdateCoordinatorIntervalHandle | null = null;
   let resetTimer: UpdateCoordinatorTimeoutHandle | null = null;
   let latestAvailableInfo: UpdateInfo | null = null;
@@ -288,7 +290,36 @@ export function createDesktopUpdateCoordinator(options: {
     }, upToDateVisibleMs);
   };
 
-  const showAvailableUpdate = async (updateInfo: UpdateInfo) => {
+  const downloadAvailableUpdate = async (downloadOptions: {
+    version: string;
+    releaseDate: string | null;
+    trigger: UpdateCheckTrigger;
+  }) => {
+    setUpdate({ kind: 'downloading', version: downloadOptions.version, percent: 0 });
+    console.info(
+      `Toph update download started. version=${downloadOptions.version} trigger=${downloadOptions.trigger}`,
+    );
+    try {
+      await updater.downloadUpdate();
+    } catch (error) {
+      console.error('Toph could not download the update.', error);
+      if (downloadOptions.trigger === 'manual') {
+        showManualFailure('Update download failed');
+        return;
+      }
+
+      setUpdate({
+        kind: 'available',
+        version: downloadOptions.version,
+        releaseDate: downloadOptions.releaseDate,
+      });
+    }
+  };
+
+  const showAvailableUpdate = async (
+    updateInfo: UpdateInfo,
+    trigger: UpdateCheckTrigger,
+  ) => {
     latestAvailableInfo = updateInfo;
     console.info(`Toph update available. version=${updateInfo.version}`);
 
@@ -318,6 +349,12 @@ export function createDesktopUpdateCoordinator(options: {
       kind: 'available',
       version: updateInfo.version,
       releaseDate: updateInfo.releaseDate ?? null,
+    });
+
+    await downloadAvailableUpdate({
+      version: updateInfo.version,
+      releaseDate: updateInfo.releaseDate ?? null,
+      trigger,
     });
   };
 
@@ -352,6 +389,10 @@ export function createDesktopUpdateCoordinator(options: {
   updater.on('error', handleUpdaterError);
 
   const checkForUpdates = async (trigger: UpdateCheckTrigger) => {
+    if (disposed) {
+      return;
+    }
+
     const previous = options.stateStore.getState().app.update;
     if (
       previous.kind === 'checking' ||
@@ -397,7 +438,18 @@ export function createDesktopUpdateCoordinator(options: {
       return;
     }
 
-    await showAvailableUpdate(result.updateInfo);
+    await showAvailableUpdate(result.updateInfo, trigger);
+  };
+
+  const startInitialCheck = () => {
+    if (initialCheckTimer) {
+      return;
+    }
+
+    initialCheckTimer = scheduleTimeout(() => {
+      initialCheckTimer = null;
+      void checkForUpdates('scheduled');
+    }, initialCheckDelayMs);
   };
 
   const startPolling = () => {
@@ -417,6 +469,7 @@ export function createDesktopUpdateCoordinator(options: {
     }
   };
 
+  startInitialCheck();
   startPolling();
 
   return {
@@ -429,14 +482,11 @@ export function createDesktopUpdateCoordinator(options: {
         return;
       }
 
-      setUpdate({ kind: 'downloading', version: current.version, percent: 0 });
-      console.info(`Toph update download started. version=${current.version}`);
-      try {
-        await updater.downloadUpdate();
-      } catch (error) {
-        console.error('Toph could not download the update.', error);
-        showManualFailure('Update download failed');
-      }
+      await downloadAvailableUpdate({
+        version: current.version,
+        releaseDate: current.releaseDate,
+        trigger: 'manual',
+      });
     },
 
     async restartToUpdate() {
@@ -474,6 +524,10 @@ export function createDesktopUpdateCoordinator(options: {
 
     dispose() {
       disposed = true;
+      if (initialCheckTimer) {
+        cancelTimeout(initialCheckTimer);
+        initialCheckTimer = null;
+      }
       clearResetTimer();
       stopPolling();
       updater.removeListener('download-progress', handleProgress);

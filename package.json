@@ -10,6 +10,7 @@
     "dist:mac": "pnpm --filter @toph/desktop run dist:mac",
     "dist:mac:arm64": "pnpm --filter @toph/desktop run dist:mac:arm64",
     "dist:mac:x64": "pnpm --filter @toph/desktop run dist:mac:x64",
+    "dist:win": "pnpm --filter @toph/desktop run dist:win",
     "format": "pnpm run lint:fix && oxfmt --write .",
     "format:check": "oxfmt --check .",
     "icons:app": "node scripts/generate-app-icons.cjs",
