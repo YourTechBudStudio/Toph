@@ -1,7 +1,9 @@
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 
-import type { PasteAttempt, PasteSupport } from '@toph/desktop-contracts';
+import type { PasteAttempt } from '@toph/desktop-contracts';
+
+import type { ClipboardManager } from './clipboard';
 
 const execFileAsync = promisify(execFile);
 
@@ -148,11 +150,8 @@ export interface WindowsPasteRunner {
   paste: () => Promise<void>;
 }
 
-export interface WindowsClipboardManager {
-  describePasteSupport: () => Promise<PasteSupport>;
-  copyAndPasteText: (text: string) => Promise<PasteAttempt>;
-}
-
+// Kept local: importing it from './clipboard' would pull `electron` into the
+// node test runner, which imports this module directly.
 function describeError(error: unknown) {
   return error instanceof Error ? error.message : 'Unknown error';
 }
@@ -214,7 +213,7 @@ export function createWindowsPasteRunner(
 export function createWindowsClipboardManager(options: {
   copyText: (text: string) => PasteAttempt | null;
   runner?: WindowsPasteRunner;
-}): WindowsClipboardManager {
+}): ClipboardManager {
   const runner = options.runner ?? createWindowsPasteRunner();
 
   return {

@@ -162,6 +162,49 @@ test('startup check downloads an available Windows update in the background', as
   coordinator.dispose();
 });
 
+test('scheduled poll retries the download after a failed background download', async () => {
+  const updater = new FakeUpdater();
+  updater.checkResult = {
+    isUpdateAvailable: true,
+    updateInfo: createUpdateInfo('0.0.4'),
+    versionInfo: createUpdateInfo('0.0.4'),
+  };
+  updater.downloadError = new Error('network unavailable');
+  const state = createStateStore();
+  const timers = createTimers();
+  const coordinator = createDesktopUpdateCoordinator({
+    stateStore: state.store,
+    updater,
+    platform: 'win32',
+    env: {},
+    openExternal: async () => {},
+    setTimeout: timers.setTimeout,
+    clearTimeout: timers.clearTimeout,
+    setInterval: timers.setInterval,
+    clearInterval: timers.clearInterval,
+  });
+
+  timers.runTimeout(30_000);
+  await new Promise((resolve) => setImmediate(resolve));
+  await new Promise((resolve) => setImmediate(resolve));
+
+  assert.equal(updater.downloadCalls, 1);
+  assert.deepEqual(state.getState().app.update, {
+    kind: 'available',
+    version: '0.0.4',
+    releaseDate: '2026-01-01T00:00:00.000Z',
+  });
+
+  updater.downloadError = null;
+  timers.intervals[0]!();
+  await new Promise((resolve) => setImmediate(resolve));
+  await new Promise((resolve) => setImmediate(resolve));
+
+  assert.equal(updater.downloadCalls, 2);
+  assert.deepEqual(state.getState().app.update, { kind: 'ready_to_restart', version: '0.0.4' });
+  coordinator.dispose();
+});
+
 test('Linux preflight failure shows fallback instructions instead of download state', async () => {
   const updater = new FakeUpdater();
   updater.checkResult = {

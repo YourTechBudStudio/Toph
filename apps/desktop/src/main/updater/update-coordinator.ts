@@ -316,10 +316,7 @@ export function createDesktopUpdateCoordinator(options: {
     }
   };
 
-  const showAvailableUpdate = async (
-    updateInfo: UpdateInfo,
-    trigger: UpdateCheckTrigger,
-  ) => {
+  const showAvailableUpdate = async (updateInfo: UpdateInfo, trigger: UpdateCheckTrigger) => {
     latestAvailableInfo = updateInfo;
     console.info(`Toph update available. version=${updateInfo.version}`);
 
@@ -399,8 +396,9 @@ export function createDesktopUpdateCoordinator(options: {
       previous.kind === 'downloading' ||
       previous.kind === 'ready_to_restart' ||
       (previous.kind === 'failed' && restartBlockedVersion !== null) ||
-      (trigger === 'scheduled' &&
-        (previous.kind === 'available' || previous.kind === 'linux_fallback'))
+      // 'available' is not skipped: it is the residue of a failed background
+      // download, and the next scheduled check should retry the download.
+      (trigger === 'scheduled' && previous.kind === 'linux_fallback')
     ) {
       return;
     }

@@ -307,6 +307,12 @@ function createDefaultClipboardManager(): ClipboardManager {
   };
 }
 
+// Each platform implements its own manager end to end, including the
+// copy-then-paste sequencing and result wording. The overlap between them is
+// coincidence, not a contract: platform paste mechanisms differ enough
+// (Linux helper resolution, macOS accessibility, Windows SendInput) that a
+// shared shell would be a parameter bag. Do not unify without a real driver,
+// such as a PasteAttempt contract change that must land uniformly.
 export function createClipboardManager(): ClipboardManager {
   if (process.platform === 'darwin') {
     return createMacClipboardManager();

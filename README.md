@@ -41,6 +41,14 @@ Download Toph from the [latest release](https://github.com/YourTechBudStudio/Top
 | Windows x64         | `Toph-*-win-x64-setup.exe`     | Run the installer; see the notes below.       |
 | Linux x64           | `Toph-*-linux-x86_64.AppImage` | Use the install/update steps below.           |
 
+### Automatic updates
+
+On every platform, Toph checks for updates shortly after launch and every
+three hours after that. It downloads available updates in the background and
+offers **Restart to update** when one is ready. Toph will not restart while
+dictation is active. On Linux, if the running AppImage cannot be replaced
+safely, Toph shows manual update steps in the app instead.
+
 ### Windows install/update
 
 Download and run `Toph-*-win-x64-setup.exe`. Toph installs for the current
@@ -50,10 +58,8 @@ time you run it. Confirm that you downloaded it from Toph's official GitHub
 release, then choose **More info** and **Run anyway**.
 
 Launch Toph from the Start menu or desktop shortcut. It runs in the background
-and is available from the system tray. Toph checks for updates shortly after
-launch and every three hours after that. It downloads available updates in the
-background and offers **Restart to update** when one is ready. Toph will not
-restart while dictation is active.
+and is available from the system tray. Updates arrive automatically as
+described above.
 
 Toph stores its local data in `%USERPROFILE%\.toph`. To remove the app, open
 **Settings > Apps > Installed apps**, find Toph, and choose **Uninstall**.
