@@ -46,7 +46,7 @@ const defaultPolicy: SileroStreamingSpeechActivityPolicy = {
   model: 'v5',
 };
 
-const require = createRequire(import.meta.url);
+const vadPackageRequire = createRequire(import.meta.url);
 const v5FrameSizeSamples = 512;
 
 async function fetchModelFromFile(path: string) {
@@ -55,13 +55,13 @@ async function fetchModelFromFile(path: string) {
 }
 
 function resolveV5ModelPath() {
-  const vadPackagePath = require.resolve('@ricky0123/vad-web/package.json');
+  const vadPackagePath = vadPackageRequire.resolve('@ricky0123/vad-web/package.json');
   const vadPackageDirectory = dirname(vadPackagePath);
   return join(vadPackageDirectory, 'dist', 'silero_vad_v5.onnx');
 }
 
 function createVadRequire() {
-  return createRequire(require.resolve('@ricky0123/vad-web/package.json'));
+  return createRequire(vadPackageRequire.resolve('@ricky0123/vad-web/package.json'));
 }
 
 function loadSileroV5() {

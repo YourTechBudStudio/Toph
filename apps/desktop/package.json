@@ -7,7 +7,8 @@
   "type": "module",
   "main": "out/main/index.js",
   "scripts": {
-    "build": "pnpm run rebuild:native && pnpm --workspace-root run icons:app && electron-vite build",
+    "build": "pnpm run rebuild:native && pnpm --workspace-root run icons:app && electron-vite build && pnpm run check:main-bundle",
+    "check:main-bundle": "node --check out/main/index.js",
     "dev": "pnpm --workspace-root run icons:app && cross-env TOPH_DATA_DIRECTORY=../../.toph ELECTRON_DISABLE_SANDBOX=1 electron-vite dev",
     "dist": "pnpm run build && electron-builder",
     "dist:linux": "pnpm run build && electron-builder --linux --publish never",
@@ -30,7 +31,7 @@
     "@ricky0123/vad-web": "^0.0.30",
     "@toph/desktop-contracts": "workspace:*",
     "@toph/desktop-ui": "workspace:*",
-    "better-sqlite3": "^12.9.0",
+    "better-sqlite3": "^13.0.1",
     "drizzle-orm": "^0.45.2",
     "electron-updater": "^6.8.3",
     "zod": "^4.4.3"
@@ -39,14 +40,14 @@
     "@electron/rebuild": "^4.0.4",
     "@tailwindcss/vite": "^4.2.4",
     "@types/better-sqlite3": "^7.6.13",
-    "@types/node": "^24.6.1",
-    "@vitejs/plugin-react": "^5.0.4",
+    "@types/node": "^26.1.1",
+    "@vitejs/plugin-react": "^6.0.4",
     "cross-env": "^10.1.0",
     "drizzle-kit": "^0.31.10",
-    "electron": "^37.3.1",
-    "electron-builder": "^26.8.1",
-    "electron-vite": "^4.0.0",
-    "typescript": "^5.9.3",
-    "vite": "^7.1.10"
+    "electron": "37.10.3",
+    "electron-builder": "^26.15.3",
+    "electron-vite": "6.0.0-beta.1",
+    "typescript": "^7.0.2",
+    "vite": "^8.1.5"
   }
 }

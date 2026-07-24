@@ -1,9 +1,6 @@
 import { existsSync } from 'node:fs';
 
-import type {
-  ActiveInputDeviceFallback,
-  PasteAttempt,
-} from '@toph/desktop-contracts';
+import type { ActiveInputDeviceFallback, PasteAttempt } from '@toph/desktop-contracts';
 
 import { resolveDictationRetryStrategy } from './dictation-retry-strategy';
 import type { RawAudioRecorder } from './managers/audio-recorder';
@@ -721,7 +718,7 @@ export function createDictationController(options: {
       options.windows.showOverlay();
       returnToIdleAfterFailure();
       void refreshRecentSessionsBestEffort();
-      throw error;
+      return;
     }
   };
 

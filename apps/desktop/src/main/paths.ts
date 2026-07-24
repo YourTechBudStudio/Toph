@@ -6,7 +6,9 @@ const dataDirectoryEnvVar = 'TOPH_DATA_DIRECTORY';
 
 function resolveDefaultDataDirectory(homeDirectory: string) {
   if (!homeDirectory) {
-    throw new Error('Unable to resolve the Toph data directory because the user home is unavailable.');
+    throw new Error(
+      'Unable to resolve the Toph data directory because the user home is unavailable.',
+    );
   }
 
   return join(homeDirectory, '.toph');

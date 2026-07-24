@@ -156,15 +156,15 @@ export function OverlayApp({
     ? 'h-(--overlay-active-height) min-w-(--overlay-active-min-width) rounded-full border-accent-red/36 bg-[rgba(63,32,45,0.96)] shadow-[0_8px_24px_rgba(0,0,0,0.3)]'
     : copied
       ? 'h-(--overlay-active-height) min-w-(--overlay-active-min-width) rounded-full border-accent-green/28 bg-canvas/95 shadow-[0_8px_24px_rgba(0,0,0,0.3)]'
-    : activeInputFallback
-      ? 'h-(--overlay-input-fallback-height) w-fit max-w-(--overlay-input-fallback-max-width) rounded-[28px] border-accent-amber/28 bg-canvas/95 shadow-[0_8px_24px_rgba(0,0,0,0.3)]'
-      : audioFallbackNotice
-        ? 'h-(--overlay-active-height) min-w-80 rounded-full border-accent-amber/28 bg-canvas/95 shadow-[0_8px_24px_rgba(0,0,0,0.3)]'
-        : ruleSwitcherExpanded
-          ? 'h-(--rule-switcher-height) w-(--rule-switcher-width) rounded-[28px] border-white/8 bg-canvas/98 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]'
-          : isIdle
-            ? 'h-(--overlay-idle-height) w-(--overlay-idle-width) rounded-full border-white/8 bg-canvas shadow-[0_4px_12px_rgba(0,0,0,0.2)]'
-            : 'h-(--overlay-active-height) min-w-(--overlay-active-min-width) rounded-full border-white/8 bg-canvas/95 shadow-[0_8px_24px_rgba(0,0,0,0.3)]';
+      : activeInputFallback
+        ? 'h-(--overlay-input-fallback-height) w-fit max-w-(--overlay-input-fallback-max-width) rounded-[28px] border-accent-amber/28 bg-canvas/95 shadow-[0_8px_24px_rgba(0,0,0,0.3)]'
+        : audioFallbackNotice
+          ? 'h-(--overlay-active-height) min-w-80 rounded-full border-accent-amber/28 bg-canvas/95 shadow-[0_8px_24px_rgba(0,0,0,0.3)]'
+          : ruleSwitcherExpanded
+            ? 'h-(--rule-switcher-height) w-(--rule-switcher-width) rounded-[28px] border-white/8 bg-canvas/98 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]'
+            : isIdle
+              ? 'h-(--overlay-idle-height) w-(--overlay-idle-width) rounded-full border-white/8 bg-canvas shadow-[0_4px_12px_rgba(0,0,0,0.2)]'
+              : 'h-(--overlay-active-height) min-w-(--overlay-active-min-width) rounded-full border-white/8 bg-canvas/95 shadow-[0_8px_24px_rgba(0,0,0,0.3)]';
 
   useEffect(() => {
     if (!audioFallbackNotice) {
@@ -431,19 +431,19 @@ export function OverlayApp({
                   ? 'Failed'
                   : copied
                     ? 'Transcription copied'
-                  : audioFallbackNotice
-                    ? audioFallbackNotice
-                    : noSpeech
-                      ? 'No speech detected'
-                      : cancelled
-                        ? 'Cancelled'
-                        : listening
-                          ? 'Listening...'
-                          : polishing
-                            ? 'Polishing...'
-                            : transcribing
-                              ? 'Transcribing...'
-                              : 'Working...'}
+                    : audioFallbackNotice
+                      ? audioFallbackNotice
+                      : noSpeech
+                        ? 'No speech detected'
+                        : cancelled
+                          ? 'Cancelled'
+                          : listening
+                            ? 'Listening...'
+                            : polishing
+                              ? 'Polishing...'
+                              : transcribing
+                                ? 'Transcribing...'
+                                : 'Working...'}
               </h2>
             )}
 

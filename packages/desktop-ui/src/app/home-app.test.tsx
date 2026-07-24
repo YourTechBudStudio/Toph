@@ -480,7 +480,7 @@ describe('HomeApp', () => {
       />,
     );
 
-    await screen.findByText('$0.01');
+    expect(await screen.findByText('$0.01')).toBeTruthy();
   });
 
   it('shows zero usage cost for subscription-only usage', async () => {
@@ -504,7 +504,7 @@ describe('HomeApp', () => {
       />,
     );
 
-    await screen.findByText('Voice detection degraded');
+    expect(await screen.findByText('Voice detection degraded')).toBeTruthy();
   });
 
   it('renders the home shortcut from the configured chord as spaced keys', async () => {

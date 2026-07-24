@@ -201,13 +201,13 @@ describe('OverlayApp', () => {
       <OverlayApp client={createClient({ ...baseState, phase: 'idle' })} soundsEnabled={false} />,
     );
 
-    await screen.findByLabelText('Toph ready');
+    expect(await screen.findByLabelText('Toph ready')).toBeTruthy();
   });
 
   it('renders the transcribing state without Electron globals', async () => {
     render(<OverlayApp client={createClient(baseState)} soundsEnabled={false} />);
 
-    await screen.findByRole('heading', { name: 'Transcribing...' });
+    expect(await screen.findByRole('heading', { name: 'Transcribing...' })).toBeTruthy();
   });
 
   it('renders the polishing state', async () => {
@@ -218,7 +218,7 @@ describe('OverlayApp', () => {
       />,
     );
 
-    await screen.findByRole('heading', { name: 'Polishing...' });
+    expect(await screen.findByRole('heading', { name: 'Polishing...' })).toBeTruthy();
   });
 
   it('renders the input fallback notice while listening', async () => {
@@ -291,10 +291,7 @@ describe('OverlayApp', () => {
 
   it('renders the copied fallback state', async () => {
     render(
-      <OverlayApp
-        client={createClient({ ...baseState, phase: 'copied' })}
-        soundsEnabled={false}
-      />,
+      <OverlayApp client={createClient({ ...baseState, phase: 'copied' })} soundsEnabled={false} />,
     );
 
     expect(await screen.findByRole('heading', { name: 'Transcription copied' })).toBeTruthy();

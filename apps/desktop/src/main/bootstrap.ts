@@ -46,9 +46,9 @@ import { createSessionTranscriptionCoordinator } from './transcription/session-t
 import { createDesktopTrayController } from './tray';
 import { createDesktopUpdateCoordinator } from './updater/update-coordinator';
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
-const require = createRequire(import.meta.url);
-const { autoUpdater } = require('electron-updater') as {
+const mainBundleDir = dirname(fileURLToPath(import.meta.url));
+const electronRequire = createRequire(import.meta.url);
+const { autoUpdater } = electronRequire('electron-updater') as {
   autoUpdater: typeof electronAutoUpdater;
 };
 const appName = 'Toph';
@@ -137,7 +137,7 @@ export async function bootstrap(options: {
   const dataPaths = await resolveTophDataPaths();
   const sessionStore = await createRecordingSessionStore({
     paths: dataPaths,
-    migrationsFolder: join(__dirname, '../../drizzle'),
+    migrationsFolder: join(mainBundleDir, '../../drizzle'),
   });
   for (const [index, rulePreset] of defaultPolishRulePresets.entries()) {
     await sessionStore.syncDefaultPolishRulePreset({ ...rulePreset, sortOrder: index });

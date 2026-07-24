@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import { mkdtemp, writeFile } from 'node:fs/promises';
+import { registerHooks } from 'node:module';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { registerHooks } from 'node:module';
 import test from 'node:test';
 
 import type { PasteAttempt } from '@toph/desktop-contracts';
@@ -83,18 +83,30 @@ function createPasteAttempt(overrides: Partial<PasteAttempt> = {}): PasteAttempt
 async function createRerunHarness(options: {
   phase: 'idle' | 'failed';
   pasteAttempt: PasteAttempt;
+  failedOrIncompleteBatchCount?: number;
 }) {
   const stateStore = createDesktopStateStore({ appVersion: '0.0.0-test' });
   const session = await createSession({
     status: options.phase === 'failed' ? 'failed' : 'completed',
     selectedOutputId: options.phase === 'failed' ? null : 'existing-output',
-    errorMessage: options.phase === 'failed' ? '1 transcription batch failed or did not finish.' : null,
+    errorMessage:
+      options.phase === 'failed' ? '1 transcription batch failed or did not finish.' : null,
   });
   const selectedOutputs: Array<{ sessionId: string; outputId: string }> = [];
   const copiedTexts: string[] = [];
   const emittedSounds: string[] = [];
   let recentRefreshes = 0;
   let pasteSupportRefreshes = 0;
+  const batches = options.failedOrIncompleteBatchCount
+    ? [
+        createTranscribedBatch({
+          status: 'failed',
+          derivedAudioPath: session.rawAudioPath,
+          transcribedAt: null,
+          errorMessage: 'Provider rejected the transcription request.',
+        }),
+      ]
+    : [createTranscribedBatch()];
 
   if (options.phase === 'failed') {
     stateStore.failDictation('1 transcription batch failed or did not finish.', {
@@ -124,7 +136,7 @@ async function createRerunHarness(options: {
         throw new Error('prepareSessionForRerun should not be called.');
       },
       pruneRetainedSessions: async () => {},
-      listTranscriptionBatchesForSession: async () => [createTranscribedBatch()],
+      listTranscriptionBatchesForSession: async () => batches,
     },
     segmentation: {
       createLiveSession: async () => {
@@ -136,7 +148,9 @@ async function createRerunHarness(options: {
     },
     transcription: {
       onBatchReady: async () => {},
-      waitForSession: async () => ({ failedOrIncompleteBatchCount: 0 }),
+      waitForSession: async () => ({
+        failedOrIncompleteBatchCount: options.failedOrIncompleteBatchCount ?? 0,
+      }),
       cancelSession: async () => {},
       dispose: async () => {},
     },
@@ -276,8 +290,30 @@ test('history rerun remains delivery-neutral while idle', async () => {
   await harness.controller.rerunSession('session-1');
 
   assert.deepEqual(harness.copiedTexts, []);
-  assert.deepEqual(harness.selectedOutputs, [{ sessionId: 'session-1', outputId: 'existing-output' }]);
+  assert.deepEqual(harness.selectedOutputs, [
+    { sessionId: 'session-1', outputId: 'existing-output' },
+  ]);
   assert.equal(harness.stateStore.getState().phase, 'idle');
   assert.equal(harness.stateStore.getState().lastTranscript, null);
   assert.equal(harness.pasteSupportRefreshes, 0);
+});
+
+test('failed batch retry remains a retryable overlay failure without rejecting IPC', async () => {
+  const harness = await createRerunHarness({
+    phase: 'failed',
+    pasteAttempt: createPasteAttempt(),
+    failedOrIncompleteBatchCount: 1,
+  });
+
+  await harness.controller.rerunSession('session-1');
+
+  assert.equal(harness.stateStore.getState().phase, 'failed');
+  assert.deepEqual(harness.stateStore.getState().activeFailure, {
+    sessionId: 'session-1',
+    canRetry: true,
+  });
+  assert.match(
+    harness.stateStore.getState().lastPasteAttempt.detail,
+    /1 transcription batch failed or did not finish/,
+  );
 });

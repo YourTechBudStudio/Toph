@@ -7,6 +7,11 @@
   "plugins": ["eslint", "typescript", "oxc"],
   "jsPlugins": ["oxlint-tailwindcss"],
   "ignorePatterns": ["node_modules", "dist", "out", ".turbo", ".opencode"],
+  "settings": {
+    "tailwindcss": {
+      "entryPoint": "packages/desktop-ui/src/styles.css"
+    }
+  },
   "rules": {
     "eslint/no-unused-vars": [
       "error",
