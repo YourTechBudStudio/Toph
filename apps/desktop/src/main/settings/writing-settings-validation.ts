@@ -10,7 +10,7 @@ import type { DictionaryEntry } from '../db/schema';
 
 const maxRulePresetTitleLength = 80;
 const maxRulePresetDescriptionLength = 180;
-const maxRulePresetBodyLength = 4_000;
+const maxRulePresetBodyLength = 12_000;
 const maxDictionaryTermLength = 120;
 const maxDictionaryHintLength = 500;
 export const maxEnabledDictionaryEntries = MAX_ENABLED_DICTIONARY_ENTRIES;

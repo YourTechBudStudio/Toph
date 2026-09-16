@@ -37,9 +37,27 @@ test('normalizes and bounds custom rule presets', () => {
   );
   assert.throws(
     () =>
-      normalizeRulePresetDraft({ title: 'Title', description: 'desc', body: 'x'.repeat(4_001) }),
-    /4000 characters/,
+      normalizeRulePresetDraft({ title: 'Title', description: 'desc', body: 'x'.repeat(12_001) }),
+    /12000 characters/,
   );
+});
+
+test('accepts every shipped builtin rule preset body', async () => {
+  // The builtin presets are offered for editing in the settings UI, so a body the validator
+  // rejects would be a preset the user cannot open and save. `builtin-rules.ts` uses Vite `?raw`
+  // imports and cannot be loaded here, so read the rule files directly.
+  const { readdir, readFile } = await import('node:fs/promises');
+  const rulesDirectory = new URL('../../src/main/polish/rules/', import.meta.url);
+  const fileNames = await readdir(rulesDirectory);
+
+  assert.ok(fileNames.length > 0, 'expected builtin rule files to exist');
+  for (const fileName of fileNames) {
+    const body = await readFile(new URL(fileName, rulesDirectory), 'utf8');
+    assert.doesNotThrow(
+      () => normalizeRulePresetDraft({ title: fileName, description: fileName, body }),
+      `builtin rule preset "${fileName}" is not accepted by the settings validator`,
+    );
+  }
 });
 
 test('normalizes and bounds dictionary entry drafts', () => {

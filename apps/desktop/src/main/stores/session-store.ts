@@ -29,6 +29,7 @@ import {
   type TranscriptionBatch,
 } from '../db/schema';
 import type { TophDataPaths } from '../paths';
+import { shouldUpgradeRulePresetBody } from '../polish/rule-preset-upgrade';
 import type { PlannedTranscriptionBatch, TimelineRegionDraft } from '../segmentation/types';
 
 export interface RecordingSessionStore {
@@ -120,6 +121,7 @@ export interface RecordingSessionStore {
     description: string;
     body: string;
     bodyHash: string;
+    previousBodyHashes: readonly string[];
     sortOrder: number;
   }) => Promise<PolishRulePreset>;
   listPolishRulePresets: () => Promise<PolishRulePreset[]>;
@@ -1056,34 +1058,39 @@ export async function createRecordingSessionStore(options: {
         return inserted;
       }
 
-      if (
-        existing.description.trim().length === 0 ||
-        (existing.sortOrder === 0 && rulePreset.sortOrder > 0)
-      ) {
-        const updated = {
-          ...existing,
-          description:
-            existing.description.trim().length === 0
-              ? rulePreset.description
-              : existing.description,
-          sortOrder:
-            existing.sortOrder === 0 && rulePreset.sortOrder > 0
-              ? rulePreset.sortOrder
-              : existing.sortOrder,
-          updatedAt: now,
-        };
-        db.update(polishRulePresets)
-          .set({
-            description: updated.description,
-            sortOrder: updated.sortOrder,
-            updatedAt: updated.updatedAt,
-          })
-          .where(eq(polishRulePresets.id, rulePreset.id))
-          .run();
-        return updated;
+      // Replace the body only when the stored one is untouched shipped text. A user's own edits
+      // are never clobbered. The incoming (untrimmed) hash is what gets stored, so the next
+      // release's previous-hash matching still recognises this body.
+      const upgradeBody = shouldUpgradeRulePresetBody({
+        storedBodyHash: existing.bodyHash,
+        incomingBodyHash: rulePreset.bodyHash,
+        previousBodyHashes: rulePreset.previousBodyHashes,
+      });
+      const fillDescription = existing.description.trim().length === 0;
+      const fillSortOrder = existing.sortOrder === 0 && rulePreset.sortOrder > 0;
+      if (!upgradeBody && !fillDescription && !fillSortOrder) {
+        return existing;
       }
 
-      return existing;
+      const updated = {
+        ...existing,
+        body: upgradeBody ? rulePreset.body : existing.body,
+        bodyHash: upgradeBody ? rulePreset.bodyHash : existing.bodyHash,
+        description: fillDescription ? rulePreset.description : existing.description,
+        sortOrder: fillSortOrder ? rulePreset.sortOrder : existing.sortOrder,
+        updatedAt: now,
+      };
+      db.update(polishRulePresets)
+        .set({
+          body: updated.body,
+          bodyHash: updated.bodyHash,
+          description: updated.description,
+          sortOrder: updated.sortOrder,
+          updatedAt: updated.updatedAt,
+        })
+        .where(eq(polishRulePresets.id, rulePreset.id))
+        .run();
+      return updated;
     },
 
     async listPolishRulePresets() {

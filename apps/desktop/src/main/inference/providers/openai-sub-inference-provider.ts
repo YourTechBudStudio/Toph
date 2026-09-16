@@ -11,6 +11,7 @@ import {
 
 const providerId = 'openai-sub';
 const endpoint = 'https://chatgpt.com/backend-api/codex/responses';
+const reasoningEffort = 'medium';
 
 function isRetryableFailure(status: number, body: string) {
   if (status === 403 && /<html|<meta\s+http-equiv=/i.test(body)) {
@@ -192,7 +193,7 @@ export function createOpenAiSubInferenceProvider(options: {
           headers,
           body: JSON.stringify({
             model,
-            reasoning: { effort: 'low' },
+            reasoning: { effort: reasoningEffort },
             instructions: input.instructions,
             input: [
               {
