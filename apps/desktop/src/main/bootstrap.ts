@@ -16,6 +16,7 @@ import macAppIconPath from '../../../../assets/app-icons/icon-mac.png?asset';
 import appIconPath from '../../../../assets/app-icons/icon.png?asset';
 import { createProviderAuthService } from './auth/provider-auth-service';
 import type { DictionaryEntry, PolishRulePreset } from './db/schema';
+import { createTranscriptionDiagnostics } from './diagnostics/transcription-diagnostics';
 import { createDictationController } from './dictation';
 import { buildSessionErrorReport, sanitizeErrorMessage } from './history/error-report';
 import { createOpenAiSubInferenceProvider } from './inference/providers/openai-sub-inference-provider';
@@ -208,6 +209,10 @@ export async function bootstrap(options: {
   await refreshPolishState();
   await refreshDashboardStats();
   const sensitiveErrorReportRoots = [dataPaths.dataDirectory, process.env.HOME ?? ''];
+  const transcriptionDiagnostics = createTranscriptionDiagnostics({
+    filePath: dataPaths.transcriptionDiagnosticsPath,
+    sensitiveRoots: sensitiveErrorReportRoots,
+  });
   const refreshRecentSessions = async (detailsBySessionId: Record<string, string> = {}) => {
     stateStore.setRecentSessions(
       (await sessionStore.listRecentRetainedSessions(8)).map((record) => ({
@@ -261,6 +266,7 @@ export async function bootstrap(options: {
   const transcription = createSessionTranscriptionCoordinator({
     sessionStore,
     provider: transcriptionProvider,
+    diagnostics: transcriptionDiagnostics,
   });
   const polish = createPolishService({
     settingsStore,
@@ -329,6 +335,7 @@ export async function bootstrap(options: {
     onPasteSupportMayHaveChanged: refreshPasteSupport,
     onDashboardStatsChanged: refreshDashboardStats,
     onRecentSessionsChanged: refreshRecentSessions,
+    diagnostics: transcriptionDiagnostics,
   });
   let ruleSwitcherTimer: ReturnType<typeof setTimeout> | null = null;
   let ruleSwitcherSelectionGeneration = 0;
@@ -753,6 +760,9 @@ export async function bootstrap(options: {
       const cleanupTasks: Array<[string, () => Promise<void> | void]> = [
         ['dictation', () => dictation.dispose()],
         ['transcription', () => transcription.dispose()],
+        // After transcription, so the events its disposal emits are on disk before the process
+        // exits. Failures here are isolated by the loop below, as for every other task.
+        ['transcription diagnostics', () => transcriptionDiagnostics.flush()],
         ['VAD runtime', () => vadRuntime.dispose()],
         ['provider auth', () => providerAuth.dispose()],
         ['session store', () => sessionStore.close()],

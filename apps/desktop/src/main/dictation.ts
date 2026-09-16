@@ -2,6 +2,7 @@ import { existsSync } from 'node:fs';
 
 import type { ActiveInputDeviceFallback, PasteAttempt } from '@toph/desktop-contracts';
 
+import type { TranscriptionDiagnostics } from './diagnostics/transcription-diagnostics';
 import { resolveDictationRetryStrategy } from './dictation-retry-strategy';
 import type { RawAudioRecorder } from './managers/audio-recorder';
 import type { ClipboardManager } from './managers/clipboard';
@@ -73,6 +74,7 @@ export function createDictationController(options: {
   onPasteSupportMayHaveChanged: () => Promise<void>;
   onDashboardStatsChanged: () => Promise<void>;
   onRecentSessionsChanged: () => Promise<void>;
+  diagnostics?: TranscriptionDiagnostics;
 }): DictationController {
   let failureTimer: ReturnType<typeof setTimeout> | null = null;
   let copiedTimer: ReturnType<typeof setTimeout> | null = null;
@@ -532,6 +534,12 @@ export function createDictationController(options: {
     }
 
     const batches = await options.sessionStore.listTranscriptionBatchesForSession(sessionId);
+    options.diagnostics?.record({
+      kind: 'batches_handed_over',
+      sessionId,
+      batchIds: batches.map((batch) => batch.id),
+      origin: 'recorded_rerun',
+    });
     await Promise.all(batches.map((batch) => options.transcription.onBatchReady(batch.id)));
     const transcriptionOutcome = await options.transcription.waitForSession(sessionId);
     if (!isCurrentOperation(input.operationGeneration)) {
@@ -571,6 +579,12 @@ export function createDictationController(options: {
     delivery?: RerunDelivery;
   }) => {
     await options.sessionStore.markSegmented(input.sessionId);
+    options.diagnostics?.record({
+      kind: 'batches_handed_over',
+      sessionId: input.sessionId,
+      batchIds: input.batchIds,
+      origin: 'partial_retry',
+    });
     await Promise.all(
       input.batchIds.map((batchId) =>
         options.transcription.onBatchReady(batchId, { resetAttempts: true }),
@@ -822,6 +836,12 @@ export function createDictationController(options: {
           rawAudioPath: session.rawAudioPath,
           generateBatchAudio: true,
           onBatchesReady: async (batches) => {
+            options.diagnostics?.record({
+              kind: 'batches_handed_over',
+              sessionId: session.id,
+              batchIds: batches.map((batch) => batch.id),
+              origin: 'live',
+            });
             await Promise.all(batches.map((batch) => options.transcription.onBatchReady(batch.id)));
           },
         });

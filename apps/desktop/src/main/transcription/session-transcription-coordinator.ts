@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 
 import type { BatchTranscript, ProviderUsageEvent, TranscriptionBatch } from '../db/schema';
+import type { TranscriptionDiagnostics } from '../diagnostics/transcription-diagnostics';
 import type { RecordingSessionStore } from '../stores/session-store';
 import {
   isTransientTranscriptionProviderError,
@@ -116,7 +117,9 @@ export function createSessionTranscriptionCoordinator(options: {
     | 'createBatchTranscript'
   >;
   provider: TranscriptionProvider;
+  diagnostics?: TranscriptionDiagnostics;
 }): SessionTranscriptionCoordinator {
+  const diagnostics = options.diagnostics;
   const batchTasks = new Map<string, Promise<void>>();
   const sessionTasks = new Map<string, Set<Promise<void>>>();
   const sessionAbortControllers = new Map<string, Set<AbortController>>();
@@ -158,6 +161,13 @@ export function createSessionTranscriptionCoordinator(options: {
 
   const markFailed = async (batch: TranscriptionBatch, attempts: number, error: unknown) => {
     const message = describeError(error);
+    diagnostics?.record({
+      kind: 'batch_failed',
+      sessionId: batch.sessionId,
+      batchId: batch.id,
+      attempts,
+      message,
+    });
     await options.sessionStore.markBatchFailed({
       batchId: batch.id,
       attempts,
@@ -182,6 +192,11 @@ export function createSessionTranscriptionCoordinator(options: {
     }
 
     const session = await options.sessionStore.getSession(batch.sessionId);
+    diagnostics?.record({
+      kind: 'batch_session_loaded',
+      sessionId: batch.sessionId,
+      batchId: batch.id,
+    });
     if (!session?.transcriptionProviderId || !session.transcriptionModel) {
       await markFailed(
         batch,
@@ -203,12 +218,19 @@ export function createSessionTranscriptionCoordinator(options: {
     let lastError: unknown = null;
     while (attempt < maxAttempts) {
       attempt += 1;
+      diagnostics?.record({
+        kind: 'batch_attempt_started',
+        sessionId: batch.sessionId,
+        batchId: batch.id,
+        attempt,
+      });
       await options.sessionStore.markBatchTranscribing({
         batchId: batch.id,
         attempts: attempt,
         startedAt: Date.now(),
       });
 
+      const attemptStartedAt = Date.now();
       try {
         const result = await options.provider.transcribeBatch({
           batchId: batch.id,
@@ -218,6 +240,13 @@ export function createSessionTranscriptionCoordinator(options: {
           signal: abortController.signal,
         });
         const createdAt = Date.now();
+        diagnostics?.record({
+          kind: 'batch_attempt_succeeded',
+          sessionId: batch.sessionId,
+          batchId: batch.id,
+          attempt,
+          providerDurationMs: createdAt - attemptStartedAt,
+        });
         await options.sessionStore.createBatchTranscript(
           toTranscriptRows({ sessionId: batch.sessionId, batchId: batch.id, result, createdAt }),
         );
@@ -228,7 +257,16 @@ export function createSessionTranscriptionCoordinator(options: {
         return;
       } catch (error) {
         lastError = error;
-        if (!isTransientTranscriptionProviderError(error) || attempt >= maxAttempts) {
+        const transient = isTransientTranscriptionProviderError(error);
+        diagnostics?.record({
+          kind: 'batch_attempt_failed',
+          sessionId: batch.sessionId,
+          batchId: batch.id,
+          attempt,
+          transient,
+          message: describeError(error),
+        });
+        if (!transient || attempt >= maxAttempts) {
           break;
         }
 
@@ -241,21 +279,42 @@ export function createSessionTranscriptionCoordinator(options: {
 
   return {
     async onBatchReady(batchId, batchOptions) {
+      diagnostics?.record({
+        kind: 'batch_received',
+        batchId,
+        resetAttempts: batchOptions?.resetAttempts === true,
+      });
       if (batchTasks.has(batchId)) {
+        diagnostics?.record({ kind: 'batch_skipped', batchId, reason: 'already_tracked' });
         return;
       }
 
       const batch = await options.sessionStore.getTranscriptionBatch(batchId);
       if (!batch || batch.status === 'transcribed') {
+        diagnostics?.record({
+          kind: 'batch_skipped',
+          batchId,
+          reason: batch ? 'already_transcribed' : 'missing_row',
+        });
         return;
       }
 
       const abortController = new AbortController();
       rememberAbortController(batch, abortController);
       const task = (async () => {
+        diagnostics?.record({
+          kind: 'batch_task_created',
+          sessionId: batch.sessionId,
+          batchId: batch.id,
+        });
         try {
           await transcribeBatch(batch, abortController, batchOptions);
         } finally {
+          diagnostics?.record({
+            kind: 'batch_task_settled',
+            sessionId: batch.sessionId,
+            batchId: batch.id,
+          });
           forgetAbortController(batch, abortController);
         }
       })();

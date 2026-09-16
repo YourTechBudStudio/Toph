@@ -17,6 +17,11 @@ test('default data paths use the resolved user home when HOME is unavailable', a
     await access(paths.dataDirectory);
     await access(paths.pricingDirectory);
     await access(paths.recordingsDirectory);
+    await access(paths.diagnosticsDirectory);
+    assert.equal(
+      paths.transcriptionDiagnosticsPath,
+      join(paths.diagnosticsDirectory, 'transcription.jsonl'),
+    );
   } finally {
     await rm(testRoot, { recursive: true, force: true });
   }

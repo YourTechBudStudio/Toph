@@ -27,6 +27,8 @@ export interface TophDataPaths {
   pricingDirectory: string;
   modelsDevCachePath: string;
   recordingsDirectory: string;
+  diagnosticsDirectory: string;
+  transcriptionDiagnosticsPath: string;
 }
 
 export async function resolveTophDataPaths(options: ResolveTophDataPathsOptions = {}) {
@@ -44,11 +46,14 @@ export async function resolveTophDataPaths(options: ResolveTophDataPathsOptions 
     pricingDirectory: join(dataDirectory, 'pricing'),
     modelsDevCachePath: join(dataDirectory, 'pricing', 'models-dev.json'),
     recordingsDirectory: join(dataDirectory, 'recordings'),
+    diagnosticsDirectory: join(dataDirectory, 'diagnostics'),
+    transcriptionDiagnosticsPath: join(dataDirectory, 'diagnostics', 'transcription.jsonl'),
   };
 
   await mkdir(paths.dataDirectory, { recursive: true });
   await mkdir(paths.pricingDirectory, { recursive: true });
   await mkdir(paths.recordingsDirectory, { recursive: true });
+  await mkdir(paths.diagnosticsDirectory, { recursive: true });
 
   return paths;
 }
