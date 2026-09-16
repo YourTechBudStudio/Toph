@@ -1,22 +1,12 @@
 import assert from 'node:assert/strict';
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
-import { registerHooks } from 'node:module';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
 
-registerHooks({
-  resolve(specifier, context, nextResolve) {
-    try {
-      return nextResolve(specifier, context);
-    } catch (error) {
-      if (specifier.startsWith('.') && !specifier.match(/\.[cm]?[jt]sx?$/)) {
-        return nextResolve(`${specifier}.ts`, context);
-      }
-      throw error;
-    }
-  },
-});
+import { registerTsExtensionResolver } from '../helpers/ts-extension-resolver.ts';
+
+registerTsExtensionResolver();
 
 const { createTranscriptionDiagnostics } =
   await import('../../src/main/diagnostics/transcription-diagnostics.ts');

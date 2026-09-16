@@ -6,8 +6,12 @@ import {
   TransientInferenceProviderError,
   type InferenceProvider,
 } from '../../src/main/inference/inference-provider.ts';
-import { createPolishService } from '../../src/main/polish/polish-service.ts';
 import { defaultAppSettings } from '../../src/main/settings/app-settings-schema.ts';
+import { registerTsExtensionResolver } from '../helpers/ts-extension-resolver.ts';
+
+registerTsExtensionResolver();
+
+const { createPolishService } = await import('../../src/main/polish/polish-service.ts');
 
 const rulePreset = {
   id: 'general',
@@ -268,4 +272,184 @@ test('composes instructions with both prompt-injection guards and the wrapped bl
   // The base instructions precede the preset body, which precedes the dictionary.
   assert.ok(instructions.indexOf('# Editing') < instructions.indexOf('<USER_RULES>'));
   assert.ok(instructions.indexOf('<USER_RULES>') < instructions.indexOf('<DICTIONARY>'));
+});
+
+const chunkRulePreset = {
+  ...rulePreset,
+  id: 'engineer',
+  title: 'Engineer',
+  body: 'Polish technical dictation.',
+  bodyHash: 'engineer-hash',
+};
+
+function chunkInput(overrides: Record<string, unknown> = {}) {
+  return {
+    sessionId: 'session-1',
+    rulePreset: chunkRulePreset,
+    dictionaryEntries: [],
+    context: 'Frozen context block.',
+    tail: 'Rewritable tail block.',
+    transcript: 'and then we shipped it.',
+    isFirstChunk: false,
+    isFinal: false,
+    ...overrides,
+  } as Parameters<ReturnType<typeof createService>['polishChunk']>[0];
+}
+
+test('polishes a chunk with incremental instructions and the three zones', async () => {
+  let instructions = '';
+  let inputText = '';
+  let createdOutputs = 0;
+  const service = createService(
+    {
+      id: 'test',
+      async inferText(input) {
+        instructions = input.instructions;
+        inputText = input.inputText;
+        return createInferenceResult(
+          '<POLISHED>\nRewritable tail block, and then we shipped it.\n</POLISHED>',
+        );
+      },
+    },
+    {
+      onCreatePolishedOutput() {
+        createdOutputs += 1;
+      },
+    },
+  );
+
+  const result = await service.polishChunk(chunkInput());
+
+  assert.match(instructions, /# Incremental mode/);
+  assert.match(instructions, /<USER_RULES>\nPolish technical dictation\.\n<\/USER_RULES>/);
+  assert.match(inputText, /<POLISHED_CONTEXT>\nFrozen context block\.\n<\/POLISHED_CONTEXT>/);
+  assert.match(inputText, /<POLISHED_TAIL>\nRewritable tail block\.\n<\/POLISHED_TAIL>/);
+  assert.match(inputText, /<TRANSCRIPT final="false">/);
+
+  assert.equal(result.text, 'Rewritable tail block, and then we shipped it.');
+  assert.equal(result.tagged, true);
+  assert.equal(result.provider, 'test');
+  assert.equal(result.model, 'test-model');
+  // Provenance comes from the preset the caller pinned, not from whatever is active at stop.
+  assert.equal(result.rulePresetId, 'engineer');
+  assert.equal(result.rulePresetHash, 'engineer-hash');
+  // Only the caller knows when text is final, so a chunk never creates a session output row.
+  assert.equal(createdOutputs, 0);
+});
+
+test('uses the pinned preset rather than resolving the active one', async () => {
+  let resolvedFromStore = false;
+  const service = createPolishService({
+    inference: {
+      id: 'test',
+      async inferText() {
+        return createInferenceResult('<POLISHED>\nPolished chunk.\n</POLISHED>');
+      },
+    },
+    settingsStore: {
+      getSettings() {
+        throw new Error('settings must not be read for a chunk');
+      },
+    },
+    sessionStore: {
+      async getPolishRulePreset() {
+        resolvedFromStore = true;
+        return rulePreset;
+      },
+      async listDictionaryEntries() {
+        resolvedFromStore = true;
+        return [];
+      },
+    },
+    outputs: {
+      async createPolishedOutput() {
+        throw new Error('a chunk must not create an output');
+      },
+    },
+  });
+
+  const result = await service.polishChunk(chunkInput());
+
+  assert.equal(resolvedFromStore, false);
+  assert.equal(result.rulePresetId, 'engineer');
+});
+
+test('strips echoed context blocks and the artificial trailing ellipsis from a chunk', async () => {
+  const service = createService({
+    id: 'test',
+    async inferText() {
+      return createInferenceResult(
+        '<POLISHED>\nFrozen context block.\n\nRewritable tail block, and then we shipped it...\n</POLISHED>',
+      );
+    },
+  });
+
+  const result = await service.polishChunk(chunkInput());
+
+  assert.equal(result.text, 'Rewritable tail block, and then we shipped it.');
+  assert.equal(result.removedEchoedBlockCount, 1);
+});
+
+test('reports an untagged chunk response instead of failing', async () => {
+  const service = createService({
+    id: 'test',
+    async inferText() {
+      return createInferenceResult('Rewritable tail block, and then we shipped it.');
+    },
+  });
+
+  const result = await service.polishChunk(chunkInput());
+
+  assert.equal(result.tagged, false);
+  assert.equal(result.text, 'Rewritable tail block, and then we shipped it.');
+});
+
+test('marks the final chunk and leaves its trailing ellipsis alone', async () => {
+  let inputText = '';
+  const service = createService({
+    id: 'test',
+    async inferText(input) {
+      inputText = input.inputText;
+      return createInferenceResult('<POLISHED>\nAnd that is where I trailed off...\n</POLISHED>');
+    },
+  });
+
+  const result = await service.polishChunk(chunkInput({ isFinal: true }));
+
+  assert.match(inputText, /<TRANSCRIPT final="true">/);
+  assert.equal(result.text, 'And that is where I trailed off...');
+});
+
+test('chunk polishing shares the retry loop with single-shot polishing', async () => {
+  let attempts = 0;
+  const service = createService({
+    id: 'test',
+    async inferText() {
+      attempts += 1;
+      if (attempts < 3) {
+        throw new TransientInferenceProviderError('empty output');
+      }
+
+      return createInferenceResult('<POLISHED>\nPolished chunk.\n</POLISHED>');
+    },
+  });
+
+  const result = await service.polishChunk(chunkInput());
+
+  assert.equal(attempts, 3);
+  assert.equal(result.text, 'Polished chunk.');
+});
+
+test('does not retry a permanent chunk failure', async () => {
+  let attempts = 0;
+  const service = createService({
+    id: 'test',
+    async inferText() {
+      attempts += 1;
+      throw new Error('permanent failure');
+    },
+  });
+
+  await assert.rejects(() => service.polishChunk(chunkInput()), /permanent failure/);
+  assert.equal(attempts, 1);
 });

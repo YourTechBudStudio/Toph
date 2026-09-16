@@ -1,22 +1,11 @@
 import assert from 'node:assert/strict';
-import { registerHooks } from 'node:module';
 import test from 'node:test';
 
 import type { RecordingSession, TranscriptionBatch } from '../src/main/db/schema.ts';
 import type { TranscriptionDiagnosticEvent } from '../src/main/diagnostics/transcription-diagnostics.ts';
+import { registerTsExtensionResolver } from './helpers/ts-extension-resolver.ts';
 
-registerHooks({
-  resolve(specifier, context, nextResolve) {
-    try {
-      return nextResolve(specifier, context);
-    } catch (error) {
-      if (specifier.startsWith('.') && !specifier.match(/\.[cm]?[jt]sx?$/)) {
-        return nextResolve(`${specifier}.ts`, context);
-      }
-      throw error;
-    }
-  },
-});
+registerTsExtensionResolver();
 
 const { createSessionTranscriptionCoordinator } =
   await import('../src/main/transcription/session-transcription-coordinator.ts');

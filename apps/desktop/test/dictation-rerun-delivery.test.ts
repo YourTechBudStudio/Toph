@@ -1,6 +1,5 @@
 import assert from 'node:assert/strict';
 import { mkdtemp, writeFile } from 'node:fs/promises';
-import { registerHooks } from 'node:module';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
@@ -8,19 +7,9 @@ import test from 'node:test';
 import type { PasteAttempt } from '@toph/desktop-contracts';
 
 import type { RecordingSession, TranscriptionBatch } from '../src/main/db/schema.ts';
+import { registerTsExtensionResolver } from './helpers/ts-extension-resolver.ts';
 
-registerHooks({
-  resolve(specifier, context, nextResolve) {
-    try {
-      return nextResolve(specifier, context);
-    } catch (error) {
-      if (specifier.startsWith('.') && !specifier.match(/\.[cm]?[jt]sx?$/)) {
-        return nextResolve(`${specifier}.ts`, context);
-      }
-      throw error;
-    }
-  },
-});
+registerTsExtensionResolver();
 
 const { createDictationController } = await import('../src/main/dictation.ts');
 const { createDesktopStateStore } = await import('../src/main/state.ts');
