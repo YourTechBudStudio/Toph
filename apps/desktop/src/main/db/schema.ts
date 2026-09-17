@@ -18,7 +18,11 @@ export type TranscriptionBatchStatus = 'planned' | 'transcribing' | 'transcribed
 export type BatchSourceRangeReason = 'speech' | 'pause_buffer' | 'normal_pause';
 export type SessionOutputKind = 'raw_concat' | 'polished';
 export type ProviderUsageOperationKind = 'transcription' | 'inference';
-export type ProviderUsageRelatedEntityKind = 'batch_transcript' | 'session_output';
+/**
+ * `polish_chunk` events belong to a session rather than to a row: an incremental polish call has no
+ * transcript and no output row of its own, so its cost is recorded against the session directly.
+ */
+export type ProviderUsageRelatedEntityKind = 'batch_transcript' | 'session_output' | 'polish_chunk';
 
 export const recordingSessions = sqliteTable('recording_sessions', {
   id: text('id').primaryKey(),
@@ -102,7 +106,7 @@ export const providerUsageEvents = sqliteTable('provider_usage_events', {
   sessionId: text('session_id').notNull(),
   operationKind: text('operation_kind', { enum: ['transcription', 'inference'] }).notNull(),
   relatedEntityKind: text('related_entity_kind', {
-    enum: ['batch_transcript', 'session_output'],
+    enum: ['batch_transcript', 'session_output', 'polish_chunk'],
   }).notNull(),
   relatedEntityId: text('related_entity_id').notNull(),
   provider: text('provider').notNull(),

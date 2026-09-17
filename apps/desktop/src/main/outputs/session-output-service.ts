@@ -1,13 +1,12 @@
 import { randomUUID } from 'node:crypto';
 
-import type { ProviderUsageEvent } from '../db/schema';
-import type { ProviderUsageDetails } from '../provider-usage';
+import { toProviderUsageEvent, type ProviderUsageDetails } from '../provider-usage';
 import type { RecordingSessionStore } from '../stores/session-store';
 
 export interface SessionOutputService {
   createRawConcatOutput: (
     sessionId: string,
-    options?: { outputId?: string },
+    options?: { outputId?: string; supersedesPolishChunkUsage?: boolean },
   ) => Promise<{ id: string; text: string; createdAt: number }>;
   createPolishedOutput: (options: {
     sessionId: string;
@@ -16,11 +15,18 @@ export interface SessionOutputService {
     text: string;
     provider: string;
     model: string | null;
-    usage: ProviderUsageDetails;
+    /**
+     * `null` records no usage event for this output, for a caller that already recorded the cost of
+     * every call it made. Incremental polishing does exactly that: one `polish_chunk` event per
+     * call, so an event here would double-count the final one.
+     */
+    usage: ProviderUsageDetails | null;
     providerRequestId: string | null;
     providerResponseJson: unknown;
     rulePresetId: string;
     rulePresetHash: string;
+    /** See `createSessionOutput`: set by a rerun, whose output replaces an incremental one. */
+    supersedesPolishChunkUsage?: boolean;
   }) => Promise<{
     id: string;
     text: string;
@@ -35,11 +41,14 @@ function createSessionOutputId() {
   return `session_output_${Date.now()}_${randomUUID()}`;
 }
 
-function createUsageEventId() {
-  return `provider_usage_${Date.now()}_${randomUUID()}`;
-}
-
-function assembleRawText(texts: string[]) {
+/**
+ * Join batch transcripts into one raw transcript.
+ *
+ * Exported because incremental polishing assembles the same batch texts as it goes, and a
+ * divergence here would make the polished document silently cover different text from the raw
+ * output it names as its source.
+ */
+export function assembleRawTranscriptText(texts: string[]) {
   return texts
     .map((text) => text.trim())
     .filter((text) => text.length > 0)
@@ -56,7 +65,7 @@ export function createSessionOutputService(options: {
 }): SessionOutputService {
   return {
     async createRawConcatOutput(sessionId, createOptions) {
-      const text = assembleRawText(
+      const text = assembleRawTranscriptText(
         await options.sessionStore.listOrderedBatchTranscriptTexts(sessionId),
       );
       if (!text) {
@@ -76,7 +85,10 @@ export function createSessionOutputService(options: {
         createdAt: Date.now(),
       };
 
-      await options.sessionStore.createSessionOutput({ output });
+      await options.sessionStore.createSessionOutput({
+        output,
+        supersedesPolishChunkUsage: createOptions?.supersedesPolishChunkUsage,
+      });
       return { id: output.id, text: output.text, createdAt: output.createdAt };
     },
 
@@ -100,30 +112,26 @@ export function createSessionOutputService(options: {
         rulePresetHash: input.rulePresetHash,
         createdAt,
       };
-      const usageEvent: ProviderUsageEvent = {
-        id: createUsageEventId(),
-        sessionId: input.sessionId,
-        operationKind: 'inference',
-        relatedEntityKind: 'session_output',
-        relatedEntityId: outputId,
-        provider: input.provider,
-        model: input.model,
-        billingMode: input.usage.billingMode,
-        audioDurationMs: input.usage.audioDurationMs,
-        billableDurationMs: input.usage.billableDurationMs,
-        inputTokens: input.usage.inputTokens,
-        cachedInputTokens: input.usage.cachedInputTokens,
-        outputTokens: input.usage.outputTokens,
-        estimatedCostUsdMicros: input.usage.estimatedCostUsdMicros,
-        costSource: input.usage.costSource,
-        pricingCatalogProviderId: input.usage.pricingCatalogProviderId,
-        pricingCatalogModelId: input.usage.pricingCatalogModelId,
-        providerRequestId: input.providerRequestId,
-        providerResponseJson: JSON.stringify(input.providerResponseJson) ?? null,
-        createdAt,
-      };
+      const usageEvent = input.usage
+        ? toProviderUsageEvent({
+            sessionId: input.sessionId,
+            operationKind: 'inference',
+            relatedEntityKind: 'session_output',
+            relatedEntityId: outputId,
+            provider: input.provider,
+            model: input.model,
+            usage: input.usage,
+            providerRequestId: input.providerRequestId,
+            providerResponseJson: input.providerResponseJson,
+            createdAt,
+          })
+        : undefined;
 
-      await options.sessionStore.createSessionOutput({ output, usageEvent });
+      await options.sessionStore.createSessionOutput({
+        output,
+        usageEvent,
+        supersedesPolishChunkUsage: input.supersedesPolishChunkUsage,
+      });
       return {
         id: output.id,
         text: output.text,

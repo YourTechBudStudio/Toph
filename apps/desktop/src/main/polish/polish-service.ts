@@ -32,6 +32,8 @@ export interface PolishService {
     rawOutput: { id: string; text: string };
     outputId?: string;
     signal?: AbortSignal;
+    /** See `createSessionOutput`: set by a rerun, whose output replaces an incremental one. */
+    supersedesPolishChunkUsage?: boolean;
   }) => Promise<{
     id: string;
     text: string;
@@ -169,6 +171,7 @@ export function createPolishService(options: {
           providerResponseJson: result.providerResponseJson,
           rulePresetId: rulePreset.id,
           rulePresetHash: rulePreset.bodyHash,
+          supersedesPolishChunkUsage: input.supersedesPolishChunkUsage,
         });
       }, input.signal);
     },

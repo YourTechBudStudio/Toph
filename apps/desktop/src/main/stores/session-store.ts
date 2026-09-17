@@ -98,10 +98,22 @@ export interface RecordingSessionStore {
     transcript: BatchTranscript;
     usageEvent: ProviderUsageEvent;
   }) => Promise<void>;
+  listOrderedBatchTranscripts: (sessionId: string) => Promise<OrderedBatchTranscript[]>;
   listOrderedBatchTranscriptTexts: (sessionId: string) => Promise<string[]>;
+  createProviderUsageEvent: (usageEvent: ProviderUsageEvent) => Promise<void>;
+
   createSessionOutput: (options: {
     output: SessionOutput;
     usageEvent?: ProviderUsageEvent;
+    /**
+     * Drop the session's incremental polish cost as part of this write, because this output
+     * replaces the one those chunk calls produced.
+     *
+     * Chunk events are related to the session rather than to any row, so nothing else deletes them.
+     * It happens here, in the same transaction, so a rerun that never gets this far keeps the cost
+     * records that explain the output it leaves in place.
+     */
+    supersedesPolishChunkUsage?: boolean;
   }) => Promise<void>;
   selectSessionOutput: (options: { sessionId: string; outputId: string }) => Promise<void>;
   listRecentRetainedSessions: (limit: number) => Promise<RetainedSessionRecord[]>;
@@ -156,6 +168,13 @@ export interface RecordingSessionStore {
   } | null>;
   pruneRetainedSessions: () => Promise<void>;
   close: () => void;
+}
+
+/** A batch transcript in spoken order, with the identity the incremental polish path needs. */
+export interface OrderedBatchTranscript {
+  batchId: string;
+  sequence: number;
+  text: string;
 }
 
 export interface RetainedSessionRecord {
@@ -380,6 +399,32 @@ export async function createRecordingSessionStore(options: {
     migrationsFolder: options.migrationsFolder,
   });
 
+  const listOrderedBatchTranscripts = (sessionId: string): OrderedBatchTranscript[] =>
+    db
+      .select({
+        batchId: transcriptionBatches.id,
+        sequence: transcriptionBatches.sequence,
+        text: batchTranscripts.text,
+      })
+      .from(transcriptionBatches)
+      .innerJoin(batchTranscripts, eq(batchTranscripts.batchId, transcriptionBatches.id))
+      .where(eq(transcriptionBatches.sessionId, sessionId))
+      .orderBy(transcriptionBatches.sequence)
+      .all();
+
+  // Chunk events hang off the session, not off a row `clearSessionGeneratedData` deletes, so both
+  // callers go through one definition of the delete rather than two spellings of it.
+  const deletePolishChunkUsage = (sessionId: string) => {
+    db.delete(providerUsageEvents)
+      .where(
+        and(
+          eq(providerUsageEvents.sessionId, sessionId),
+          eq(providerUsageEvents.relatedEntityKind, 'polish_chunk'),
+        ),
+      )
+      .run();
+  };
+
   const clearSessionGeneratedData = (
     sessionId: string,
     clearOptions: { keepOutputId?: string } = {},
@@ -405,6 +450,12 @@ export async function createRecordingSessionStore(options: {
           ),
         )
         .run();
+      if (!clearOptions.keepOutputId) {
+        // The chunk events paid for the output being deleted here, so they go with it. When an
+        // output is kept — every rerun preparation — its cost is kept too, until the replacement
+        // output supersedes both.
+        deletePolishChunkUsage(sessionId);
+      }
       db.delete(providerUsageEvents)
         .where(
           clearOptions.keepOutputId
@@ -784,19 +835,23 @@ export async function createRecordingSessionStore(options: {
       });
     },
 
-    async listOrderedBatchTranscriptTexts(sessionId) {
-      return db
-        .select({ text: batchTranscripts.text })
-        .from(transcriptionBatches)
-        .innerJoin(batchTranscripts, eq(batchTranscripts.batchId, transcriptionBatches.id))
-        .where(eq(transcriptionBatches.sessionId, sessionId))
-        .orderBy(transcriptionBatches.sequence)
-        .all()
-        .map((row) => row.text);
+    async listOrderedBatchTranscripts(sessionId) {
+      return listOrderedBatchTranscripts(sessionId);
     },
 
-    async createSessionOutput({ output, usageEvent }) {
+    async listOrderedBatchTranscriptTexts(sessionId) {
+      return listOrderedBatchTranscripts(sessionId).map((transcript) => transcript.text);
+    },
+
+    async createProviderUsageEvent(usageEvent) {
+      db.insert(providerUsageEvents).values(usageEvent).run();
+    },
+
+    async createSessionOutput({ output, usageEvent, supersedesPolishChunkUsage }) {
       db.transaction(() => {
+        if (supersedesPolishChunkUsage) {
+          deletePolishChunkUsage(output.sessionId);
+        }
         db.delete(providerUsageEvents)
           .where(
             and(
@@ -912,6 +967,9 @@ export async function createRecordingSessionStore(options: {
         derivedAudioDurationMs = durationRow?.total ?? 0;
         const usageFilters = [
           `(operation_kind = 'transcription' and session_id in (${placeholders}))`,
+          // Chunk calls have no output row to hang off, so their cost is matched by session, the
+          // same way transcription is. That is only correct because a rerun deletes both.
+          `(operation_kind = 'inference' and related_entity_kind = 'polish_chunk' and session_id in (${placeholders}))`,
           outputIds.length > 0
             ? `(operation_kind = 'inference' and related_entity_kind = 'session_output' and related_entity_id in (${outputIds.map(() => '?').join(',')}))`
             : null,
@@ -928,7 +986,7 @@ export async function createRecordingSessionStore(options: {
             where ${usageFilters}
             group by billing_mode, cost_source
           `)
-          .all(...sessionIds, ...outputIds) as Array<{
+          .all(...sessionIds, ...sessionIds, ...outputIds) as Array<{
           billingMode: string;
           costSource: string;
           total: number;

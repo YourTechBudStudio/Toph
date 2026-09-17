@@ -9,6 +9,7 @@ import type { ClipboardManager } from './managers/clipboard';
 import type { WindowManager } from './managers/windows';
 import type { SessionOutputService } from './outputs/session-output-service';
 import type { PolishService } from './polish/polish-service';
+import type { SessionPolishCoordinator } from './polish/session-polish-coordinator';
 import type { SessionSegmentationService } from './segmentation/session-segmentation-service';
 import { isStreamingVadBusyError } from './segmentation/streaming-vad-runtime';
 import type { SegmentationPipelineSession } from './segmentation/streaming/segmentation-pipeline-session';
@@ -66,6 +67,7 @@ export function createDictationController(options: {
   transcription: SessionTranscriptionCoordinator;
   outputs: SessionOutputService;
   polish: PolishService;
+  sessionPolish: SessionPolishCoordinator;
   settingsStore: Pick<AppSettingsStore, 'getSettings'>;
   audioRecorder: RawAudioRecorder;
   clipboard: ClipboardManager;
@@ -191,6 +193,7 @@ export function createDictationController(options: {
           ),
         });
         await options.transcription.cancelSession(session.id);
+        await options.sessionPolish.cancelSession(session.id);
         await options.sessionStore.clearSegmentationData(session.id);
       } catch (markError) {
         console.error('Toph could not persist the live segmentation failure.', markError);
@@ -243,6 +246,7 @@ export function createDictationController(options: {
           errorMessage: message,
         });
         await options.transcription.cancelSession(failedSession.id);
+        await options.sessionPolish.cancelSession(failedSession.id);
         await options.sessionStore.clearSegmentationData(failedSession.id);
       } catch (markError) {
         console.error('Toph could not mark the recording session as failed.', markError);
@@ -396,10 +400,13 @@ export function createDictationController(options: {
   }) => {
     const polishSettings = options.settingsStore.getSettings().polish;
     if (!polishSettings.enabled) {
-      const rawOutput = await options.outputs.createRawConcatOutput(
-        input.sessionId,
-        input.existingOutputId ? { outputId: input.existingOutputId } : undefined,
-      );
+      const rawOutput = await options.outputs.createRawConcatOutput(input.sessionId, {
+        outputId: input.existingOutputId ?? undefined,
+        // Every accepted rerun re-polishes single-shot (D12), so this output supersedes whatever
+        // incremental chunks produced the one it replaces. Carried on the write rather than done
+        // up front, so a rerun that fails leaves the old output's cost records intact.
+        supersedesPolishChunkUsage: true,
+      });
       if (!isCurrentOperation(input.operationGeneration)) {
         await restoreExistingOutput(input.sessionId, input.existingOutputId);
         return;
@@ -439,6 +446,7 @@ export function createDictationController(options: {
       rawOutput,
       signal: activePolishAbortController.signal,
       outputId: input.existingOutputId ?? undefined,
+      supersedesPolishChunkUsage: true,
     });
     activePolishAbortController = null;
     if (!isCurrentOperation(input.operationGeneration)) {
@@ -635,6 +643,9 @@ export function createDictationController(options: {
     clearCancelledTimer();
     activeOperationGeneration += 1;
     const operationGeneration = activeOperationGeneration;
+    // Reruns are single-shot (D12), and must never inherit incremental state from the live
+    // recording this session came from.
+    await options.sessionPolish.cancelSession(requestedSessionId);
     lifecycle = 'stopping';
     options.stateStore.startTranscribing();
     options.windows.showOverlay();
@@ -800,6 +811,7 @@ export function createDictationController(options: {
 
       try {
         await options.transcription.cancelSession(session.id);
+        await options.sessionPolish.cancelSession(session.id);
         await options.sessionStore.markCancelled({ sessionId: session.id, durationMs });
         await options.sessionStore.discardSessionArtifacts(session.id);
       } catch (error) {
@@ -829,6 +841,7 @@ export function createDictationController(options: {
         id: session.id,
         rawAudioPath: session.rawAudioPath,
       };
+      options.sessionPolish.beginSession(session.id);
 
       try {
         const pipeline = await options.segmentation.createLiveSession({
@@ -1160,7 +1173,7 @@ export function createDictationController(options: {
         return;
       }
 
-      let polishedOutput: Awaited<ReturnType<PolishService['polishOutput']>>;
+      let polishedOutput: Awaited<ReturnType<SessionPolishCoordinator['finalizeSession']>>;
       try {
         await options.sessionStore.markPolishing(session.id);
         if (!isCurrentOperation(operationGeneration)) {
@@ -1173,7 +1186,10 @@ export function createDictationController(options: {
         }
 
         activePolishAbortController = new AbortController();
-        polishedOutput = await options.polish.polishOutput({
+        // All incremental behaviour hides behind this call: it polishes only what is left over from
+        // chunks already done during the recording, and falls back to single-shot when there is no
+        // usable incremental state.
+        polishedOutput = await options.sessionPolish.finalizeSession({
           sessionId: session.id,
           rawOutput,
           signal: activePolishAbortController.signal,
@@ -1235,6 +1251,11 @@ export function createDictationController(options: {
       }
 
       await failActiveSession('Recording could not finish unexpectedly.', error);
+    } finally {
+      // Every path out of here is the end of this session's incremental work: `finalizeSession`
+      // already dropped its state on success, and on any other path it must not outlive the
+      // session. Cancelling an unknown session is a no-op, so one call covers them all.
+      await options.sessionPolish.cancelSession(session.id);
     }
   };
 
@@ -1307,10 +1328,12 @@ export function createDictationController(options: {
       // A flush may schedule batches while cancel is waiting for finish cleanup;
       // cancel both sides of that wait so no transcriptions survive cancellation.
       await options.transcription.cancelSession(session.id);
+      await options.sessionPolish.cancelSession(session.id);
       await pendingFinish?.catch((finishError: unknown) => {
         console.error('Toph finishing pipeline failed while cancelling.', finishError);
       });
       await options.transcription.cancelSession(session.id);
+      await options.sessionPolish.cancelSession(session.id);
       await pipeline?.dispose();
       if (session.preserveArtifactsOnCancel) {
         if (session.clearGeneratedDataOnCancel !== false) {
@@ -1424,6 +1447,7 @@ export function createDictationController(options: {
             errorMessage: 'Recording was interrupted because Toph is quitting.',
           });
           await options.transcription.cancelSession(session.id);
+          await options.sessionPolish.cancelSession(session.id);
           await options.sessionStore.clearSegmentationData(session.id);
           await pruneSessions();
         } catch (error) {

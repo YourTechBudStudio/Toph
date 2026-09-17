@@ -82,6 +82,7 @@ async function createRerunHarness(options: {
       options.phase === 'failed' ? '1 transcription batch failed or did not finish.' : null,
   });
   const selectedOutputs: Array<{ sessionId: string; outputId: string }> = [];
+  const rawOutputWrites: Array<{ supersedesPolishChunkUsage: boolean }> = [];
   const copiedTexts: string[] = [];
   const emittedSounds: string[] = [];
   let recentRefreshes = 0;
@@ -144,11 +145,16 @@ async function createRerunHarness(options: {
       dispose: async () => {},
     },
     outputs: {
-      createRawConcatOutput: async (_sessionId, createOptions) => ({
-        id: createOptions?.outputId ?? 'raw-output',
-        text: 'Recovered transcript.',
-        createdAt: 123,
-      }),
+      createRawConcatOutput: async (_sessionId, createOptions) => {
+        rawOutputWrites.push({
+          supersedesPolishChunkUsage: createOptions?.supersedesPolishChunkUsage === true,
+        });
+        return {
+          id: createOptions?.outputId ?? 'raw-output',
+          text: 'Recovered transcript.',
+          createdAt: 123,
+        };
+      },
       createPolishedOutput: async () => {
         throw new Error('createPolishedOutput should not be called.');
       },
@@ -160,6 +166,16 @@ async function createRerunHarness(options: {
       polishOutput: async () => {
         throw new Error('polishOutput should not be called.');
       },
+    },
+    sessionPolish: {
+      beginSession: () => {},
+      onBatchTranscribed: async () => {},
+      waitForSession: async () => {},
+      finalizeSession: async () => {
+        throw new Error('finalizeSession should not be called.');
+      },
+      cancelSession: async () => {},
+      dispose: async () => {},
     },
     settingsStore: {
       getSettings: () => ({
@@ -199,6 +215,7 @@ async function createRerunHarness(options: {
     controller,
     stateStore,
     selectedOutputs,
+    rawOutputWrites,
     copiedTexts,
     emittedSounds,
     get recentRefreshes() {
@@ -285,6 +302,9 @@ test('history rerun remains delivery-neutral while idle', async () => {
   assert.equal(harness.stateStore.getState().phase, 'idle');
   assert.equal(harness.stateStore.getState().lastTranscript, null);
   assert.equal(harness.pasteSupportRefreshes, 0);
+  // This route never reaches `clearSegmentationData`, so its output write is the only thing that can
+  // retire the previous run's incremental polish cost.
+  assert.deepEqual(harness.rawOutputWrites, [{ supersedesPolishChunkUsage: true }]);
 });
 
 test('failed batch retry remains a retryable overlay failure without rejecting IPC', async () => {
@@ -305,4 +325,7 @@ test('failed batch retry remains a retryable overlay failure without rejecting I
     harness.stateStore.getState().lastPasteAttempt.detail,
     /1 transcription batch failed or did not finish/,
   );
+  // The retry failed before producing an output, so the cost records explaining the output that is
+  // still selected must survive.
+  assert.deepEqual(harness.rawOutputWrites, []);
 });

@@ -453,3 +453,34 @@ test('does not retry a permanent chunk failure', async () => {
   await assert.rejects(() => service.polishChunk(chunkInput()), /permanent failure/);
   assert.equal(attempts, 1);
 });
+
+test('forwards the chunk-usage supersede flag to the output write', async () => {
+  const writes: Array<boolean | undefined> = [];
+  const service = createService(
+    {
+      id: 'test',
+      async inferText() {
+        return createInferenceResult();
+      },
+    },
+    {
+      onCreatePolishedOutput: (input) => {
+        writes.push(input.supersedesPolishChunkUsage);
+      },
+    },
+  );
+
+  // A rerun's replacement output retires the chunk cost of the run it replaces; the live stop path
+  // must not, because there the chunk events are the session's only polish cost record.
+  await service.polishOutput({
+    sessionId: 'session-1',
+    rawOutput: { id: 'raw-output', text: 'raw text' },
+    supersedesPolishChunkUsage: true,
+  });
+  await service.polishOutput({
+    sessionId: 'session-1',
+    rawOutput: { id: 'raw-output', text: 'raw text' },
+  });
+
+  assert.deepEqual(writes, [true, undefined]);
+});

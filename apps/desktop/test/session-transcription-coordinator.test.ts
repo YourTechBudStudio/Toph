@@ -334,3 +334,61 @@ test('a slow session read is attributable to the gap before batch_session_loaded
   assert.ok(at('batch_session_loaded') - at('batch_task_created') >= 45);
   assert.ok(at('batch_attempt_started') - at('batch_session_loaded') < 45);
 });
+
+test('notifies a consumer after a batch is marked transcribed', async () => {
+  const batch = createBatch();
+  const store = createStore(batch);
+  const notified: Array<{ batchId: string; status: string }> = [];
+  const coordinator = createSessionTranscriptionCoordinator({
+    sessionStore: store,
+    provider: createSuccessProvider(),
+    onBatchTranscribed: (notifiedBatch) => {
+      notified.push({ batchId: notifiedBatch.id, status: batch.status });
+    },
+  });
+
+  await coordinator.onBatchReady(batch.id);
+  await coordinator.waitForSession(batch.sessionId);
+
+  assert.deepEqual(notified, [{ batchId: batch.id, status: 'transcribed' }]);
+});
+
+test('a failing consumer cannot fail the transcription task', async () => {
+  const batch = createBatch();
+  const store = createStore(batch);
+  const coordinator = createSessionTranscriptionCoordinator({
+    sessionStore: store,
+    provider: createSuccessProvider(),
+    onBatchTranscribed: async () => {
+      throw new Error('The polish side exploded.');
+    },
+  });
+
+  await coordinator.onBatchReady(batch.id);
+  const outcome = await coordinator.waitForSession(batch.sessionId);
+
+  assert.equal(batch.status, 'transcribed');
+  assert.equal(outcome.failedOrIncompleteBatchCount, 0);
+});
+
+test('a batch that fails notifies no consumer', async () => {
+  const batch = createBatch();
+  const store = createStore(batch);
+  let notifications = 0;
+  const coordinator = createSessionTranscriptionCoordinator({
+    sessionStore: {
+      ...store,
+      getSession: async () => null,
+    },
+    provider: createSuccessProvider(),
+    onBatchTranscribed: () => {
+      notifications += 1;
+    },
+  });
+
+  await coordinator.onBatchReady(batch.id);
+  await coordinator.waitForSession(batch.sessionId);
+
+  assert.equal(batch.status, 'failed');
+  assert.equal(notifications, 0);
+});

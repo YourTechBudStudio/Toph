@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 
 import type { BatchTranscript, ProviderUsageEvent, TranscriptionBatch } from '../db/schema';
 import type { TranscriptionDiagnostics } from '../diagnostics/transcription-diagnostics';
+import { toProviderUsageEvent } from '../provider-usage';
 import type { RecordingSessionStore } from '../stores/session-store';
 import {
   isTransientTranscriptionProviderError,
@@ -25,10 +26,6 @@ const retryDelayMs = 1_000;
 
 function createTranscriptId() {
   return `batch_transcript_${Date.now()}_${randomUUID()}`;
-}
-
-function createUsageEventId() {
-  return `provider_usage_${Date.now()}_${randomUUID()}`;
 }
 
 function describeError(error: unknown) {
@@ -80,28 +77,18 @@ function toTranscriptRows(options: {
       text: options.result.text,
       createdAt: options.createdAt,
     },
-    usageEvent: {
-      id: createUsageEventId(),
+    usageEvent: toProviderUsageEvent({
       sessionId: options.sessionId,
       operationKind: 'transcription',
       relatedEntityKind: 'batch_transcript',
       relatedEntityId: transcriptId,
       provider: options.result.provider,
       model: options.result.model,
-      billingMode: options.result.usage.billingMode,
-      audioDurationMs: options.result.usage.audioDurationMs,
-      billableDurationMs: options.result.usage.billableDurationMs,
-      inputTokens: options.result.usage.inputTokens,
-      cachedInputTokens: options.result.usage.cachedInputTokens,
-      outputTokens: options.result.usage.outputTokens,
-      estimatedCostUsdMicros: options.result.usage.estimatedCostUsdMicros,
-      costSource: options.result.usage.costSource,
-      pricingCatalogProviderId: options.result.usage.pricingCatalogProviderId,
-      pricingCatalogModelId: options.result.usage.pricingCatalogModelId,
+      usage: options.result.usage,
       providerRequestId: options.result.providerRequestId,
-      providerResponseJson: JSON.stringify(options.result.providerResponseJson) ?? null,
+      providerResponseJson: options.result.providerResponseJson,
       createdAt: options.createdAt,
-    },
+    }),
   };
 }
 
@@ -118,6 +105,12 @@ export function createSessionTranscriptionCoordinator(options: {
   >;
   provider: TranscriptionProvider;
   diagnostics?: TranscriptionDiagnostics;
+  /**
+   * Notified after a batch's transcript is stored, so a consumer can react to transcripts as they
+   * arrive. Wired at the composition root rather than here, so transcription keeps no dependency on
+   * whatever consumes it. Never allowed to fail a transcription task.
+   */
+  onBatchTranscribed?: (batch: TranscriptionBatch) => void | Promise<void>;
 }): SessionTranscriptionCoordinator {
   const diagnostics = options.diagnostics;
   const batchTasks = new Map<string, Promise<void>>();
@@ -156,6 +149,22 @@ export function createSessionTranscriptionCoordinator(options: {
     abortControllers?.delete(abortController);
     if (abortControllers?.size === 0) {
       sessionAbortControllers.delete(batch.sessionId);
+    }
+  };
+
+  /**
+   * A consumer's failure is its own problem: a transcribed batch is transcribed either way, and
+   * letting a throw escape here would fail the batch after its transcript was already stored.
+   */
+  const notifyBatchTranscribed = async (batch: TranscriptionBatch) => {
+    if (!options.onBatchTranscribed) {
+      return;
+    }
+
+    try {
+      await options.onBatchTranscribed(batch);
+    } catch (error) {
+      console.error('Toph batch-transcribed notification failed.', error);
     }
   };
 
@@ -254,6 +263,7 @@ export function createSessionTranscriptionCoordinator(options: {
           batchId: batch.id,
           transcribedAt: createdAt,
         });
+        await notifyBatchTranscribed(batch);
         return;
       } catch (error) {
         lastError = error;

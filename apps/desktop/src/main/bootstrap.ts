@@ -30,6 +30,7 @@ import { createSessionOutputService } from './outputs/session-output-service';
 import { resolveTophDataPaths } from './paths';
 import { defaultPolishRulePresets } from './polish/builtin-rules';
 import { createPolishService } from './polish/polish-service';
+import { createSessionPolishCoordinator } from './polish/session-polish-coordinator';
 import { createPricingService } from './pricing/pricing-service';
 import { createSessionSegmentationService } from './segmentation/session-segmentation-service';
 import { createDefaultStreamingVadRuntime } from './segmentation/streaming-vad-runtime';
@@ -263,16 +264,25 @@ export async function bootstrap(options: {
     pricing,
     settingsStore,
   });
-  const transcription = createSessionTranscriptionCoordinator({
-    sessionStore,
-    provider: transcriptionProvider,
-    diagnostics: transcriptionDiagnostics,
-  });
   const polish = createPolishService({
     settingsStore,
     sessionStore,
     outputs,
     inference: inferenceProvider,
+  });
+  const sessionPolish = createSessionPolishCoordinator({
+    settingsStore,
+    sessionStore,
+    outputs,
+    polish,
+  });
+  const transcription = createSessionTranscriptionCoordinator({
+    sessionStore,
+    provider: transcriptionProvider,
+    diagnostics: transcriptionDiagnostics,
+    // Wired here rather than inside either coordinator, so transcription keeps no dependency on
+    // polishing. The hook swallows failures, so polishing can never fail a transcription task.
+    onBatchTranscribed: (batch) => sessionPolish.onBatchTranscribed(batch),
   });
 
   const refreshPasteSupport = async () => {
@@ -322,6 +332,7 @@ export async function bootstrap(options: {
     sessionStore,
     segmentation,
     transcription,
+    sessionPolish,
     outputs,
     polish,
     settingsStore,
@@ -763,6 +774,7 @@ export async function bootstrap(options: {
         // After transcription, so the events its disposal emits are on disk before the process
         // exits. Failures here are isolated by the loop below, as for every other task.
         ['transcription diagnostics', () => transcriptionDiagnostics.flush()],
+        ['session polish', () => sessionPolish.dispose()],
         ['VAD runtime', () => vadRuntime.dispose()],
         ['provider auth', () => providerAuth.dispose()],
         ['session store', () => sessionStore.close()],
