@@ -348,8 +348,6 @@ export type RuleSwitcherMode = 'idle' | 'selecting' | 'selected' | 'disabled';
 export type PermissionRequirementId = 'microphone' | 'accessibility';
 export type ProviderId = 'openai-sub' | 'openai';
 export const PROVIDER_IDS: readonly ProviderId[] = ['openai-sub', 'openai'];
-export const DEFAULT_TRANSCRIPTION_PROVIDER_ID: ProviderId = 'openai-sub';
-export const DEFAULT_INFERENCE_PROVIDER_ID: ProviderId = 'openai-sub';
 export type ProviderRole = 'transcription' | 'inference';
 export const PROVIDER_ROLES: readonly ProviderRole[] = ['transcription', 'inference'];
 export type ProviderSettingsGroup = 'provider' | 'transcription' | 'inference';
@@ -565,11 +563,15 @@ export interface AppSettings {
   ruleSwitcherShortcut: {
     chord: ShortcutChord;
   };
+  /**
+   * `null` until a provider is chosen for the role. Toph has no preferred provider, so a fresh
+   * install picks none; connecting a provider claims the roles it serves that are still unset.
+   */
   transcription: {
-    providerId: ProviderId;
+    providerId: ProviderId | null;
   };
   inference: {
-    providerId: ProviderId;
+    providerId: ProviderId | null;
   };
   /**
    * Values for the fields each provider declares, keyed by provider and group. Every provider id
@@ -605,10 +607,10 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
     },
   },
   transcription: {
-    providerId: DEFAULT_TRANSCRIPTION_PROVIDER_ID,
+    providerId: null,
   },
   inference: {
-    providerId: DEFAULT_INFERENCE_PROVIDER_ID,
+    providerId: null,
   },
   // Materialised from the provider declarations by the settings normaliser, which owns the field
   // defaults; the contracts package has no registry to read them from.

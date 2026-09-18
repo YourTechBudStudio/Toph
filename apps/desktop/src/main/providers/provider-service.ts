@@ -31,8 +31,9 @@ import type { ProviderRegistry } from './provider-registry';
 const expirySkewMs = 60_000;
 
 export interface ProviderRouting {
-  transcription: { providerId: ProviderId; model: string };
-  inference: { providerId: ProviderId; model: string };
+  /** `providerId` is `null` while the role has no provider chosen. */
+  transcription: { providerId: ProviderId | null; model: string };
+  inference: { providerId: ProviderId | null; model: string };
 }
 
 export interface ProviderService {
@@ -129,7 +130,10 @@ function toStatus(options: {
 export function createProviderService(options: {
   registry: ProviderRegistry;
   credentialsPath: string;
-  settingsStore: Pick<AppSettingsStore, 'getSettings' | 'subscribe'>;
+  settingsStore: Pick<
+    AppSettingsStore,
+    'getSettings' | 'subscribe' | 'setTranscriptionProvider' | 'setInferenceProvider'
+  >;
   pricing: Pick<PricingService, 'estimateCost'>;
   openExternal: (url: string) => Promise<void>;
   onStateChanged?: (state: ProviderState) => void;
@@ -181,6 +185,36 @@ export function createProviderService(options: {
 
   const clearCredential = async (runtime: ProviderRuntime) => {
     await updateProviderCredential(options.credentialsPath, runtime.definition.id, null);
+  };
+
+  /**
+   * A provider the user just connected takes every role nobody has chosen yet, and never overrides
+   * a choice already made. Called from the connect paths only — never from a token refresh, which
+   * must not change routing behind the user's back — so connecting from Settings and from
+   * onboarding route identically (supersedes D14's UI-side routing).
+   */
+  const claimUnsetRoles = async (definition: ProviderDefinition) => {
+    const settings = options.settingsStore.getSettings();
+    if (definition.roles.includes('transcription') && settings.transcription.providerId === null) {
+      await options.settingsStore.setTranscriptionProvider(definition.id);
+    }
+    if (definition.roles.includes('inference') && settings.inference.providerId === null) {
+      await options.settingsStore.setInferenceProvider(definition.id);
+    }
+  };
+
+  /**
+   * Only an explicit removal unroutes: a credential cleared because a refresh failed leaves the
+   * choice alone, so reconnecting restores the setup the user already had.
+   */
+  const releaseRoles = async (providerId: ProviderId) => {
+    const settings = options.settingsStore.getSettings();
+    if (settings.transcription.providerId === providerId) {
+      await options.settingsStore.setTranscriptionProvider(null);
+    }
+    if (settings.inference.providerId === providerId) {
+      await options.settingsStore.setInferenceProvider(null);
+    }
   };
 
   const refreshOAuthCredential = async (runtime: ProviderRuntime, credential: OAuthCredential) => {
@@ -264,12 +298,13 @@ export function createProviderService(options: {
     const providers = Array.from(runtimes.values(), (runtime) => toConnection(runtime, storage));
 
     const routing = service.getRouting();
-    const isConnected = (id: ProviderId) =>
+    const isConnected = (id: ProviderId | null) =>
+      id !== null &&
       providers.some((provider) => provider.id === id && provider.status === 'connected');
 
     return {
-      // Readiness is against routing alone: both routed providers must be connected, with no
-      // exemption for polishing being switched off.
+      // Readiness is against routing alone: both roles must name a connected provider, with no
+      // exemption for polishing being switched off. An unrouted role is not ready.
       ready:
         isConnected(routing.transcription.providerId) && isConnected(routing.inference.providerId),
       providers,
@@ -286,6 +321,7 @@ export function createProviderService(options: {
   const runPendingLogin = async (runtime: ProviderRuntime, flow: PendingOAuthFlow) => {
     try {
       await storeCredential(runtime, toOAuthCredential(await flow.waitForCallback()));
+      await claimUnsetRoles(runtime.definition);
     } catch (error) {
       if (await readCredential(runtime.definition)) {
         return;
@@ -376,6 +412,7 @@ export function createProviderService(options: {
       values,
       ...(accountId ? { accountId } : {}),
     });
+    await claimUnsetRoles(runtime.definition);
     return publishState();
   };
 
@@ -393,7 +430,10 @@ export function createProviderService(options: {
 
     getRouting() {
       const settings = options.settingsStore.getSettings();
-      const modelFor = (providerId: ProviderId, role: 'transcription' | 'inference') => {
+      const modelFor = (providerId: ProviderId | null, role: 'transcription' | 'inference') => {
+        if (providerId === null) {
+          return '';
+        }
         const value = providerSettings(providerId)[role].model;
         return typeof value === 'string' ? value : '';
       };
@@ -454,9 +494,9 @@ export function createProviderService(options: {
 
     resolveInferenceClient() {
       const { providerId } = service.getRouting().inference;
-      const client = runtimes.get(providerId)?.inference;
+      const client = providerId === null ? null : runtimes.get(providerId)?.inference;
       if (!client) {
-        throw new ProviderError('Add an inference provider before dictating.');
+        throw new ProviderError('Choose a polishing provider before dictating.');
       }
       return client;
     },
@@ -478,6 +518,7 @@ export function createProviderService(options: {
         const flow = runtime.pendingFlow;
         const tokens = await flow.exchangeAuthorizationInput(input);
         await storeCredential(runtime, toOAuthCredential(tokens));
+        await claimUnsetRoles(runtime.definition);
         runtime.pendingFlow = null;
         runtime.pendingFlowSettled = true;
         await flow.dispose().catch(() => {});
@@ -498,6 +539,7 @@ export function createProviderService(options: {
       }
       runtime.lastError = null;
       await clearCredential(runtime);
+      await releaseRoles(runtime.definition.id);
       return publishState();
     },
 
@@ -537,8 +579,8 @@ export function createProviderService(options: {
 }
 
 function routingKey(settings: {
-  transcription: { providerId: string };
-  inference: { providerId: string };
+  transcription: { providerId: string | null };
+  inference: { providerId: string | null };
 }) {
   return `${settings.transcription.providerId}/${settings.inference.providerId}`;
 }

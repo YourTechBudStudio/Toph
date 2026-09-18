@@ -47,11 +47,12 @@ const appSettingsFileSchema = z.object({
     })
     .optional(),
   transcription: z.object({
-    providerId: z.string(),
+    // Nullable: a role with no provider chosen yet, which is how a fresh install starts.
+    providerId: z.string().nullable().optional(),
     model: z.string().optional(),
   }),
   inference: z.object({
-    providerId: z.string(),
+    providerId: z.string().nullable().optional(),
     model: z.string().optional(),
   }),
   providers: z
@@ -104,18 +105,20 @@ function isKnownProviderId(providerId: string): providerId is ProviderId {
 }
 
 /**
- * A routing choice is only kept when the provider exists and actually serves that role, so a
- * settings file naming a provider that this build does not register falls back to the default.
+ * A routing choice is only kept when the provider exists and actually serves that role. Anything
+ * else becomes `null` — unrouted — rather than falling back to a provider the user never picked:
+ * Toph has no preferred provider, so inventing one here would be a preference.
  */
 function normalizeRoutedProviderId(
-  providerId: string,
+  providerId: string | null | undefined,
   role: ProviderRole,
-  fallback: ProviderId,
   declarations: ProviderSettingsDeclarations['providerDeclarations'],
-) {
-  return isKnownProviderId(providerId) && declarations[providerId]?.roles.includes(role)
+): ProviderId | null {
+  return typeof providerId === 'string' &&
+    isKnownProviderId(providerId) &&
+    declarations[providerId]?.roles.includes(role)
     ? providerId
-    : fallback;
+    : null;
 }
 
 function normalizeProviderSettings(
@@ -192,7 +195,6 @@ export function normalizeAppSettings(
       providerId: normalizeRoutedProviderId(
         value.transcription.providerId,
         'transcription',
-        defaultAppSettings.transcription.providerId,
         options.providerDeclarations,
       ),
     },
@@ -200,7 +202,6 @@ export function normalizeAppSettings(
       providerId: normalizeRoutedProviderId(
         value.inference.providerId,
         'inference',
-        defaultAppSettings.inference.providerId,
         options.providerDeclarations,
       ),
     },

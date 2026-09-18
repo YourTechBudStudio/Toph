@@ -98,11 +98,19 @@ function formDefinition(verify: FormAuthVerify): ProviderDefinition {
 
 type FormAuthVerify = (values: Record<string, string>) => Promise<{ accountId: string | null }>;
 
-function createSettingsStore(initial?: { transcription?: ProviderId; inference?: ProviderId }) {
+function createSettingsStore(initial?: {
+  transcription?: ProviderId | null;
+  inference?: ProviderId | null;
+}) {
   const listeners = new Set<(settings: AppSettings) => void>();
   let settings = {
-    transcription: { providerId: initial?.transcription ?? 'openai-sub' },
-    inference: { providerId: initial?.inference ?? 'openai-sub' },
+    // `null` is a meaningful value here (an unrouted role), so only `undefined` takes the default.
+    transcription: {
+      providerId: initial?.transcription === undefined ? 'openai-sub' : initial.transcription,
+    },
+    inference: {
+      providerId: initial?.inference === undefined ? 'openai-sub' : initial.inference,
+    },
     providers: {
       'openai-sub': {
         provider: {},
@@ -113,6 +121,14 @@ function createSettingsStore(initial?: { transcription?: ProviderId; inference?:
     },
   } as unknown as AppSettings;
 
+  const write = (role: 'transcription' | 'inference', providerId: ProviderId | null) => {
+    settings = { ...settings, [role]: { providerId } } as AppSettings;
+    for (const listener of listeners) {
+      listener(settings);
+    }
+    return settings;
+  };
+
   return {
     store: {
       getSettings: () => settings,
@@ -120,12 +136,12 @@ function createSettingsStore(initial?: { transcription?: ProviderId; inference?:
         listeners.add(listener);
         return () => listeners.delete(listener);
       },
+      setTranscriptionProvider: async (providerId: ProviderId | null) =>
+        write('transcription', providerId),
+      setInferenceProvider: async (providerId: ProviderId | null) => write('inference', providerId),
     },
-    route(role: 'transcription' | 'inference', providerId: ProviderId) {
-      settings = { ...settings, [role]: { providerId } } as AppSettings;
-      for (const listener of listeners) {
-        listener(settings);
-      }
+    route(role: 'transcription' | 'inference', providerId: ProviderId | null) {
+      write(role, providerId);
     },
   };
 }
@@ -429,4 +445,86 @@ test('a form credential is never put through the OAuth refresh path', async () =
   assert.equal(refreshes, 0);
   assert.equal(credentials.accessToken, '');
   assert.deepEqual(credentials.formValues, connectedForm.values);
+});
+
+test('connecting claims the unrouted roles it serves, and only those', async () => {
+  const settings = createSettingsStore({ transcription: null, inference: null });
+  const { service } = await createService({ settings });
+
+  await service.connectProvider('openai', { baseUrl: 'https://api.test/v1', apiKey: 'k' });
+
+  // The form provider in these fixtures serves inference only, so transcription stays unrouted.
+  assert.deepEqual(service.getRouting(), {
+    transcription: { providerId: null, model: '' },
+    inference: { providerId: 'openai', model: 'api-polish' },
+  });
+});
+
+test('connecting never overrides a role that is already routed', async () => {
+  const settings = createSettingsStore({ transcription: 'openai-sub', inference: null });
+  const { service } = await createService({ settings });
+
+  await service.connectProvider('openai', { baseUrl: 'https://api.test/v1', apiKey: 'k' });
+
+  const routing = service.getRouting();
+  assert.equal(routing.transcription.providerId, 'openai-sub');
+  assert.equal(routing.inference.providerId, 'openai');
+});
+
+test('removing a provider unroutes the roles that pointed at it', async () => {
+  const settings = createSettingsStore({ transcription: 'openai-sub', inference: 'openai' });
+  const { service } = await createService({
+    settings,
+    seed: { 'openai-sub': oauthCredential(3_600_000), openai: connectedForm },
+  });
+
+  await service.removeProvider('openai');
+
+  const routing = service.getRouting();
+  assert.equal(routing.transcription.providerId, 'openai-sub');
+  assert.equal(routing.inference.providerId, null);
+});
+
+test('an unrouted role is never ready', async () => {
+  const settings = createSettingsStore({ transcription: null, inference: 'openai-sub' });
+  const { service } = await createService({
+    settings,
+    seed: { 'openai-sub': oauthCredential(3_600_000) },
+  });
+
+  assert.equal((await service.getState()).ready, false);
+});
+
+test('a token refresh never claims a role, even while one is unrouted', async () => {
+  const settings = createSettingsStore({ transcription: null, inference: null });
+  const { service, published } = await createService({
+    settings,
+    seed: { 'openai-sub': oauthCredential(-1_000) },
+    refresh: async () => ({
+      access: 'new-access',
+      refresh: 'new-refresh',
+      expires: Date.now() + 3_600_000,
+    }),
+  });
+
+  // Refreshing happens inside an ordinary state build, which must not write settings.
+  const state = await service.getState();
+
+  assert.equal(connection(state, 'openai-sub').status, 'connected');
+  assert.deepEqual(service.getRouting(), {
+    transcription: { providerId: null, model: '' },
+    inference: { providerId: null, model: '' },
+  });
+  assert.equal(published.length, 0, 'getState reports rather than publishes');
+});
+
+test('an OAuth login claims the unrouted roles it serves', async () => {
+  const settings = createSettingsStore({ transcription: null, inference: null });
+  const { service } = await createService({ settings });
+
+  await service.connectProvider('openai-sub');
+
+  const routing = service.getRouting();
+  assert.equal(routing.transcription.providerId, 'openai-sub');
+  assert.equal(routing.inference.providerId, 'openai-sub');
 });

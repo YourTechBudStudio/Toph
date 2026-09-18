@@ -76,3 +76,17 @@ test('regenerates output when every existing batch is transcribed and the snapsh
 
   assert.deepEqual(strategy, { kind: 'regenerate-output-from-existing-transcripts' });
 });
+
+test('is not retryable while no transcription provider is chosen', () => {
+  const strategy = resolveDictationRetryStrategy({
+    session: session(),
+    batches: [batch({ status: 'failed' })],
+    routing: { providerId: null, model: '' },
+    batchAudioExists: () => true,
+  });
+
+  assert.deepEqual(strategy, {
+    kind: 'not-retryable',
+    reason: 'Choose a transcription provider before retrying.',
+  });
+});

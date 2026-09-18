@@ -46,6 +46,8 @@ export default defineConfig({
           index: resolve(rootDir, 'src/renderer/index.html'),
           overlay: resolve(rootDir, 'src/renderer/overlay.html'),
           capture: resolve(rootDir, 'src/renderer/capture.html'),
+          // Temporary mock-UI entry for the provider phases. Removed in phase 05.
+          preview: resolve(rootDir, 'src/renderer/preview.html'),
         },
       },
     },

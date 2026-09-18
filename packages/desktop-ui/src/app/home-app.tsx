@@ -17,6 +17,9 @@ import { DictationCard } from '../components/dictation-card';
 import { MainWindowChrome } from '../components/main-window-chrome';
 import { ModalShell } from '../components/modal';
 import { useDesktopState } from '../hooks/use-desktop-state';
+// TEMPORARY (phases 02-03): in-app entry to the provider mock. Removed in phase 05.
+import { ProviderPreviewApp } from '../preview/provider-preview-app';
+import { ProviderPreviewLauncher } from '../preview/provider-preview-launcher';
 import { OnboardingScreen } from './onboarding/onboarding-screen';
 import { SettingsPage } from './settings-page';
 
@@ -535,6 +538,8 @@ function StatCard({ label, value }: { label: string; value: string }) {
 export function HomeApp({ client }: { client: DesktopApi }) {
   const state = useDesktopState(client);
   const [view, setView] = useState<ActiveView>('home');
+  // TEMPORARY (phases 02-03): removed in phase 05.
+  const [previewOpen, setPreviewOpen] = useState(false);
   const [awaitingSetupContinue, setAwaitingSetupContinue] = useState(false);
   const homeReadinessRefreshInFlight = useRef(false);
   const setupComplete = state
@@ -580,9 +585,27 @@ export function HomeApp({ client }: { client: DesktopApi }) {
     };
   }, [awaitingSetupContinue, client, setupComplete, view]);
 
-  if (!state) {
+  // TEMPORARY (phases 02-03): the mock replaces the whole screen and is reachable from any of
+  // them, including onboarding. Removed in phase 05.
+  if (previewOpen) {
     return (
       <MainWindowChrome platform={client.platform} client={client}>
+        <ProviderPreviewApp onClose={() => setPreviewOpen(false)} />
+      </MainWindowChrome>
+    );
+  }
+
+  return (
+    <MainWindowChrome platform={client.platform} client={client}>
+      {renderScreen()}
+      {/* TEMPORARY (phases 02-03): removed in phase 05. */}
+      <ProviderPreviewLauncher onOpen={() => setPreviewOpen(true)} />
+    </MainWindowChrome>
+  );
+
+  function renderScreen() {
+    if (!state) {
+      return (
         <main className="relative min-h-screen overflow-hidden px-10 pt-12 pb-10 max-[980px]:px-6 max-[980px]:pb-6">
           <AppBackdrop variant="home" />
           <section className="relative mx-auto max-w-180">
@@ -590,15 +613,11 @@ export function HomeApp({ client }: { client: DesktopApi }) {
             <p className="mt-3 mb-0 text-text-secondary">Connecting to the desktop runtime...</p>
           </section>
         </main>
-      </MainWindowChrome>
-    );
-  }
+      );
+    }
 
-  const showOnboarding = !setupComplete || awaitingSetupContinue;
-
-  if (showOnboarding) {
-    return (
-      <MainWindowChrome platform={client.platform} client={client}>
+    if (!setupComplete || awaitingSetupContinue) {
+      return (
         <OnboardingScreen
           providers={state.providers}
           permissionsReady={state.permissions.ready}
@@ -611,21 +630,15 @@ export function HomeApp({ client }: { client: DesktopApi }) {
           onSetupAction={() => setAwaitingSetupContinue(true)}
           onContinue={() => setAwaitingSetupContinue(false)}
         />
-      </MainWindowChrome>
-    );
-  }
+      );
+    }
 
-  if (view === 'settings') {
+    if (view === 'settings') {
+      return <SettingsPage state={state} client={client} onBack={() => setView('home')} />;
+    }
+
     return (
-      <MainWindowChrome platform={client.platform} client={client}>
-        <SettingsPage state={state} client={client} onBack={() => setView('home')} />
-      </MainWindowChrome>
+      <HomeScreen state={state} client={client} onNavigateSettings={() => setView('settings')} />
     );
   }
-
-  return (
-    <MainWindowChrome platform={client.platform} client={client}>
-      <HomeScreen state={state} client={client} onNavigateSettings={() => setView('settings')} />
-    </MainWindowChrome>
-  );
 }

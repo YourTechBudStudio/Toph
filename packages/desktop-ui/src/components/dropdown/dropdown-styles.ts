@@ -8,7 +8,7 @@ export const itemIndicatorClass =
   'flex size-3 shrink-0 items-center justify-center text-accent-cyan';
 
 export const itemClass =
-  'flex cursor-default items-center gap-2 rounded-lg px-2.5 py-[7px] text-[0.8125rem] text-text-primary outline-hidden select-none transition-colors duration-100 data-highlighted:bg-white/8';
+  'flex cursor-default items-center gap-2 rounded-lg px-2.5 py-[7px] text-[0.8125rem] text-text-primary outline-hidden select-none transition-colors duration-100 data-highlighted:bg-white/8 data-disabled:text-text-tertiary data-disabled:data-highlighted:bg-transparent';
 
 export const dangerItemClass = `${itemClass} text-accent-red data-highlighted:text-accent-red`;
 

@@ -14,6 +14,8 @@ import {
 export type DropdownSelectItem<TValue extends string = string> = {
   value: TValue;
   label: string;
+  /** Listed but not choosable, so the option stays discoverable without being selectable. */
+  disabled?: boolean;
 };
 
 export type DropdownSelectFooterAction = {
@@ -36,7 +38,8 @@ export function DropdownSelect<TValue extends string>({
 }: {
   ariaLabel: string;
   items: DropdownSelectItem<TValue>[];
-  value: TValue;
+  /** `null` selects nothing, so the placeholder shows. */
+  value: TValue | null;
   placeholder: string;
   disabled?: boolean;
   footerAction?: DropdownSelectFooterAction;
@@ -73,7 +76,12 @@ export function DropdownSelect<TValue extends string>({
           <Select.Popup className={`${popupSurfaceClass} ${popupAnimationClass}`}>
             <Select.List>
               {items.map((item) => (
-                <Select.Item key={item.value} value={item.value} className={itemClass}>
+                <Select.Item
+                  key={item.value}
+                  value={item.value}
+                  disabled={item.disabled}
+                  className={itemClass}
+                >
                   <span className={itemIndicatorClass}>
                     <Select.ItemIndicator>
                       <svg width="12" height="12" viewBox="0 0 10 10" fill="currentColor">

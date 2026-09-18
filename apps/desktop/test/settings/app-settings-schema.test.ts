@@ -78,8 +78,8 @@ test('normalizes unknown providers and unknown rule presets to unresolved setup'
     version: 1,
     shortcut: { chord: { modifiers: ['control', 'alt'], key: 'Space' } },
     ruleSwitcherShortcut: { chord: resolveDefaultRuleSwitcherShortcutChord(process.platform) },
-    transcription: { providerId: 'openai-sub' },
-    inference: { providerId: 'openai-sub' },
+    transcription: { providerId: null },
+    inference: { providerId: null },
     providers: { 'openai-sub': openAiSubDefaults, openai: emptyGroups },
     audio: {
       inputDevice: { id: 'default', label: null },
@@ -105,7 +105,7 @@ test('drops the removed auth block and the old routing model values', () => {
   assert.deepEqual(settings.providers['openai-sub'], openAiSubDefaults);
 });
 
-test('routes back to the default when the chosen provider is not registered', () => {
+test('unroutes a role when the chosen provider is not registered', () => {
   const settings = normalize({
     version: 1,
     transcription: { providerId: 'openai' },
@@ -113,8 +113,21 @@ test('routes back to the default when the chosen provider is not registered', ()
     polish: { enabled: true, rulePresetId: 'general' },
   });
 
-  assert.equal(settings.transcription.providerId, 'openai-sub');
-  assert.equal(settings.inference.providerId, 'openai-sub');
+  // Never a fallback provider: picking one for the user would be the preference Toph does not have.
+  assert.equal(settings.transcription.providerId, null);
+  assert.equal(settings.inference.providerId, null);
+});
+
+test('accepts a settings file that has no provider chosen yet', () => {
+  const settings = normalize({
+    version: 1,
+    transcription: { providerId: null },
+    inference: { providerId: null },
+    polish: { enabled: true, rulePresetId: 'general' },
+  });
+
+  assert.equal(settings.transcription.providerId, null);
+  assert.equal(settings.inference.providerId, null);
 });
 
 test('keeps declared provider values and drops undeclared ones', () => {

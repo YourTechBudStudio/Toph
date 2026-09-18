@@ -1,8 +1,8 @@
 import type { RecordingSession, TranscriptionBatch } from './db/schema';
 
-/** What a new recording would be transcribed with right now. */
+/** What a new recording would be transcribed with right now; `null` while no provider is chosen. */
 export interface TranscriptionRouting {
-  providerId: string;
+  providerId: string | null;
   model: string;
 }
 
@@ -40,6 +40,13 @@ export function resolveDictationRetryStrategy(input: {
 
   if (input.session.status === 'recording') {
     return { kind: 'not-retryable', reason: 'Session is still recording.' };
+  }
+
+  if (input.routing.providerId === null) {
+    return {
+      kind: 'not-retryable',
+      reason: 'Choose a transcription provider before retrying.',
+    };
   }
 
   if (

@@ -8,6 +8,14 @@ import {
 
 export type SettingsSelectItem<TValue extends string = string> = DropdownSelectItem<TValue>;
 
+/**
+ * The border, surface and focus treatment every settings input shares. Callers add width and
+ * alignment; they never restate the visual state classes, so a focus-ring or disabled change lands
+ * in one place.
+ */
+export const settingsInputClass =
+  'rounded-lg border border-white/8 bg-white/4 py-1.5 text-sm font-semibold text-text-primary outline-hidden transition-colors duration-150 hover:bg-white/6 focus:border-accent-blue/70 focus:bg-white/6 disabled:opacity-55';
+
 export function SettingsSection({
   id,
   eyebrow,
@@ -98,6 +106,25 @@ export function SettingsIcon({
   );
 }
 
+export type BadgeTone = 'muted' | 'green' | 'blue' | 'amber' | 'red';
+
+/** Badge tones, shared so a status pill looks the same wherever it is built. */
+export const badgeToneClass: Record<BadgeTone, string> = {
+  muted: 'bg-white/6 text-text-tertiary',
+  green: 'bg-accent-green/12 text-accent-green',
+  blue: 'bg-accent-blue/12 text-accent-blue',
+  amber: 'bg-accent-amber/12 text-accent-amber',
+  red: 'bg-accent-red/12 text-accent-red',
+};
+
+export const badgeDotClass: Record<BadgeTone, string> = {
+  muted: 'bg-text-tertiary',
+  green: 'bg-accent-green',
+  blue: 'bg-accent-blue',
+  amber: 'bg-accent-amber',
+  red: 'bg-accent-red',
+};
+
 export function StatusBadge({
   active,
   activeLabel,
@@ -107,24 +134,15 @@ export function StatusBadge({
   active: boolean;
   activeLabel: string;
   inactiveLabel: string;
-  inactiveTone?: 'muted' | 'amber' | 'red';
+  inactiveTone?: Extract<BadgeTone, 'muted' | 'amber' | 'red'>;
 }) {
-  const inactiveClass = {
-    muted: 'bg-white/6 text-text-tertiary',
-    amber: 'bg-accent-amber/12 text-accent-amber',
-    red: 'bg-accent-red/12 text-accent-red',
-  }[inactiveTone];
-  const inactiveDotClass = {
-    muted: 'bg-text-tertiary',
-    amber: 'bg-accent-amber',
-    red: 'bg-accent-red',
-  }[inactiveTone];
-
   return (
     <span
-      className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ${active ? 'bg-accent-green/12 text-accent-green' : inactiveClass}`}
+      className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ${active ? badgeToneClass.green : badgeToneClass[inactiveTone]}`}
     >
-      <span className={`size-1.5 rounded-full ${active ? 'bg-accent-green' : inactiveDotClass}`} />
+      <span
+        className={`size-1.5 rounded-full ${active ? badgeDotClass.green : badgeDotClass[inactiveTone]}`}
+      />
       {active ? activeLabel : inactiveLabel}
     </span>
   );
@@ -167,7 +185,7 @@ export function SettingsSelect<TValue extends string>({
   onValueChange,
 }: {
   items: SettingsSelectItem<TValue>[];
-  value: TValue;
+  value: TValue | null;
   placeholder: string;
   disabled?: boolean;
   footerAction?: DropdownSelectFooterAction;
@@ -210,7 +228,7 @@ export function SettingsTextInput({
 
   return (
     <input
-      className="w-40 rounded-lg border border-white/8 bg-white/4 px-3 py-1.5 text-right text-sm font-semibold text-text-primary outline-hidden transition-colors duration-150 hover:bg-white/6 focus:border-accent-blue/70 focus:bg-white/6 disabled:opacity-55"
+      className={`${settingsInputClass} w-40 px-3 text-right`}
       value={draft}
       disabled={disabled}
       onChange={(event) => setDraft(event.currentTarget.value)}
@@ -266,7 +284,7 @@ export function SettingsNumberInput({
       type="number"
       min={min}
       max={max}
-      className="w-24 rounded-lg border border-white/8 bg-white/4 px-3 py-1.5 text-right text-sm font-semibold text-text-primary outline-hidden transition-colors duration-150 hover:bg-white/6 focus:border-accent-blue/70 focus:bg-white/6 disabled:opacity-55"
+      className={`${settingsInputClass} w-24 px-3 text-right`}
       value={draft}
       disabled={disabled}
       onChange={(event) => setDraft(event.currentTarget.value)}

@@ -22,8 +22,9 @@ export interface AppSettingsStore {
   reloadFromDisk: () => Promise<AppSettings>;
   setShortcut: (chord: ShortcutChord) => Promise<AppSettings>;
   setRuleSwitcherShortcut: (chord: ShortcutChord) => Promise<AppSettings>;
-  setTranscriptionProvider: (providerId: ProviderId) => Promise<AppSettings>;
-  setInferenceProvider: (providerId: ProviderId) => Promise<AppSettings>;
+  /** `null` unroutes the role, which is what removing a provider's credentials does. */
+  setTranscriptionProvider: (providerId: ProviderId | null) => Promise<AppSettings>;
+  setInferenceProvider: (providerId: ProviderId | null) => Promise<AppSettings>;
   /** Undeclared keys are dropped by normalisation, so writing one is a no-op. */
   setProviderSetting: (
     providerId: ProviderId,

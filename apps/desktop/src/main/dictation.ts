@@ -276,6 +276,11 @@ export function createDictationController(options: {
 
   const currentTranscriptionSnapshot = () => {
     const { providerId, model } = options.providers.getRouting().transcription;
+    if (providerId === null) {
+      // A session records which provider produced it, so there is nothing to record — and nothing
+      // to transcribe with — until a provider is chosen.
+      throw new Error('Choose a transcription provider before dictating.');
+    }
     return {
       transcriptionProviderId: providerId,
       transcriptionModel: model,
