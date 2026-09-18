@@ -1,6 +1,6 @@
 import type { DictionaryEntry, PolishRulePreset } from '../db/schema';
-import type { InferenceProvider, InferenceProviderResult } from '../inference/inference-provider';
 import type { SessionOutputService } from '../outputs/session-output-service';
+import type { InferenceClient, InferenceClientResult } from '../providers/provider-definition';
 import type { AppSettingsStore } from '../settings/app-settings-store';
 import type { RecordingSessionStore } from '../stores/session-store';
 import {
@@ -19,7 +19,7 @@ export interface PolishChunkResult {
   removedEchoedBlockCount: number;
   provider: string;
   model: string | null;
-  usage: InferenceProviderResult['usage'];
+  usage: InferenceClientResult['usage'];
   providerRequestId: string | null;
   providerResponseJson: unknown;
   rulePresetId: string;
@@ -128,7 +128,8 @@ export function createPolishService(options: {
   settingsStore: Pick<AppSettingsStore, 'getSettings'>;
   sessionStore: Pick<RecordingSessionStore, 'getPolishRulePreset' | 'listDictionaryEntries'>;
   outputs: Pick<SessionOutputService, 'createPolishedOutput'>;
-  inference: InferenceProvider;
+  /** Resolved per call so a routing change takes effect without a restart. */
+  resolveInferenceClient: () => InferenceClient;
 }): PolishService {
   return {
     async polishOutput(input) {
@@ -150,7 +151,7 @@ export function createPolishService(options: {
       const instructions = composePolishInstructions({ rulePreset, dictionaryEntries });
 
       return runWithPolishRetries(async () => {
-        const result = await options.inference.inferText({
+        const result = await options.resolveInferenceClient().inferText({
           instructions,
           inputText: wrapTranscriptForPolish(input.rawOutput.text),
           signal: input.signal,
@@ -195,7 +196,7 @@ export function createPolishService(options: {
       });
 
       return runWithPolishRetries(async () => {
-        const result = await options.inference.inferText({
+        const result = await options.resolveInferenceClient().inferText({
           instructions,
           inputText,
           signal: input.signal,
@@ -229,4 +230,4 @@ export function createPolishService(options: {
   };
 }
 
-export type { InferenceProviderResult };
+export type { InferenceClientResult };

@@ -4,8 +4,8 @@ import test from 'node:test';
 import type { DictionaryEntry } from '../../src/main/db/schema.ts';
 import {
   TransientInferenceProviderError,
-  type InferenceProvider,
-} from '../../src/main/inference/inference-provider.ts';
+  type InferenceClient,
+} from '../../src/main/providers/provider-definition.ts';
 import { defaultAppSettings } from '../../src/main/settings/app-settings-schema.ts';
 import { registerTsExtensionResolver } from '../helpers/ts-extension-resolver.ts';
 
@@ -48,7 +48,7 @@ function createInferenceResult(text = 'Polished text.') {
 }
 
 function createService(
-  provider: InferenceProvider,
+  provider: InferenceClient,
   options: {
     rulePresetAvailable?: boolean;
     dictionaryEntries?: DictionaryEntry[];
@@ -56,16 +56,15 @@ function createService(
   } = {},
 ) {
   return createPolishService({
-    inference: provider,
+    resolveInferenceClient: () => provider,
     settingsStore: {
       getSettings() {
         return {
           ...defaultAppSettings,
           shortcut: { chord: { modifiers: ['control', 'alt'], key: 'Space' } },
           ruleSwitcherShortcut: { chord: { modifiers: ['control'], key: 'Space' } },
-          auth: { providerId: 'openai-sub' },
-          transcription: { providerId: 'openai-sub', model: 'chatgpt-backend-transcribe' },
-          inference: { providerId: 'openai-sub', model: 'gpt-5.4-mini' },
+          transcription: { providerId: 'openai-sub' },
+          inference: { providerId: 'openai-sub' },
           polish: { enabled: true, rulePresetId: 'general', dictionaryDefaultsSeeded: false },
         };
       },
@@ -340,12 +339,12 @@ test('polishes a chunk with incremental instructions and the three zones', async
 test('uses the pinned preset rather than resolving the active one', async () => {
   let resolvedFromStore = false;
   const service = createPolishService({
-    inference: {
+    resolveInferenceClient: () => ({
       id: 'test',
       async inferText() {
         return createInferenceResult('<POLISHED>\nPolished chunk.\n</POLISHED>');
       },
-    },
+    }),
     settingsStore: {
       getSettings() {
         throw new Error('settings must not be read for a chunk');

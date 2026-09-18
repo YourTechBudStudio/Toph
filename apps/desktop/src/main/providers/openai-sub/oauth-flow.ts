@@ -6,7 +6,7 @@ import {
   openAiSubOAuthLogoPath,
   renderOpenAiSubOAuthErrorPage,
   renderOpenAiSubOAuthSuccessPage,
-} from './openai-sub-oauth-page';
+} from './oauth-page';
 
 const clientId = 'app_EMoamEEZ73f0CkXaXp7hrann';
 const authorizeUrl = 'https://auth.openai.com/oauth/authorize';

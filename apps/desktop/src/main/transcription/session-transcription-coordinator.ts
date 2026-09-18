@@ -3,12 +3,12 @@ import { randomUUID } from 'node:crypto';
 import type { BatchTranscript, ProviderUsageEvent, TranscriptionBatch } from '../db/schema';
 import type { TranscriptionDiagnostics } from '../diagnostics/transcription-diagnostics';
 import { toProviderUsageEvent } from '../provider-usage';
-import type { RecordingSessionStore } from '../stores/session-store';
 import {
   isTransientTranscriptionProviderError,
-  type TranscriptionProvider,
-  type TranscriptionProviderResult,
-} from './transcription-provider';
+  type TranscriptionClient,
+  type TranscriptionClientResult,
+} from '../providers/provider-definition';
+import type { RecordingSessionStore } from '../stores/session-store';
 
 export interface SessionTranscriptionCoordinator {
   onBatchReady: (batchId: string, options?: { resetAttempts?: boolean }) => Promise<void>;
@@ -64,7 +64,7 @@ function sleep(ms: number, signal?: AbortSignal) {
 function toTranscriptRows(options: {
   sessionId: string;
   batchId: string;
-  result: TranscriptionProviderResult;
+  result: TranscriptionClientResult;
   createdAt: number;
 }): { transcript: BatchTranscript; usageEvent: ProviderUsageEvent } {
   const transcriptId = createTranscriptId();
@@ -103,7 +103,11 @@ export function createSessionTranscriptionCoordinator(options: {
     | 'markBatchFailed'
     | 'createBatchTranscript'
   >;
-  provider: TranscriptionProvider;
+  /**
+   * Resolved per batch by the provider id recorded on the session, so a routing change never
+   * retargets a recording that was already made against another provider.
+   */
+  resolveTranscriptionClient: (providerId: string) => TranscriptionClient | null;
   diagnostics?: TranscriptionDiagnostics;
   /**
    * Notified after a batch's transcript is stored, so a consumer can react to transcripts as they
@@ -214,7 +218,8 @@ export function createSessionTranscriptionCoordinator(options: {
       );
       return;
     }
-    if (session.transcriptionProviderId !== options.provider.id) {
+    const client = options.resolveTranscriptionClient(session.transcriptionProviderId);
+    if (!client) {
       await markFailed(
         batch,
         batch.transcriptionAttempts,
@@ -241,7 +246,7 @@ export function createSessionTranscriptionCoordinator(options: {
 
       const attemptStartedAt = Date.now();
       try {
-        const result = await options.provider.transcribeBatch({
+        const result = await client.transcribeBatch({
           batchId: batch.id,
           audioPath: batch.derivedAudioPath,
           durationMs: batch.derivedAudioDurationMs,

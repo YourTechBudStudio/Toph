@@ -1,17 +1,12 @@
-import { PROVIDER_BILLING_MODES } from '@toph/desktop-contracts';
-
-import type { ProviderAuthService } from '../../auth/provider-auth-service';
-import type { PricingService } from '../../pricing/pricing-service';
-import type { AppSettingsStore } from '../../settings/app-settings-store';
 import {
   TransientInferenceProviderError,
-  type InferenceProvider,
-  type InferenceProviderResult,
-} from '../inference-provider';
+  type InferenceClient,
+  type InferenceClientResult,
+  type ProviderClientContext,
+} from '../provider-definition';
 
 const providerId = 'openai-sub';
 const endpoint = 'https://chatgpt.com/backend-api/codex/responses';
-const reasoningEffort = 'medium';
 
 function isRetryableFailure(status: number, body: string) {
   if (status === 403 && /<html|<meta\s+http-equiv=/i.test(body)) {
@@ -164,17 +159,15 @@ function extractTokenUsage(events: unknown[]) {
   return null;
 }
 
-export function createOpenAiSubInferenceProvider(options: {
-  auth: Pick<ProviderAuthService, 'resolveCredentials'>;
-  pricing: Pick<PricingService, 'estimateCost'>;
-  settingsStore: Pick<AppSettingsStore, 'getSettings'>;
-}): InferenceProvider {
+export function createOpenAiSubInferenceClient(context: ProviderClientContext): InferenceClient {
   return {
     id: providerId,
 
-    async inferText(input): Promise<InferenceProviderResult> {
-      const credentials = await options.auth.resolveCredentials(providerId);
-      const model = options.settingsStore.getSettings().inference.model;
+    async inferText(input): Promise<InferenceClientResult> {
+      const credentials = await context.credentials();
+      const settings = context.settings().inference;
+      const model = String(settings.model ?? '');
+      const reasoningEffort = String(settings.reasoningEffort ?? '');
       const headers: Record<string, string> = {
         Authorization: `Bearer ${credentials.accessToken}`,
         'Content-Type': 'application/json',
@@ -193,7 +186,8 @@ export function createOpenAiSubInferenceProvider(options: {
           headers,
           body: JSON.stringify({
             model,
-            reasoning: { effort: reasoningEffort },
+            // An empty reasoning effort means "let the model decide": omit the parameter entirely.
+            ...(reasoningEffort ? { reasoning: { effort: reasoningEffort } } : {}),
             instructions: input.instructions,
             input: [
               {
@@ -233,7 +227,7 @@ export function createOpenAiSubInferenceProvider(options: {
 
       const usage = extractTokenUsage(events);
       const cost = usage
-        ? options.pricing.estimateCost({
+        ? context.pricing.estimateCost({
             providerId,
             model,
             usage: {
@@ -253,7 +247,7 @@ export function createOpenAiSubInferenceProvider(options: {
         provider: providerId,
         model,
         usage: {
-          billingMode: PROVIDER_BILLING_MODES[providerId],
+          billingMode: context.billingMode,
           audioDurationMs: null,
           billableDurationMs: null,
           inputTokens: usage?.inputTokens ?? null,

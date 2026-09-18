@@ -1,6 +1,10 @@
-import type { AppSettings } from '@toph/desktop-contracts';
-
 import type { RecordingSession, TranscriptionBatch } from './db/schema';
+
+/** What a new recording would be transcribed with right now. */
+export interface TranscriptionRouting {
+  providerId: string;
+  model: string;
+}
 
 export type DictationRetryStrategy =
   | { kind: 'full-rerun' }
@@ -14,20 +18,20 @@ function hasUsableTranscriptionSnapshot(
   return Boolean(session.transcriptionProviderId && session.transcriptionModel);
 }
 
-function transcriptionSnapshotMatchesCurrentSettings(
+function transcriptionSnapshotMatchesCurrentRouting(
   session: Pick<RecordingSession, 'transcriptionProviderId' | 'transcriptionModel'>,
-  settings: Pick<AppSettings, 'transcription'>,
+  routing: TranscriptionRouting,
 ) {
   return (
-    session.transcriptionProviderId === settings.transcription.providerId &&
-    session.transcriptionModel === settings.transcription.model
+    session.transcriptionProviderId === routing.providerId &&
+    session.transcriptionModel === routing.model
   );
 }
 
 export function resolveDictationRetryStrategy(input: {
   session: Pick<RecordingSession, 'status' | 'transcriptionProviderId' | 'transcriptionModel'>;
   batches: Array<Pick<TranscriptionBatch, 'id' | 'status' | 'derivedAudioPath'>>;
-  settings: Pick<AppSettings, 'transcription'>;
+  routing: TranscriptionRouting;
   batchAudioExists: (path: string) => boolean;
 }): DictationRetryStrategy {
   if (input.session.status === 'removed' || input.session.status === 'cancelled') {
@@ -40,7 +44,7 @@ export function resolveDictationRetryStrategy(input: {
 
   if (
     !hasUsableTranscriptionSnapshot(input.session) ||
-    !transcriptionSnapshotMatchesCurrentSettings(input.session, input.settings)
+    !transcriptionSnapshotMatchesCurrentRouting(input.session, input.routing)
   ) {
     return { kind: 'full-rerun' };
   }

@@ -3,9 +3,7 @@ import test from 'node:test';
 
 import { resolveDictationRetryStrategy } from '../src/main/dictation-retry-strategy.ts';
 
-const settings = {
-  transcription: { providerId: 'openai-sub' as const, model: 'chatgpt-backend-transcribe' },
-};
+const routing = { providerId: 'openai-sub', model: 'chatgpt-backend-transcribe' };
 
 function session(
   overrides: Partial<Parameters<typeof resolveDictationRetryStrategy>[0]['session']> = {},
@@ -36,7 +34,7 @@ test('retries only incomplete batches when snapshot matches and batch audio exis
       batch({ id: 'batch-1', status: 'transcribed' }),
       batch({ id: 'batch-2', status: 'failed' }),
     ],
-    settings,
+    routing,
     batchAudioExists: () => true,
   });
 
@@ -50,7 +48,7 @@ test('falls back to full rerun when the stored transcription snapshot is missing
   const strategy = resolveDictationRetryStrategy({
     session: session({ transcriptionProviderId: null, transcriptionModel: null }),
     batches: [batch()],
-    settings,
+    routing,
     batchAudioExists: () => true,
   });
 
@@ -61,7 +59,7 @@ test('falls back to full rerun when incomplete batch audio is missing', () => {
   const strategy = resolveDictationRetryStrategy({
     session: session(),
     batches: [batch()],
-    settings,
+    routing,
     batchAudioExists: () => false,
   });
 
@@ -72,7 +70,7 @@ test('regenerates output when every existing batch is transcribed and the snapsh
   const strategy = resolveDictationRetryStrategy({
     session: session({ status: 'completed' }),
     batches: [batch({ status: 'transcribed' })],
-    settings,
+    routing,
     batchAudioExists: () => true,
   });
 

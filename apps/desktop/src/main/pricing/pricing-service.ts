@@ -76,6 +76,9 @@ const providerPricingMappings: Record<ProviderId, Record<string, ModelPricingMap
       },
     },
   },
+  // Filled in when the OpenAI provider lands; until then every model falls through to an exact
+  // catalog lookup under the `openai` catalog provider.
+  openai: {},
 };
 
 export interface PricingService {

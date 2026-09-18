@@ -1,15 +1,12 @@
 import { readFile } from 'node:fs/promises';
 import { basename } from 'node:path';
 
-import { PROVIDER_BILLING_MODES } from '@toph/desktop-contracts';
-
-import type { ProviderAuthService } from '../../auth/provider-auth-service';
-import type { PricingService } from '../../pricing/pricing-service';
 import {
   TransientTranscriptionProviderError,
-  type TranscriptionProvider,
-  type TranscriptionProviderResult,
-} from '../transcription-provider';
+  type ProviderClientContext,
+  type TranscriptionClient,
+  type TranscriptionClientResult,
+} from '../provider-definition';
 
 const providerId = 'openai-sub';
 const endpoint = 'https://chatgpt.com/backend-api/transcribe';
@@ -49,15 +46,14 @@ async function readResponseBody(response: Response) {
   return response.text();
 }
 
-export function createOpenAiSubTranscriptionProvider(options: {
-  auth: Pick<ProviderAuthService, 'resolveCredentials'>;
-  pricing: Pick<PricingService, 'estimateCost'>;
-}): TranscriptionProvider {
+export function createOpenAiSubTranscriptionClient(
+  context: ProviderClientContext,
+): TranscriptionClient {
   return {
     id: providerId,
 
-    async transcribeBatch(input): Promise<TranscriptionProviderResult> {
-      const credentials = await options.auth.resolveCredentials(providerId);
+    async transcribeBatch(input): Promise<TranscriptionClientResult> {
+      const credentials = await context.credentials();
       const model = input.model;
       const audio = await readFile(input.audioPath);
       const form = new FormData();
@@ -111,7 +107,7 @@ export function createOpenAiSubTranscriptionProvider(options: {
         throw new Error('OpenAI-sub transcription response did not include transcript text.');
       }
 
-      const cost = options.pricing.estimateCost({
+      const cost = context.pricing.estimateCost({
         providerId,
         model,
         usage: {
@@ -125,7 +121,7 @@ export function createOpenAiSubTranscriptionProvider(options: {
         provider: providerId,
         model,
         usage: {
-          billingMode: PROVIDER_BILLING_MODES[providerId],
+          billingMode: context.billingMode,
           audioDurationMs: input.durationMs,
           billableDurationMs: input.durationMs,
           inputTokens: null,

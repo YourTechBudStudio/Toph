@@ -3,7 +3,9 @@ import { rename, readFile, writeFile } from 'node:fs/promises';
 import type {
   AppSettings,
   AudioDevicePreference,
+  ProviderFieldValue,
   ProviderId,
+  ProviderSettingsGroup,
   ShortcutChord,
 } from '@toph/desktop-contracts';
 
@@ -11,6 +13,7 @@ import {
   defaultAppSettings,
   normalizeAppSettings,
   parseAppSettingsFile,
+  type ProviderSettingsDeclarations,
 } from './app-settings-schema';
 
 export interface AppSettingsStore {
@@ -19,11 +22,15 @@ export interface AppSettingsStore {
   reloadFromDisk: () => Promise<AppSettings>;
   setShortcut: (chord: ShortcutChord) => Promise<AppSettings>;
   setRuleSwitcherShortcut: (chord: ShortcutChord) => Promise<AppSettings>;
-  setAuthProvider: (providerId: ProviderId) => Promise<AppSettings>;
   setTranscriptionProvider: (providerId: ProviderId) => Promise<AppSettings>;
-  setTranscriptionModel: (model: string) => Promise<AppSettings>;
   setInferenceProvider: (providerId: ProviderId) => Promise<AppSettings>;
-  setInferenceModel: (model: string) => Promise<AppSettings>;
+  /** Undeclared keys are dropped by normalisation, so writing one is a no-op. */
+  setProviderSetting: (
+    providerId: ProviderId,
+    group: ProviderSettingsGroup,
+    key: string,
+    value: ProviderFieldValue,
+  ) => Promise<AppSettings>;
   setAudioInputDevice: (device: AudioDevicePreference) => Promise<AppSettings>;
   setAudioOutputDevice: (device: AudioDevicePreference) => Promise<AppSettings>;
   setPolishEnabled: (enabled: boolean) => Promise<AppSettings>;
@@ -44,11 +51,13 @@ function invalidSettingsPath(settingsPath: string) {
   return settingsPath.replace(/\.json$/i, `.invalid.${Date.now()}.json`);
 }
 
-export async function createAppSettingsStore(options: {
-  settingsPath: string;
-  listRulePresetIds: () => Promise<string[]>;
-  defaultSettings?: AppSettings;
-}): Promise<AppSettingsStore> {
+export async function createAppSettingsStore(
+  options: {
+    settingsPath: string;
+    listRulePresetIds: () => Promise<string[]>;
+    defaultSettings?: AppSettings;
+  } & ProviderSettingsDeclarations,
+): Promise<AppSettingsStore> {
   const listeners = new Set<(settings: AppSettings) => void>();
   const fallbackSettings = options.defaultSettings ?? defaultAppSettings;
   let settings = cloneSettings(fallbackSettings);
@@ -64,10 +73,13 @@ export async function createAppSettingsStore(options: {
     }
   };
 
+  const normalizeOptions = async () => ({
+    rulePresetIds: await options.listRulePresetIds(),
+    providerDeclarations: options.providerDeclarations,
+  });
+
   const normalizeWithCurrentRules = async (value: unknown) =>
-    normalizeAppSettings(parseAppSettingsFile(value), {
-      rulePresetIds: await options.listRulePresetIds(),
-    });
+    normalizeAppSettings(parseAppSettingsFile(value), await normalizeOptions());
 
   const loadFromDisk = async () => {
     let raw: string;
@@ -78,9 +90,7 @@ export async function createAppSettingsStore(options: {
         throw error;
       }
 
-      const defaults = normalizeAppSettings(fallbackSettings, {
-        rulePresetIds: await options.listRulePresetIds(),
-      });
+      const defaults = normalizeAppSettings(fallbackSettings, await normalizeOptions());
       await writeSettings(defaults);
       return defaults;
     }
@@ -94,9 +104,7 @@ export async function createAppSettingsStore(options: {
       return normalized;
     } catch {
       await rename(options.settingsPath, invalidSettingsPath(options.settingsPath));
-      const defaults = normalizeAppSettings(fallbackSettings, {
-        rulePresetIds: await options.listRulePresetIds(),
-      });
+      const defaults = normalizeAppSettings(fallbackSettings, await normalizeOptions());
       await writeSettings(defaults);
       return defaults;
     }
@@ -106,9 +114,7 @@ export async function createAppSettingsStore(options: {
     const task = writeQueue.then(async () => {
       const draft = cloneSettings(settings);
       update(draft);
-      const normalized = normalizeAppSettings(draft, {
-        rulePresetIds: await options.listRulePresetIds(),
-      });
+      const normalized = normalizeAppSettings(draft, await normalizeOptions());
       if (!settingsEqual(settings, normalized)) {
         await writeSettings(normalized);
         settings = normalized;
@@ -155,21 +161,9 @@ export async function createAppSettingsStore(options: {
       });
     },
 
-    setAuthProvider(providerId) {
-      return commit((draft) => {
-        draft.auth.providerId = providerId;
-      });
-    },
-
     setTranscriptionProvider(providerId) {
       return commit((draft) => {
         draft.transcription.providerId = providerId;
-      });
-    },
-
-    setTranscriptionModel(model) {
-      return commit((draft) => {
-        draft.transcription.model = model;
       });
     },
 
@@ -179,9 +173,9 @@ export async function createAppSettingsStore(options: {
       });
     },
 
-    setInferenceModel(model) {
+    setProviderSetting(providerId, group, key, value) {
       return commit((draft) => {
-        draft.inference.model = model;
+        draft.providers[providerId][group][key] = value;
       });
     },
 

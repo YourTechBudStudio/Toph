@@ -21,11 +21,9 @@ export const DESKTOP_IPC_CHANNELS = {
   submitProviderAuthorization: 'toph:submit-provider-authorization',
   removeProvider: 'toph:remove-provider',
   refreshProviders: 'toph:refresh-providers',
-  setAuthProvider: 'toph:set-auth-provider',
   setTranscriptionProvider: 'toph:set-transcription-provider',
-  setTranscriptionModel: 'toph:set-transcription-model',
   setInferenceProvider: 'toph:set-inference-provider',
-  setInferenceModel: 'toph:set-inference-model',
+  setProviderSetting: 'toph:set-provider-setting',
   setAudioInputDevice: 'toph:set-audio-input-device',
   setAudioOutputDevice: 'toph:set-audio-output-device',
   setPolishEnabled: 'toph:set-polish-enabled',
@@ -348,13 +346,81 @@ export type SoundEventKind = 'start' | 'stop' | 'done';
 export type ShortcutBackend = 'electron-global-shortcut' | 'gnome-custom-shortcut';
 export type RuleSwitcherMode = 'idle' | 'selecting' | 'selected' | 'disabled';
 export type PermissionRequirementId = 'microphone' | 'accessibility';
-export type ProviderId = 'openai-sub';
-export const PROVIDER_IDS: readonly ProviderId[] = ['openai-sub'];
-export const DEFAULT_AUTH_PROVIDER_ID: ProviderId = 'openai-sub';
+export type ProviderId = 'openai-sub' | 'openai';
+export const PROVIDER_IDS: readonly ProviderId[] = ['openai-sub', 'openai'];
 export const DEFAULT_TRANSCRIPTION_PROVIDER_ID: ProviderId = 'openai-sub';
 export const DEFAULT_INFERENCE_PROVIDER_ID: ProviderId = 'openai-sub';
-export const DEFAULT_TRANSCRIPTION_MODEL = 'chatgpt-backend-transcribe';
-export const DEFAULT_INFERENCE_MODEL = 'gpt-5.6-luna';
+export type ProviderRole = 'transcription' | 'inference';
+export const PROVIDER_ROLES: readonly ProviderRole[] = ['transcription', 'inference'];
+export type ProviderSettingsGroup = 'provider' | 'transcription' | 'inference';
+export const PROVIDER_SETTINGS_GROUPS: readonly ProviderSettingsGroup[] = [
+  'provider',
+  'transcription',
+  'inference',
+];
+export type ProviderFieldValue = string | boolean;
+export type ProviderFieldSpec =
+  | {
+      kind: 'text';
+      key: string;
+      label: string;
+      description?: string;
+      placeholder?: string;
+      default: string;
+      secret?: boolean;
+      /** Empty is never meaningful for this field, so the default is applied instead. */
+      required?: boolean;
+    }
+  | {
+      kind: 'select';
+      key: string;
+      label: string;
+      description?: string;
+      options: { value: string; label: string }[];
+      default: string;
+    }
+  | {
+      kind: 'toggle';
+      key: string;
+      label: string;
+      description?: string;
+      default: boolean;
+    };
+export type ProviderAuthSpec = { kind: 'oauth' } | { kind: 'form'; fields: ProviderFieldSpec[] };
+export type ProviderSettingsValues = Record<string, ProviderFieldValue>;
+export type ProviderSettings = Record<ProviderSettingsGroup, ProviderSettingsValues>;
+
+/**
+ * Single normalisation rule for declared provider values, shared by the settings normaliser in the
+ * main process and by the UI, so a value the UI considers valid is never rewritten behind its back.
+ * Unknown keys are dropped. An empty text value is kept, because an empty value carries meaning for
+ * optional fields (an omitted request parameter); `required` text marks the fields where it cannot.
+ */
+export function applyProviderFieldDefaults(
+  fields: readonly ProviderFieldSpec[],
+  values: Record<string, unknown> | undefined,
+): ProviderSettingsValues {
+  const normalized: ProviderSettingsValues = {};
+  for (const field of fields) {
+    const value = values?.[field.key];
+    if (field.kind === 'toggle') {
+      normalized[field.key] = typeof value === 'boolean' ? value : field.default;
+      continue;
+    }
+    if (field.kind === 'select') {
+      normalized[field.key] =
+        typeof value === 'string' && field.options.some((option) => option.value === value)
+          ? value
+          : field.default;
+      continue;
+    }
+
+    const text = typeof value === 'string' ? value.trim() : null;
+    normalized[field.key] =
+      text === null || (text.length === 0 && field.required === true) ? field.default : text;
+  }
+  return normalized;
+}
 export const MAX_POLISH_RULE_PRESETS = 9;
 export const MAX_ENABLED_DICTIONARY_ENTRIES = 200;
 export type ProviderConnectionStatus = 'missing' | 'connecting' | 'connected' | 'invalid';
@@ -391,9 +457,6 @@ export interface AudioDeviceState {
   input: AudioDeviceResolution;
   output: AudioDeviceResolution;
 }
-export const PROVIDER_BILLING_MODES: Record<ProviderId, ProviderBillingMode> = {
-  'openai-sub': 'subscription',
-};
 export const PERMISSION_REQUIREMENT_IDS: readonly PermissionRequirementId[] = [
   'microphone',
   'accessibility',
@@ -502,17 +565,17 @@ export interface AppSettings {
   ruleSwitcherShortcut: {
     chord: ShortcutChord;
   };
-  auth: {
-    providerId: ProviderId;
-  };
   transcription: {
     providerId: ProviderId;
-    model: string;
   };
   inference: {
     providerId: ProviderId;
-    model: string;
   };
+  /**
+   * Values for the fields each provider declares, keyed by provider and group. Every provider id
+   * and every group is present after normalisation; a group with no declared fields is `{}`.
+   */
+  providers: Record<ProviderId, ProviderSettings>;
   audio: {
     inputDevice: AudioDevicePreference;
     outputDevice: AudioDevicePreference;
@@ -541,17 +604,15 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
       key: 'Space',
     },
   },
-  auth: {
-    providerId: DEFAULT_AUTH_PROVIDER_ID,
-  },
   transcription: {
     providerId: DEFAULT_TRANSCRIPTION_PROVIDER_ID,
-    model: DEFAULT_TRANSCRIPTION_MODEL,
   },
   inference: {
     providerId: DEFAULT_INFERENCE_PROVIDER_ID,
-    model: DEFAULT_INFERENCE_MODEL,
   },
+  // Materialised from the provider declarations by the settings normaliser, which owns the field
+  // defaults; the contracts package has no registry to read them from.
+  providers: {} as Record<ProviderId, ProviderSettings>,
   audio: {
     inputDevice: {
       id: SYSTEM_DEFAULT_AUDIO_DEVICE_ID,
@@ -597,20 +658,29 @@ export interface PermissionState {
   requirements: PermissionRequirement[];
 }
 
+/**
+ * Everything the UI needs to render one provider, published by the main process so the provider
+ * definition stays the single source of truth for what a provider declares.
+ */
 export interface ProviderConnection {
   id: ProviderId;
   label: string;
   description: string;
   billingMode: ProviderBillingMode;
+  roles: ProviderRole[];
+  auth: ProviderAuthSpec;
+  settingsFields: Record<ProviderSettingsGroup, ProviderFieldSpec[]>;
   status: ProviderConnectionStatus;
   accountId: string | null;
   expires: number | null;
   error: string | null;
+  /** Non-secret connection values, such as a base URL. Empty for OAuth providers. */
+  connectionSummary: Record<string, string>;
 }
 
 export interface ProviderState {
+  /** True when the providers currently routed for transcription and inference are both connected. */
   ready: boolean;
-  selectedProviderId: ProviderId | null;
   providers: ProviderConnection[];
 }
 
@@ -738,15 +808,19 @@ export interface DesktopApi {
   openRuleSwitcher: () => Promise<void>;
   closeRuleSwitcher: () => Promise<void>;
   selectRuleSwitcherPreset: (rulePresetId: string) => Promise<void>;
-  connectProvider: (providerId: ProviderId) => Promise<void>;
+  /** `input` carries the form values for form-authenticated providers; OAuth providers ignore it. */
+  connectProvider: (providerId: ProviderId, input?: Record<string, string>) => Promise<void>;
   submitProviderAuthorization: (providerId: ProviderId, input: string) => Promise<void>;
   removeProvider: (providerId: ProviderId) => Promise<void>;
   refreshProviders: () => Promise<void>;
-  setAuthProvider: (providerId: ProviderId) => Promise<void>;
   setTranscriptionProvider: (providerId: ProviderId) => Promise<void>;
-  setTranscriptionModel: (model: string) => Promise<void>;
   setInferenceProvider: (providerId: ProviderId) => Promise<void>;
-  setInferenceModel: (model: string) => Promise<void>;
+  setProviderSetting: (
+    providerId: ProviderId,
+    group: ProviderSettingsGroup,
+    key: string,
+    value: ProviderFieldValue,
+  ) => Promise<void>;
   setAudioInputDevice: (device: AudioDevicePreference) => Promise<void>;
   setAudioOutputDevice: (device: AudioDevicePreference) => Promise<void>;
   setPolishEnabled: (enabled: boolean) => Promise<void>;

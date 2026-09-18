@@ -5,6 +5,7 @@ import {
   isShortcutChord,
   PERMISSION_REQUIREMENT_IDS,
   PROVIDER_IDS,
+  PROVIDER_SETTINGS_GROUPS,
   SYSTEM_DEFAULT_AUDIO_DEVICE_ID,
   validateShortcutChord,
   type AppState,
@@ -13,11 +14,15 @@ import {
   type OverlaySize,
   type PermissionRequirementId,
   type PolishRulePresetDraft,
+  type ProviderFieldValue,
   type ProviderId,
+  type ProviderSettingsGroup,
   type ShortcutChord,
   type WindowBounds,
   type WindowPosition,
 } from '@toph/desktop-contracts';
+
+import type { ProviderRegistry } from './providers/provider-registry';
 
 function isPermissionRequirementId(value: unknown): value is PermissionRequirementId {
   return (
@@ -28,6 +33,21 @@ function isPermissionRequirementId(value: unknown): value is PermissionRequireme
 
 function isProviderId(value: unknown): value is ProviderId {
   return typeof value === 'string' && PROVIDER_IDS.includes(value as ProviderId);
+}
+
+function isProviderSettingsGroup(value: unknown): value is ProviderSettingsGroup {
+  return (
+    typeof value === 'string' && PROVIDER_SETTINGS_GROUPS.includes(value as ProviderSettingsGroup)
+  );
+}
+
+function isStringRecord(value: unknown): value is Record<string, string> {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    !Array.isArray(value) &&
+    Object.values(value).every((entry) => typeof entry === 'string')
+  );
 }
 
 function isWindowPosition(value: unknown): value is WindowPosition {
@@ -80,6 +100,8 @@ function isDictionaryEntryDraft(value: unknown): value is DictionaryEntryDraft {
 }
 
 export function registerDesktopIpc(options: {
+  /** Used to validate provider setting writes against what the provider actually declares. */
+  providerRegistry: Pick<ProviderRegistry, 'get'>;
   getState: () => AppState;
   toggleCapture: () => Promise<void>;
   cancelCapture: () => Promise<void>;
@@ -97,15 +119,18 @@ export function registerDesktopIpc(options: {
   openRuleSwitcher: () => Promise<void>;
   closeRuleSwitcher: () => Promise<void>;
   selectRuleSwitcherPreset: (rulePresetId: string) => Promise<void>;
-  connectProvider: (providerId: ProviderId) => Promise<void>;
+  connectProvider: (providerId: ProviderId, input?: Record<string, string>) => Promise<void>;
   submitProviderAuthorization: (providerId: ProviderId, input: string) => Promise<void>;
   removeProvider: (providerId: ProviderId) => Promise<void>;
   refreshProviders: () => Promise<void>;
-  setAuthProvider: (providerId: ProviderId) => Promise<void>;
   setTranscriptionProvider: (providerId: ProviderId) => Promise<void>;
-  setTranscriptionModel: (model: string) => Promise<void>;
   setInferenceProvider: (providerId: ProviderId) => Promise<void>;
-  setInferenceModel: (model: string) => Promise<void>;
+  setProviderSetting: (
+    providerId: ProviderId,
+    group: ProviderSettingsGroup,
+    key: string,
+    value: ProviderFieldValue,
+  ) => Promise<void>;
   setAudioInputDevice: (device: AudioDevicePreference) => Promise<void>;
   setAudioOutputDevice: (device: AudioDevicePreference) => Promise<void>;
   setPolishEnabled: (enabled: boolean) => Promise<void>;
@@ -222,13 +247,19 @@ export function registerDesktopIpc(options: {
       await options.selectRuleSwitcherPreset(rulePresetId);
     },
   );
-  ipcMain.handle(DESKTOP_IPC_CHANNELS.connectProvider, async (_event, providerId: unknown) => {
-    if (!isProviderId(providerId)) {
-      throw new Error('Unknown provider.');
-    }
+  ipcMain.handle(
+    DESKTOP_IPC_CHANNELS.connectProvider,
+    async (_event, providerId: unknown, input: unknown) => {
+      if (!isProviderId(providerId)) {
+        throw new Error('Unknown provider.');
+      }
+      if (input !== undefined && !isStringRecord(input)) {
+        throw new Error('Invalid provider connection input.');
+      }
 
-    await options.connectProvider(providerId);
-  });
+      await options.connectProvider(providerId, input);
+    },
+  );
   ipcMain.handle(
     DESKTOP_IPC_CHANNELS.submitProviderAuthorization,
     async (_event, providerId: unknown, input: unknown) => {
@@ -249,12 +280,6 @@ export function registerDesktopIpc(options: {
   ipcMain.handle(DESKTOP_IPC_CHANNELS.refreshProviders, async () => {
     await options.refreshProviders();
   });
-  ipcMain.handle(DESKTOP_IPC_CHANNELS.setAuthProvider, async (_event, providerId: unknown) => {
-    if (!isProviderId(providerId)) {
-      throw new Error('Unknown auth provider.');
-    }
-    await options.setAuthProvider(providerId);
-  });
   ipcMain.handle(
     DESKTOP_IPC_CHANNELS.setTranscriptionProvider,
     async (_event, providerId: unknown) => {
@@ -264,24 +289,41 @@ export function registerDesktopIpc(options: {
       await options.setTranscriptionProvider(providerId);
     },
   );
-  ipcMain.handle(DESKTOP_IPC_CHANNELS.setTranscriptionModel, async (_event, model: unknown) => {
-    if (typeof model !== 'string') {
-      throw new Error('Invalid transcription model.');
-    }
-    await options.setTranscriptionModel(model);
-  });
   ipcMain.handle(DESKTOP_IPC_CHANNELS.setInferenceProvider, async (_event, providerId: unknown) => {
     if (!isProviderId(providerId)) {
       throw new Error('Unknown inference provider.');
     }
     await options.setInferenceProvider(providerId);
   });
-  ipcMain.handle(DESKTOP_IPC_CHANNELS.setInferenceModel, async (_event, model: unknown) => {
-    if (typeof model !== 'string') {
-      throw new Error('Invalid inference model.');
-    }
-    await options.setInferenceModel(model);
-  });
+  ipcMain.handle(
+    DESKTOP_IPC_CHANNELS.setProviderSetting,
+    async (_event, providerId: unknown, group: unknown, key: unknown, value: unknown) => {
+      if (!isProviderId(providerId)) {
+        throw new Error('Unknown provider.');
+      }
+      if (!isProviderSettingsGroup(group) || typeof key !== 'string') {
+        throw new Error('Unknown provider setting.');
+      }
+
+      // Validated against the declaration rather than the stored settings, so a renderer can never
+      // write a key or a value kind the provider does not declare.
+      const field = options.providerRegistry
+        .get(providerId)
+        ?.settingsFields[group].find((candidate) => candidate.key === key);
+      if (!field) {
+        throw new Error(`Provider "${providerId}" declares no "${key}" setting in "${group}".`);
+      }
+      if (field.kind === 'toggle') {
+        if (typeof value !== 'boolean') {
+          throw new Error(`Invalid value for provider setting "${key}".`);
+        }
+      } else if (typeof value !== 'string') {
+        throw new Error(`Invalid value for provider setting "${key}".`);
+      }
+
+      await options.setProviderSetting(providerId, group, key, value);
+    },
+  );
   ipcMain.handle(DESKTOP_IPC_CHANNELS.setAudioInputDevice, async (_event, device: unknown) => {
     if (!isAudioDevicePreference(device)) {
       throw new Error('Invalid audio input device.');
@@ -453,11 +495,9 @@ export function registerDesktopIpc(options: {
     ipcMain.removeHandler(DESKTOP_IPC_CHANNELS.submitProviderAuthorization);
     ipcMain.removeHandler(DESKTOP_IPC_CHANNELS.removeProvider);
     ipcMain.removeHandler(DESKTOP_IPC_CHANNELS.refreshProviders);
-    ipcMain.removeHandler(DESKTOP_IPC_CHANNELS.setAuthProvider);
     ipcMain.removeHandler(DESKTOP_IPC_CHANNELS.setTranscriptionProvider);
-    ipcMain.removeHandler(DESKTOP_IPC_CHANNELS.setTranscriptionModel);
     ipcMain.removeHandler(DESKTOP_IPC_CHANNELS.setInferenceProvider);
-    ipcMain.removeHandler(DESKTOP_IPC_CHANNELS.setInferenceModel);
+    ipcMain.removeHandler(DESKTOP_IPC_CHANNELS.setProviderSetting);
     ipcMain.removeHandler(DESKTOP_IPC_CHANNELS.setAudioInputDevice);
     ipcMain.removeHandler(DESKTOP_IPC_CHANNELS.setAudioOutputDevice);
     ipcMain.removeHandler(DESKTOP_IPC_CHANNELS.setPolishEnabled);

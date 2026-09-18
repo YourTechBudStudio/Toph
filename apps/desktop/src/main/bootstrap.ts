@@ -14,12 +14,10 @@ import {
 
 import macAppIconPath from '../../../../assets/app-icons/icon-mac.png?asset';
 import appIconPath from '../../../../assets/app-icons/icon.png?asset';
-import { createProviderAuthService } from './auth/provider-auth-service';
 import type { DictionaryEntry, PolishRulePreset } from './db/schema';
 import { createTranscriptionDiagnostics } from './diagnostics/transcription-diagnostics';
 import { createDictationController } from './dictation';
 import { buildSessionErrorReport, sanitizeErrorMessage } from './history/error-report';
-import { createOpenAiSubInferenceProvider } from './inference/providers/openai-sub-inference-provider';
 import { registerDesktopIpc } from './ipc';
 import { createElectronCaptureAudioRecorder } from './managers/audio-recorder';
 import { createClipboardManager } from './managers/clipboard';
@@ -32,6 +30,9 @@ import { defaultPolishRulePresets } from './polish/builtin-rules';
 import { createPolishService } from './polish/polish-service';
 import { createSessionPolishCoordinator } from './polish/session-polish-coordinator';
 import { createPricingService } from './pricing/pricing-service';
+import { openAiSubProviderDefinition } from './providers/openai-sub/definition';
+import { createProviderRegistry } from './providers/provider-registry';
+import { createProviderService } from './providers/provider-service';
 import { createSessionSegmentationService } from './segmentation/session-segmentation-service';
 import { createDefaultStreamingVadRuntime } from './segmentation/streaming-vad-runtime';
 import { createAppSettingsStore } from './settings/app-settings-store';
@@ -43,7 +44,6 @@ import {
 } from './settings/writing-settings-validation';
 import { createDesktopStateStore } from './state';
 import { createRecordingSessionStore } from './stores/session-store';
-import { createOpenAiSubTranscriptionProvider } from './transcription/providers/openai-sub-transcription-provider';
 import { createSessionTranscriptionCoordinator } from './transcription/session-transcription-coordinator';
 import { createDesktopTrayController } from './tray';
 import { createDesktopUpdateCoordinator } from './updater/update-coordinator';
@@ -145,8 +145,19 @@ export async function bootstrap(options: {
     await sessionStore.syncDefaultPolishRulePreset({ ...rulePreset, sortOrder: index });
   }
   const legacyPolishSettings = await sessionStore.getLegacyPolishSettings();
+  // The registry is built first: it owns what each provider declares, and the settings normaliser
+  // needs those declarations to materialise provider settings and to validate routing.
+  const providerRegistry = createProviderRegistry([openAiSubProviderDefinition]);
   const settingsStore = await createAppSettingsStore({
     settingsPath: dataPaths.settingsPath,
+    providerDeclarations: Object.fromEntries(
+      providerRegistry
+        .list()
+        .map((definition) => [
+          definition.id,
+          { roles: definition.roles, settingsFields: definition.settingsFields },
+        ]),
+    ),
     listRulePresetIds: async () =>
       (await sessionStore.listPolishRulePresets()).map((rulePreset) => rulePreset.id),
     defaultSettings: legacyPolishSettings
@@ -249,26 +260,20 @@ export async function bootstrap(options: {
   stateStore.setVadRuntimeStatus(vadRuntime.getStatus());
   const segmentation = createSessionSegmentationService({ sessionStore, vadRuntime });
   const outputs = createSessionOutputService({ sessionStore });
-  const providerAuth = createProviderAuthService({
-    authPath: dataPaths.authPath,
+  const providers = createProviderService({
+    registry: providerRegistry,
+    credentialsPath: dataPaths.authPath,
+    settingsStore,
+    pricing,
     openExternal: shell.openExternal,
     onStateChanged: stateStore.setProviders,
   });
-  stateStore.setProviders(await providerAuth.getState());
-  const transcriptionProvider = createOpenAiSubTranscriptionProvider({
-    auth: providerAuth,
-    pricing,
-  });
-  const inferenceProvider = createOpenAiSubInferenceProvider({
-    auth: providerAuth,
-    pricing,
-    settingsStore,
-  });
+  stateStore.setProviders(await providers.getState());
   const polish = createPolishService({
     settingsStore,
     sessionStore,
     outputs,
-    inference: inferenceProvider,
+    resolveInferenceClient: providers.resolveInferenceClient,
   });
   const sessionPolish = createSessionPolishCoordinator({
     settingsStore,
@@ -278,7 +283,7 @@ export async function bootstrap(options: {
   });
   const transcription = createSessionTranscriptionCoordinator({
     sessionStore,
-    provider: transcriptionProvider,
+    resolveTranscriptionClient: providers.resolveTranscriptionClient,
     diagnostics: transcriptionDiagnostics,
     // Wired here rather than inside either coordinator, so transcription keeps no dependency on
     // polishing. The hook swallows failures, so polishing can never fail a transcription task.
@@ -310,7 +315,7 @@ export async function bootstrap(options: {
     await Promise.all([ensurePermissionsReady(), refreshPasteSupport()]);
   };
   const ensureProvidersReady = async () => {
-    const providerState = await providerAuth.getState();
+    const providerState = await providers.getState();
     stateStore.setProviders(providerState);
     if (!providerState.ready) {
       windows.showSettings();
@@ -336,6 +341,7 @@ export async function bootstrap(options: {
     outputs,
     polish,
     settingsStore,
+    providers,
     audioRecorder,
     clipboard,
     ensurePermissionsReady: async () =>
@@ -515,6 +521,7 @@ export async function bootstrap(options: {
     tray.refresh();
   });
   const unregisterIpc = registerDesktopIpc({
+    providerRegistry,
     getState: stateStore.getState,
     toggleCapture: handleDictationTrigger,
     cancelCapture: dictation.cancelCapture,
@@ -532,51 +539,41 @@ export async function bootstrap(options: {
     openRuleSwitcher,
     closeRuleSwitcher,
     selectRuleSwitcherPreset,
-    connectProvider: async (providerId) => {
-      stateStore.setProviders(await providerAuth.getState());
+    connectProvider: async (providerId, input) => {
+      stateStore.setProviders(await providers.getState());
       try {
-        stateStore.setProviders(await providerAuth.connectProvider(providerId));
+        stateStore.setProviders(await providers.connectProvider(providerId, input));
       } finally {
-        stateStore.setProviders(await providerAuth.getState());
+        stateStore.setProviders(await providers.getState());
       }
     },
     submitProviderAuthorization: async (providerId, input) => {
       try {
-        stateStore.setProviders(await providerAuth.submitProviderAuthorization(providerId, input));
+        stateStore.setProviders(await providers.submitProviderAuthorization(providerId, input));
       } finally {
-        stateStore.setProviders(await providerAuth.getState());
+        stateStore.setProviders(await providers.getState());
       }
     },
     removeProvider: async (providerId) => {
-      stateStore.setProviders(await providerAuth.removeProvider(providerId));
+      stateStore.setProviders(await providers.removeProvider(providerId));
     },
     refreshProviders: async () => {
-      stateStore.setProviders(await providerAuth.refreshProviders());
-    },
-    setAuthProvider: async (providerId) => {
-      if (stateStore.getState().phase !== 'idle')
-        throw new Error('Settings cannot be changed while dictation is active.');
-      await settingsStore.setAuthProvider(providerId);
+      stateStore.setProviders(await providers.refreshProviders());
     },
     setTranscriptionProvider: async (providerId) => {
       if (stateStore.getState().phase !== 'idle')
         throw new Error('Settings cannot be changed while dictation is active.');
       await settingsStore.setTranscriptionProvider(providerId);
     },
-    setTranscriptionModel: async (model) => {
-      if (stateStore.getState().phase !== 'idle')
-        throw new Error('Settings cannot be changed while dictation is active.');
-      await settingsStore.setTranscriptionModel(model);
-    },
     setInferenceProvider: async (providerId) => {
       if (stateStore.getState().phase !== 'idle')
         throw new Error('Settings cannot be changed while dictation is active.');
       await settingsStore.setInferenceProvider(providerId);
     },
-    setInferenceModel: async (model) => {
+    setProviderSetting: async (providerId, group, key, value) => {
       if (stateStore.getState().phase !== 'idle')
         throw new Error('Settings cannot be changed while dictation is active.');
-      await settingsStore.setInferenceModel(model);
+      await settingsStore.setProviderSetting(providerId, group, key, value);
     },
     setAudioInputDevice: async (device) => {
       if (stateStore.getState().phase !== 'idle')
@@ -776,7 +773,7 @@ export async function bootstrap(options: {
         ['transcription diagnostics', () => transcriptionDiagnostics.flush()],
         ['session polish', () => sessionPolish.dispose()],
         ['VAD runtime', () => vadRuntime.dispose()],
-        ['provider auth', () => providerAuth.dispose()],
+        ['providers', () => providers.dispose()],
         ['session store', () => sessionStore.close()],
       ];
 

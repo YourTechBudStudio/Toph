@@ -75,8 +75,8 @@ test('transcribes with the session snapshot model instead of live provider setti
   };
   const coordinator = createSessionTranscriptionCoordinator({
     sessionStore: store,
-    provider: {
-      id: 'openai-sub',
+    resolveTranscriptionClient: (providerId) => ({
+      id: providerId,
       transcribeBatch: async (input) => {
         receivedModel = input.model;
         return {
@@ -99,7 +99,7 @@ test('transcribes with the session snapshot model instead of live provider setti
           providerResponseJson: null,
         };
       },
-    },
+    }),
   });
 
   await coordinator.onBatchReady(batch.id);
@@ -109,7 +109,7 @@ test('transcribes with the session snapshot model instead of live provider setti
   assert.equal(batch.status, 'transcribed');
 });
 
-test('fails the batch when the session snapshot provider does not match the runtime provider', async () => {
+test('fails the batch when the session snapshot provider is not registered in this runtime', async () => {
   const batch = createBatch();
   let providerCalled = false;
   const coordinator = createSessionTranscriptionCoordinator({
@@ -132,13 +132,16 @@ test('fails the batch when the session snapshot provider does not match the runt
       },
       createBatchTranscript: async () => {},
     },
-    provider: {
-      id: 'openai-sub',
-      transcribeBatch: async () => {
-        providerCalled = true;
-        throw new Error('should not transcribe');
-      },
-    },
+    resolveTranscriptionClient: (providerId) =>
+      providerId === 'openai-sub'
+        ? {
+            id: providerId,
+            transcribeBatch: async () => {
+              providerCalled = true;
+              throw new Error('should not transcribe');
+            },
+          }
+        : null,
   });
 
   await coordinator.onBatchReady(batch.id);
@@ -169,7 +172,12 @@ function createRecordingDiagnostics() {
   };
 }
 
-function createSuccessProvider() {
+function createSuccessClientResolver() {
+  const client = createSuccessClient();
+  return () => client;
+}
+
+function createSuccessClient() {
   return {
     id: 'openai-sub',
     transcribeBatch: async (input: { model: string; durationMs: number }) => ({
@@ -224,7 +232,7 @@ test('a transcribed batch records the full task and attempt trail', async () => 
   const recorder = createRecordingDiagnostics();
   const coordinator = createSessionTranscriptionCoordinator({
     sessionStore: createStore(batch),
-    provider: createSuccessProvider(),
+    resolveTranscriptionClient: createSuccessClientResolver(),
     diagnostics: recorder.diagnostics,
   });
 
@@ -246,7 +254,7 @@ test('a batch that is handed over but never starts a task records why it was ski
   const recorder = createRecordingDiagnostics();
   const coordinator = createSessionTranscriptionCoordinator({
     sessionStore: createStore(batch),
-    provider: createSuccessProvider(),
+    resolveTranscriptionClient: createSuccessClientResolver(),
     diagnostics: recorder.diagnostics,
   });
 
@@ -269,15 +277,15 @@ test('a transiently failing batch records every attempt and the final failure', 
   const batch = createBatch();
   const recorder = createRecordingDiagnostics();
   const { TransientTranscriptionProviderError } =
-    await import('../src/main/transcription/transcription-provider.ts');
+    await import('../src/main/providers/provider-definition.ts');
   const coordinator = createSessionTranscriptionCoordinator({
     sessionStore: createStore(batch),
-    provider: {
+    resolveTranscriptionClient: () => ({
       id: 'openai-sub',
       transcribeBatch: async () => {
         throw new TransientTranscriptionProviderError('upstream said 503');
       },
-    },
+    }),
     diagnostics: recorder.diagnostics,
   });
 
@@ -316,7 +324,7 @@ test('a slow session read is attributable to the gap before batch_session_loaded
         return store.getSession();
       },
     },
-    provider: createSuccessProvider(),
+    resolveTranscriptionClient: createSuccessClientResolver(),
     diagnostics: {
       record: (event: TranscriptionDiagnosticEvent) => {
         timeline.push({ kind: event.kind, at: Date.now() });
@@ -341,7 +349,7 @@ test('notifies a consumer after a batch is marked transcribed', async () => {
   const notified: Array<{ batchId: string; status: string }> = [];
   const coordinator = createSessionTranscriptionCoordinator({
     sessionStore: store,
-    provider: createSuccessProvider(),
+    resolveTranscriptionClient: createSuccessClientResolver(),
     onBatchTranscribed: (notifiedBatch) => {
       notified.push({ batchId: notifiedBatch.id, status: batch.status });
     },
@@ -358,7 +366,7 @@ test('a failing consumer cannot fail the transcription task', async () => {
   const store = createStore(batch);
   const coordinator = createSessionTranscriptionCoordinator({
     sessionStore: store,
-    provider: createSuccessProvider(),
+    resolveTranscriptionClient: createSuccessClientResolver(),
     onBatchTranscribed: async () => {
       throw new Error('The polish side exploded.');
     },
@@ -380,7 +388,7 @@ test('a batch that fails notifies no consumer', async () => {
       ...store,
       getSession: async () => null,
     },
-    provider: createSuccessProvider(),
+    resolveTranscriptionClient: createSuccessClientResolver(),
     onBatchTranscribed: () => {
       notifications += 1;
     },

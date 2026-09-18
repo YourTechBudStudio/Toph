@@ -10,6 +10,7 @@ import type { WindowManager } from './managers/windows';
 import type { SessionOutputService } from './outputs/session-output-service';
 import type { PolishService } from './polish/polish-service';
 import type { SessionPolishCoordinator } from './polish/session-polish-coordinator';
+import type { ProviderService } from './providers/provider-service';
 import type { SessionSegmentationService } from './segmentation/session-segmentation-service';
 import { isStreamingVadBusyError } from './segmentation/streaming-vad-runtime';
 import type { SegmentationPipelineSession } from './segmentation/streaming/segmentation-pipeline-session';
@@ -69,6 +70,7 @@ export function createDictationController(options: {
   polish: PolishService;
   sessionPolish: SessionPolishCoordinator;
   settingsStore: Pick<AppSettingsStore, 'getSettings'>;
+  providers: Pick<ProviderService, 'getRouting'>;
   audioRecorder: RawAudioRecorder;
   clipboard: ClipboardManager;
   ensurePermissionsReady: () => Promise<boolean>;
@@ -273,10 +275,10 @@ export function createDictationController(options: {
   };
 
   const currentTranscriptionSnapshot = () => {
-    const transcription = options.settingsStore.getSettings().transcription;
+    const { providerId, model } = options.providers.getRouting().transcription;
     return {
-      transcriptionProviderId: transcription.providerId,
-      transcriptionModel: transcription.model,
+      transcriptionProviderId: providerId,
+      transcriptionModel: model,
     };
   };
 
@@ -680,7 +682,7 @@ export function createDictationController(options: {
       const strategy = resolveDictationRetryStrategy({
         session,
         batches,
-        settings: options.settingsStore.getSettings(),
+        routing: options.providers.getRouting().transcription,
         batchAudioExists: existsSync,
       });
 
@@ -825,11 +827,9 @@ export function createDictationController(options: {
     };
 
     try {
-      const transcriptionSettings = options.settingsStore.getSettings().transcription;
-      const session = await options.sessionStore.createRecordingSession({
-        transcriptionProviderId: transcriptionSettings.providerId,
-        transcriptionModel: transcriptionSettings.model,
-      });
+      const session = await options.sessionStore.createRecordingSession(
+        currentTranscriptionSnapshot(),
+      );
       if (!isCurrentOperation(operationGeneration)) {
         await cancelStartedSession(session);
         return;

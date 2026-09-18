@@ -183,6 +183,12 @@ async function createRerunHarness(options: {
         polish: { ...defaultAppSettings.polish, enabled: false },
       }),
     },
+    providers: {
+      getRouting: () => ({
+        transcription: { providerId: 'openai-sub' as const, model: 'chatgpt-backend-transcribe' },
+        inference: { providerId: 'openai-sub' as const, model: 'gpt-5.6-luna' },
+      }),
+    },
     audioRecorder: {
       start: async () => {},
       stop: async () => ({ outputPath: session.rawAudioPath, durationMs: 0, bytesWritten: 0 }),

@@ -8,7 +8,9 @@ import type {
   OverlaySize,
   PermissionRequirementId,
   PolishRulePresetDraft,
+  ProviderFieldValue,
   ProviderId,
+  ProviderSettingsGroup,
   ShortcutChord,
   SoundEventKind,
   WindowPosition,
@@ -77,8 +79,8 @@ const api: DesktopApi = {
       DESKTOP_IPC_CHANNELS.selectRuleSwitcherPreset,
       rulePresetId,
     ) as Promise<void>,
-  connectProvider: (providerId: ProviderId) =>
-    ipcRenderer.invoke(DESKTOP_IPC_CHANNELS.connectProvider, providerId) as Promise<void>,
+  connectProvider: (providerId: ProviderId, input?: Record<string, string>) =>
+    ipcRenderer.invoke(DESKTOP_IPC_CHANNELS.connectProvider, providerId, input) as Promise<void>,
   submitProviderAuthorization: (providerId: ProviderId, input: string) =>
     ipcRenderer.invoke(
       DESKTOP_IPC_CHANNELS.submitProviderAuthorization,
@@ -89,16 +91,23 @@ const api: DesktopApi = {
     ipcRenderer.invoke(DESKTOP_IPC_CHANNELS.removeProvider, providerId) as Promise<void>,
   refreshProviders: () =>
     ipcRenderer.invoke(DESKTOP_IPC_CHANNELS.refreshProviders) as Promise<void>,
-  setAuthProvider: (providerId: ProviderId) =>
-    ipcRenderer.invoke(DESKTOP_IPC_CHANNELS.setAuthProvider, providerId) as Promise<void>,
   setTranscriptionProvider: (providerId: ProviderId) =>
     ipcRenderer.invoke(DESKTOP_IPC_CHANNELS.setTranscriptionProvider, providerId) as Promise<void>,
-  setTranscriptionModel: (model: string) =>
-    ipcRenderer.invoke(DESKTOP_IPC_CHANNELS.setTranscriptionModel, model) as Promise<void>,
   setInferenceProvider: (providerId: ProviderId) =>
     ipcRenderer.invoke(DESKTOP_IPC_CHANNELS.setInferenceProvider, providerId) as Promise<void>,
-  setInferenceModel: (model: string) =>
-    ipcRenderer.invoke(DESKTOP_IPC_CHANNELS.setInferenceModel, model) as Promise<void>,
+  setProviderSetting: (
+    providerId: ProviderId,
+    group: ProviderSettingsGroup,
+    key: string,
+    value: ProviderFieldValue,
+  ) =>
+    ipcRenderer.invoke(
+      DESKTOP_IPC_CHANNELS.setProviderSetting,
+      providerId,
+      group,
+      key,
+      value,
+    ) as Promise<void>,
   setAudioInputDevice: (device: AudioDevicePreference) =>
     ipcRenderer.invoke(DESKTOP_IPC_CHANNELS.setAudioInputDevice, device) as Promise<void>,
   setAudioOutputDevice: (device: AudioDevicePreference) =>

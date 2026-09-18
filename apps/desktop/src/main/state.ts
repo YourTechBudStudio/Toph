@@ -1,6 +1,5 @@
 import {
   DEFAULT_APP_SETTINGS,
-  PROVIDER_BILLING_MODES,
   formatShortcutChord,
   resolveDefaultShortcutChord,
   resolveDefaultRuleSwitcherShortcutChord,
@@ -119,21 +118,11 @@ function createInitialState(options: { appVersion: string }): AppState {
       sessionType: process.env.XDG_SESSION_TYPE ?? 'unknown',
       currentDesktop: process.env.XDG_CURRENT_DESKTOP ?? process.env.DESKTOP_SESSION ?? 'unknown',
     },
+    // Filled by the provider service as soon as it publishes; the registry owns what a provider is,
+    // so this snapshot no longer describes one.
     providers: {
       ready: false,
-      selectedProviderId: null,
-      providers: [
-        {
-          id: 'openai-sub',
-          label: 'OpenAI (ChatGPT Plus/Pro subscription)',
-          description: 'Use your ChatGPT subscription to transcribe recordings.',
-          billingMode: PROVIDER_BILLING_MODES['openai-sub'],
-          status: 'missing',
-          accountId: null,
-          expires: null,
-          error: null,
-        },
-      ],
+      providers: [],
     },
     vad: {
       kind: 'ready',

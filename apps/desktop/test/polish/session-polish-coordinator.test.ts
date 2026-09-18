@@ -2,8 +2,8 @@ import { strict as assert } from 'node:assert';
 import test from 'node:test';
 
 import type { PolishRulePreset, ProviderUsageEvent } from '../../src/main/db/schema.ts';
-import type { InferenceProvider } from '../../src/main/inference/inference-provider.ts';
 import type { SessionOutputService } from '../../src/main/outputs/session-output-service.ts';
+import type { InferenceClient } from '../../src/main/providers/provider-definition.ts';
 import { defaultAppSettings } from '../../src/main/settings/app-settings-schema.ts';
 import type { OrderedBatchTranscript } from '../../src/main/stores/session-store.ts';
 import { registerTsExtensionResolver } from '../helpers/ts-extension-resolver.ts';
@@ -72,7 +72,7 @@ function createHarness(
   const createdOutputs: Array<Parameters<SessionOutputService['createPolishedOutput']>[0]> = [];
   let polishEnabled = harnessOptions.polishEnabled ?? true;
 
-  const inference: InferenceProvider = {
+  const inference: InferenceClient = {
     id: 'test',
     async inferText({ instructions, inputText, signal }) {
       const tail = readZone(inputText, 'POLISHED_TAIL');
@@ -157,7 +157,12 @@ function createHarness(
     },
   };
 
-  const polish = createPolishService({ settingsStore, sessionStore, outputs, inference });
+  const polish = createPolishService({
+    settingsStore,
+    sessionStore,
+    outputs,
+    resolveInferenceClient: () => inference,
+  });
   const coordinator = createSessionPolishCoordinator({
     settingsStore,
     sessionStore,
