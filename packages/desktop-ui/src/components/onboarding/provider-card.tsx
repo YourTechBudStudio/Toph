@@ -1,22 +1,21 @@
 import type { ProviderConnection, ProviderId } from '@toph/desktop-contracts';
 
-import { Button } from '../button';
-import { DropdownSelect } from '../dropdown';
-import { StatusText } from './status-text';
+import {
+  ProviderKindIcon,
+  providerBillingLabel,
+  providerRoleLabel,
+} from '../settings/provider-presentation';
+import { ProviderStatusBadge } from '../settings/provider-status-badge';
+import { ProviderConnect } from './provider-connect';
 
-function getProviderStatusLabel(provider: ProviderConnection) {
-  if (provider.status === 'connected') {
-    return 'Connected';
-  }
-  if (provider.status === 'connecting') {
-    return 'Connecting';
-  }
-  if (provider.status === 'invalid') {
-    return 'Reconnect';
-  }
-  return 'Not added';
-}
-
+/**
+ * Onboarding step 1. Every provider is a peer: the switcher lists them all with nothing
+ * preselected, and the chosen one's connection UI opens beneath it inside the same card, so the
+ * choice and the work it implies stay a glance apart.
+ *
+ * Routing is not this card's business. Connecting claims whichever roles are still unset, and the
+ * main process does that claiming, so nothing here writes settings or promises where a role lands.
+ */
 export function ProviderCard({
   providers,
   selectedProviderId,
@@ -28,81 +27,73 @@ export function ProviderCard({
   onSubmitManual,
 }: {
   providers: ProviderConnection[];
-  selectedProviderId: ProviderId;
+  selectedProviderId: ProviderId | null;
   busy: boolean;
   manualInput: string;
   onSelectProvider: (providerId: ProviderId) => void;
   onManualInputChange: (value: string) => void;
-  onConnect: () => void;
-  onSubmitManual: () => void;
+  onConnect: (providerId: ProviderId, values: Record<string, string>) => void;
+  onSubmitManual: (providerId: ProviderId) => void;
 }) {
-  const selectedProvider =
-    providers.find((provider) => provider.id === selectedProviderId) ?? providers[0];
-  const connected = selectedProvider.status === 'connected';
-  const connecting = selectedProvider.status === 'connecting' || busy;
+  const selected = providers.find((provider) => provider.id === selectedProviderId) ?? null;
 
   return (
-    <article className="rounded-[1.375rem] border border-white/6 bg-white/2 px-7 py-6 transition-[transform,border-color,background-color] duration-300 ease-out hover:-translate-y-px hover:border-white/10 hover:bg-white/3 max-[640px]:px-5">
+    <article className="rounded-[1.375rem] border border-white/6 bg-white/2 px-7 py-6 max-[640px]:px-5">
       <p className="mt-0 mb-4 text-sm leading-relaxed text-text-secondary">
-        Pick the transcription engine that powers Toph.
+        Pick whichever you already pay for. Toph has no preference between them.
       </p>
-      <div className="flex flex-wrap items-center gap-3">
-        <div className="min-w-56 flex-1">
-          <DropdownSelect
-            ariaLabel="Transcription provider"
-            items={providers.map((provider) => ({
-              value: provider.id,
-              label: provider.label,
-            }))}
-            value={selectedProviderId}
-            placeholder="Select provider"
-            variant="default"
-            onValueChange={onSelectProvider}
+
+      <div className="grid gap-2 rounded-2xl border border-white/8 bg-white/3 p-1.5 md:grid-cols-2">
+        {providers.map((provider) => (
+          <button
+            key={provider.id}
+            type="button"
+            className={`flex cursor-pointer items-center gap-2.5 rounded-xl px-3 py-2.5 text-left transition-colors duration-200 ${provider.id === selectedProviderId ? 'bg-accent-blue/14 text-text-primary' : 'text-text-secondary hover:bg-white/5'}`}
+            aria-pressed={provider.id === selectedProviderId}
+            onClick={() => onSelectProvider(provider.id)}
+          >
+            <span className="shrink-0">
+              <ProviderKindIcon provider={provider} size={16} />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block truncate text-sm font-semibold">{provider.label}</span>
+              <span className="block truncate text-xs text-text-tertiary">
+                {providerHint(provider)}
+              </span>
+            </span>
+            <ProviderStatusBadge status={provider.status} />
+          </button>
+        ))}
+      </div>
+
+      {selected && (
+        <div className="mt-4">
+          <ProviderConnect
+            // Keyed by provider so switching providers starts a fresh draft on the first paint
+            // rather than briefly showing the previous provider's credentials in these fields.
+            key={selected.id}
+            provider={selected}
+            busy={busy}
+            manualInput={manualInput}
+            onManualInputChange={onManualInputChange}
+            onConnect={(values) => onConnect(selected.id, values)}
+            onSubmitManual={() => onSubmitManual(selected.id)}
           />
-        </div>
-
-        <Button
-          variant={connected ? 'secondary' : 'primary'}
-          onClick={onConnect}
-          disabled={connecting || connected}
-        >
-          {connecting ? 'Opening...' : connected ? 'Connected' : 'Connect provider'}
-        </Button>
-      </div>
-
-      <div className="mt-3">
-        <StatusText complete={connected}>{getProviderStatusLabel(selectedProvider)}</StatusText>
-      </div>
-
-      {selectedProvider.error && (
-        <p className="mt-3 mb-0 rounded-2xl border border-accent-red/16 bg-accent-red/10 px-3 py-2 text-sm text-accent-red">
-          {selectedProvider.error}
-        </p>
-      )}
-
-      {connecting && (
-        <div className="mt-4 grid gap-2 rounded-2xl border border-white/8 bg-white/4 p-3">
-          <p className="m-0 text-sm text-text-secondary">
-            Waiting for browser authorization. If localhost gets grumpy, paste the redirect URL or
-            code here.
-          </p>
-          <div className="flex gap-2 max-[640px]:flex-col">
-            <input
-              className="min-w-0 flex-1 rounded-full border border-white/8 bg-canvas px-3 py-2 text-sm text-text-primary outline-none transition-colors duration-150 placeholder:text-text-tertiary focus:border-accent-blue/40"
-              value={manualInput}
-              onChange={(event) => onManualInputChange(event.target.value)}
-              placeholder="Authorization URL or code"
-            />
-            <Button
-              variant="secondary"
-              onClick={onSubmitManual}
-              disabled={manualInput.trim().length === 0}
-            >
-              Submit code
-            </Button>
-          </div>
         </div>
       )}
     </article>
   );
+}
+
+/**
+ * The one-line row caption, built from declared data only: how the provider bills, what it is, and
+ * which role it covers when it does not cover both. Truncation is what keeps it one line, so a
+ * provider whose description is a paragraph cannot change this card's height.
+ */
+function providerHint(provider: ProviderConnection) {
+  const parts = [providerBillingLabel(provider.billingMode), provider.description];
+  if (provider.roles.length === 1) {
+    parts.push(`${providerRoleLabel[provider.roles[0]]} only`);
+  }
+  return parts.filter((part) => part.length > 0).join(' · ');
 }

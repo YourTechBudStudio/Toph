@@ -13,6 +13,7 @@ import { AppBackdrop } from '../components/app-backdrop';
 import { ProviderSection } from '../components/settings/provider-section';
 import { RoutingSection } from '../components/settings/routing-section';
 import { SettingsSideNav } from '../components/settings/settings-side-nav';
+import { OnboardingPreviewTab } from './onboarding/onboarding-preview-tab';
 import { providerPreviewFixtures, type ProviderPreviewFixture } from './provider-fixtures';
 
 const previewSections = [
@@ -22,12 +23,20 @@ const previewSections = [
 
 type PreviewSectionId = (typeof previewSections)[number]['id'];
 
+const previewTabs = [
+  { id: 'settings', label: 'Settings' },
+  { id: 'onboarding', label: 'Onboarding' },
+] as const;
+
+type PreviewTabId = (typeof previewTabs)[number]['id'];
+
 /**
  * Temporary harness for iterating on the Providers and Models sections without the main process.
  * Deleted in phase 05 along with the `preview` renderer entry.
  */
 export function ProviderPreviewApp({ onClose }: { onClose?: () => void }) {
   const [fixture, setFixture] = useState<ProviderPreviewFixture>(providerPreviewFixtures[0]);
+  const [tab, setTab] = useState<PreviewTabId>('settings');
 
   return (
     <main className="relative h-screen overflow-y-auto bg-canvas px-6 pt-8 pb-10 scrollbar-none max-[640px]:px-5 [&::-webkit-scrollbar]:hidden">
@@ -36,9 +45,27 @@ export function ProviderPreviewApp({ onClose }: { onClose?: () => void }) {
       <section className="relative mx-auto grid max-w-245 grid-cols-[13.5rem_minmax(0,1fr)] gap-x-6 gap-y-5 max-[820px]:block">
         <header className="col-span-2 pt-4 pb-5">
           <div className="flex items-center justify-between gap-4">
-            <h1 className="m-0 font-display text-[28px] font-bold tracking-[-0.03em]">
-              Provider mock
-            </h1>
+            <div className="flex items-center gap-4">
+              <h1 className="m-0 font-display text-[28px] font-bold tracking-[-0.03em]">
+                Provider mock
+              </h1>
+              <div className="flex gap-1 rounded-lg border border-white/8 bg-white/4 p-1">
+                {previewTabs.map((candidate) => (
+                  <button
+                    key={candidate.id}
+                    type="button"
+                    className={`cursor-pointer rounded-md px-3 py-1 text-xs font-semibold transition-colors duration-150 ${
+                      candidate.id === tab
+                        ? 'bg-accent-blue/16 text-text-primary'
+                        : 'text-text-secondary hover:bg-white/6'
+                    }`}
+                    onClick={() => setTab(candidate.id)}
+                  >
+                    {candidate.label}
+                  </button>
+                ))}
+              </div>
+            </div>
             {onClose && (
               <button
                 type="button"
@@ -70,17 +97,25 @@ export function ProviderPreviewApp({ onClose }: { onClose?: () => void }) {
           </p>
         </header>
 
-        <SettingsSideNav
-          sections={previewSections}
-          activeSectionId="providers"
-          onSectionSelect={(sectionId: PreviewSectionId) =>
-            document.getElementById(sectionId)?.scrollIntoView({ behavior: 'smooth' })
-          }
-        />
+        {tab === 'onboarding' ? (
+          <div className="col-span-2 min-w-0">
+            <OnboardingPreviewTab key={fixture.id} fixture={fixture} />
+          </div>
+        ) : (
+          <>
+            <SettingsSideNav
+              sections={previewSections}
+              activeSectionId="providers"
+              onSectionSelect={(sectionId: PreviewSectionId) =>
+                document.getElementById(sectionId)?.scrollIntoView({ behavior: 'smooth' })
+              }
+            />
 
-        <div className="min-w-0">
-          <PreviewSections key={fixture.id} fixture={fixture} />
-        </div>
+            <div className="min-w-0">
+              <PreviewSections key={fixture.id} fixture={fixture} />
+            </div>
+          </>
+        )}
       </section>
     </main>
   );

@@ -11,17 +11,18 @@ import {
 } from '@toph/desktop-contracts';
 
 import { ProviderFieldControl } from './provider-field-controls';
+import { providerRoleLabel } from './provider-presentation';
 import { SettingsIcon, SettingsRow, SettingsSection, SettingsSelect } from './settings-controls';
 
 const roleCopy: Record<ProviderRole, { title: string; description: string; placeholder: string }> =
   {
     transcription: {
-      title: 'Transcription',
+      title: providerRoleLabel.transcription,
       description: 'Turns what you say into text.',
       placeholder: 'Select transcription provider',
     },
     inference: {
-      title: 'Polishing',
+      title: providerRoleLabel.inference,
       description: 'Cleans up the transcript afterwards.',
       placeholder: 'Select polishing provider',
     },
