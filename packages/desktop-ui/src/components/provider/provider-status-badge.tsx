@@ -1,6 +1,6 @@
 import type { ProviderConnectionStatus } from '@toph/desktop-contracts';
 
-import { badgeDotClass, badgeToneClass, type BadgeTone } from './settings-controls';
+import { badgeDotClass, badgeToneClass, type BadgeTone } from '../settings/settings-controls';
 
 const presentationByStatus: Record<ProviderConnectionStatus, { label: string; tone: BadgeTone }> = {
   connected: { label: 'Connected', tone: 'green' },

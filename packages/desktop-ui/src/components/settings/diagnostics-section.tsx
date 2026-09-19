@@ -4,7 +4,7 @@ import { SettingsSection } from './settings-controls';
 
 export function DiagnosticsSection({
   id,
-  providerLabel,
+  providerRouting,
   currentDesktop,
   sessionType,
   platform,
@@ -22,7 +22,8 @@ export function DiagnosticsSection({
   ruleSwitcherShortcutDetail,
 }: {
   id?: string;
-  providerLabel: string | null;
+  /** Which provider serves each role, already rendered for reading. */
+  providerRouting: string;
   currentDesktop: string;
   sessionType: string;
   platform: NodeJS.Platform;
@@ -55,7 +56,7 @@ export function DiagnosticsSection({
     ],
     [
       'Readiness',
-      `${providerLabel ? `Provider ${providerLabel} is` : 'Provider is'} ${providerReady ? 'ready' : 'not ready'}, permissions are ${permissionsReady ? 'ready' : 'not ready'}, and writing is ${polishEnabled ? `using ${polishRulePresetId ?? 'no selected preset'}` : 'disabled'}.`,
+      `Providers are ${providerReady ? 'ready' : 'not ready'} (${providerRouting}), permissions are ${permissionsReady ? 'ready' : 'not ready'}, and writing is ${polishEnabled ? `using ${polishRulePresetId ?? 'no selected preset'}` : 'disabled'}.`,
     ],
     [
       'Paste',

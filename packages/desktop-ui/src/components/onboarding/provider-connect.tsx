@@ -2,7 +2,7 @@ import type { ProviderConnection } from '@toph/desktop-contracts';
 
 import { useProviderConnectionDraft } from '../../hooks/use-provider-connection-draft';
 import { Button } from '../button';
-import { ProviderFieldControl } from '../settings/provider-field-controls';
+import { ProviderFieldControl } from '../provider/provider-field-controls';
 
 /**
  * The connection body for one provider during onboarding: its declared credential fields, the

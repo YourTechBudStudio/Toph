@@ -1,10 +1,20 @@
 import { Bot, BrainCircuit, History, Keyboard, Mic, WandSparkles } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 
-import { type AppState, type DesktopApi, type ProviderId } from '@toph/desktop-contracts';
+import {
+  PROVIDER_ROLES,
+  type AppState,
+  type DesktopApi,
+  type ProviderConnection,
+  type ProviderFieldValue,
+  type ProviderId,
+  type ProviderRole,
+  type ProviderSettingsGroup,
+} from '@toph/desktop-contracts';
 
 import { AppBackdrop } from '../components/app-backdrop';
 import { Button } from '../components/button';
+import { providerRoleLabel } from '../components/provider/provider-presentation';
 import { AudioSection } from '../components/settings/audio-section';
 import { DiagnosticsSection } from '../components/settings/diagnostics-section';
 import { PolishSection } from '../components/settings/polish-section';
@@ -47,7 +57,7 @@ export function SettingsPage({
   onBack: () => void;
 }) {
   const mainRef = useRef<HTMLElement | null>(null);
-  const [busyProvider, setBusyProvider] = useState<string | null>(null);
+  const [busyProviderId, setBusyProviderId] = useState<ProviderId | null>(null);
   const [busyPolish, setBusyPolish] = useState(false);
   const [busySettings, setBusySettings] = useState(false);
   const [activeSectionId, setActiveSectionId] = useState<SettingsSectionId>(
@@ -57,40 +67,41 @@ export function SettingsPage({
     state.settings.audio.inputDevice,
     state.settings.audio.outputDevice,
   );
-  const provider = state.providers.providers[0];
   const settingsEditable = state.phase === 'idle';
+  const routing: Record<ProviderRole, ProviderId | null> = {
+    transcription: state.settings.transcription.providerId,
+    inference: state.settings.inference.providerId,
+  };
 
-  const providerItems = state.providers.providers.map((item) => ({
-    value: item.id,
-    label: item.label,
-  }));
-
-  const connectProvider = async () => {
-    if (!provider) {
-      return;
-    }
-
-    setBusyProvider(provider.id);
+  // Connecting and removing claim and release routing inside `provider-service`, so this page
+  // only reports what it is told.
+  const connectProvider = async (providerId: ProviderId, values: Record<string, string>) => {
+    setBusyProviderId(providerId);
     try {
-      await client.connectProvider(provider.id);
+      await client.connectProvider(providerId, values);
     } catch {
       // Main process publishes provider errors into AppState.
     } finally {
-      setBusyProvider(null);
+      setBusyProviderId(null);
     }
   };
 
-  const removeProvider = async () => {
-    if (!provider) {
-      return;
-    }
-
-    setBusyProvider(provider.id);
+  const removeProvider = async (providerId: ProviderId) => {
+    setBusyProviderId(providerId);
     try {
-      await client.removeProvider(provider.id);
+      await client.removeProvider(providerId);
     } finally {
-      setBusyProvider(null);
+      setBusyProviderId(null);
     }
+  };
+
+  const setProviderSetting = (
+    providerId: ProviderId,
+    group: ProviderSettingsGroup,
+    key: string,
+    value: ProviderFieldValue,
+  ) => {
+    void updateSetting(() => client.setProviderSetting(providerId, group, key, value));
   };
 
   const setPolishEnabled = async (enabled: boolean) => {
@@ -216,32 +227,30 @@ export function SettingsPage({
         <div className="min-w-0">
           <ProviderSection
             id={settingsSectionIds.providers}
-            provider={provider}
-            busy={busyProvider !== null}
-            onConnect={() => void connectProvider()}
-            onRemove={() => void removeProvider()}
+            providers={state.providers.providers}
+            providerSettings={state.settings.providers}
+            busyProviderId={busyProviderId}
+            onConnect={(providerId, values) => void connectProvider(providerId, values)}
+            onRemove={(providerId) => void removeProvider(providerId)}
+            onSettingChange={(providerId, key, value) =>
+              setProviderSetting(providerId, 'provider', key, value)
+            }
           />
 
           <RoutingSection
             id={settingsSectionIds.models}
-            providerItems={providerItems}
-            transcriptionProviderId={state.settings.transcription.providerId}
-            transcriptionModel={state.settings.transcription.model}
-            inferenceProviderId={state.settings.inference.providerId}
-            inferenceModel={state.settings.inference.model}
+            providers={state.providers.providers}
+            providerSettings={state.settings.providers}
+            routing={routing}
             disabled={!settingsEditable || busySettings}
-            onTranscriptionProviderChange={(providerId: ProviderId) =>
-              void updateSetting(() => client.setTranscriptionProvider(providerId))
+            onProviderChange={(role, providerId) =>
+              void updateSetting(() =>
+                role === 'transcription'
+                  ? client.setTranscriptionProvider(providerId)
+                  : client.setInferenceProvider(providerId),
+              )
             }
-            onTranscriptionModelChange={(model) =>
-              void updateSetting(() => client.setTranscriptionModel(model))
-            }
-            onInferenceProviderChange={(providerId: ProviderId) =>
-              void updateSetting(() => client.setInferenceProvider(providerId))
-            }
-            onInferenceModelChange={(model) =>
-              void updateSetting(() => client.setInferenceModel(model))
-            }
+            onSettingChange={setProviderSetting}
           />
 
           <AudioSection
@@ -303,7 +312,7 @@ export function SettingsPage({
 
           <DiagnosticsSection
             id={settingsSectionIds.advanced}
-            providerLabel={provider?.label ?? null}
+            providerRouting={describeProviderRouting(state.providers.providers, routing)}
             currentDesktop={state.environment.currentDesktop}
             sessionType={state.environment.sessionType}
             platform={state.environment.platform}
@@ -330,4 +339,20 @@ export function SettingsPage({
       </section>
     </main>
   );
+}
+
+/**
+ * Which provider is doing each job, for the diagnostics export. Mixed routing means no single
+ * provider describes the app, and an unrouted role is the ordinary state of a fresh profile, so
+ * every role is named and "not chosen" is spelled out rather than left blank.
+ */
+function describeProviderRouting(
+  providers: ProviderConnection[],
+  routing: Record<ProviderRole, ProviderId | null>,
+): string {
+  return PROVIDER_ROLES.map((role) => {
+    const providerId = routing[role];
+    const provider = providers.find((candidate) => candidate.id === providerId);
+    return `${providerRoleLabel[role].toLowerCase()}: ${provider?.label ?? providerId ?? 'not chosen'}`;
+  }).join(', ');
 }

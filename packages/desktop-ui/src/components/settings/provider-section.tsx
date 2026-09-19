@@ -53,7 +53,9 @@ export function ProviderSection({
           key={provider.id}
           provider={provider}
           settings={providerSettings[provider.id].provider}
-          busy={busyProviderId !== null}
+          // Only the acting card is busy: an OAuth connect does not settle until the browser
+          // round trip finishes, so gating every card on it would strand the other provider.
+          busy={busyProviderId === provider.id}
           onConnect={(values) => onConnect(provider.id, values)}
           onRemove={() => onRemove(provider.id)}
           onSettingChange={(key, value) => onSettingChange(provider.id, key, value)}

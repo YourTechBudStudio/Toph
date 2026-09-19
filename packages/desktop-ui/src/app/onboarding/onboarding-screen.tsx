@@ -52,9 +52,8 @@ export function OnboardingScreen({
   const [selectedRulePresetId, setSelectedRulePresetId] = useState<string | null>(
     activeRulePresetId,
   );
-  const [selectedProviderId, setSelectedProviderId] = useState<ProviderId>(
-    providers.selectedProviderId ?? providers.providers[0]?.id ?? 'openai-sub',
-  );
+  // Nothing is preselected: Toph has no preferred provider, and the card must not imply one.
+  const [selectedProviderId, setSelectedProviderId] = useState<ProviderId | null>(null);
   const [manualInput, setManualInput] = useState('');
   const refreshingRef = useRef(false);
   const completeCount = requirements.filter((requirement) =>
@@ -83,11 +82,13 @@ export function OnboardingScreen({
     }
   };
 
-  const connectProvider = async () => {
+  // Connecting claims whichever roles are still unset, and `provider-service` does that claiming,
+  // so this screen never writes routing settings of its own.
+  const connectProvider = async (providerId: ProviderId, values: Record<string, string>) => {
     onSetupAction();
-    setBusyProvider(selectedProviderId);
+    setBusyProvider(providerId);
     try {
-      await client.connectProvider(selectedProviderId);
+      await client.connectProvider(providerId, values);
     } catch {
       // Main process publishes the actionable provider error in AppState.
     } finally {
@@ -95,11 +96,11 @@ export function OnboardingScreen({
     }
   };
 
-  const submitManualAuthorization = async () => {
+  const submitManualAuthorization = async (providerId: ProviderId) => {
     onSetupAction();
     setBusyProvider('manual');
     try {
-      await client.submitProviderAuthorization(selectedProviderId, manualInput);
+      await client.submitProviderAuthorization(providerId, manualInput);
       setManualInput('');
     } catch {
       // Main process publishes the actionable provider error in AppState.
@@ -218,12 +219,15 @@ export function OnboardingScreen({
                 <ProviderCard
                   providers={providers.providers}
                   selectedProviderId={selectedProviderId}
-                  busy={busyProvider !== null}
+                  busy={
+                    busyProvider !== null &&
+                    (busyProvider === selectedProviderId || busyProvider === 'manual')
+                  }
                   manualInput={manualInput}
                   onSelectProvider={setSelectedProviderId}
                   onManualInputChange={setManualInput}
-                  onConnect={() => void connectProvider()}
-                  onSubmitManual={() => void submitManualAuthorization()}
+                  onConnect={(providerId, values) => void connectProvider(providerId, values)}
+                  onSubmitManual={(providerId) => void submitManualAuthorization(providerId)}
                 />
               </StepSection>
 

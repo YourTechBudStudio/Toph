@@ -208,10 +208,13 @@ export function SettingsSelect<TValue extends string>({
 export function SettingsTextInput({
   value,
   disabled,
+  ariaLabel,
   onCommit,
 }: {
   value: string;
   disabled?: boolean;
+  /** The row's visible label is not associated with the input, so name it for assistive tech. */
+  ariaLabel?: string;
   onCommit: (value: string) => void;
 }) {
   const [draft, setDraft] = useState(value);
@@ -231,6 +234,7 @@ export function SettingsTextInput({
       className={`${settingsInputClass} w-40 px-3 text-right`}
       value={draft}
       disabled={disabled}
+      aria-label={ariaLabel}
       onChange={(event) => setDraft(event.currentTarget.value)}
       onBlur={commit}
       onKeyDown={(event) => {

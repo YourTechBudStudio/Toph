@@ -1,8 +1,9 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { vi } from 'vitest';
 
-import type { AppState, DesktopApi } from '@toph/desktop-contracts';
+import type { AppState, DesktopApi, ProviderConnection } from '@toph/desktop-contracts';
 
+import { createStaticDesktopApiStub } from '../test-support/desktop-api-stub';
 import { HomeApp } from './home-app';
 
 const baseState: AppState = {
@@ -45,7 +46,6 @@ const baseState: AppState = {
   },
   providers: {
     ready: true,
-    selectedProviderId: 'openai-sub',
     providers: [
       {
         id: 'openai-sub',
@@ -72,9 +72,20 @@ const baseState: AppState = {
     version: 1,
     shortcut: { chord: { modifiers: ['control', 'alt'], key: 'Space' } },
     ruleSwitcherShortcut: { chord: { modifiers: ['control'], key: 'Space' } },
-    auth: { providerId: 'openai-sub' },
-    transcription: { providerId: 'openai-sub', model: 'chatgpt-backend-transcribe' },
-    inference: { providerId: 'openai-sub', model: 'gpt-5.4-mini' },
+    transcription: { providerId: 'openai-sub' },
+    inference: { providerId: 'openai-sub' },
+    providers: {
+      'openai-sub': {
+        provider: {},
+        transcription: { model: 'chatgpt-backend-transcribe' },
+        inference: { model: 'gpt-5.4-mini', reasoningEffort: 'medium' },
+      },
+      openai: {
+        provider: {},
+        transcription: { model: 'gpt-4o-transcribe' },
+        inference: { model: 'gpt-5.4-mini', api: 'chat', reasoningEffort: '' },
+      },
+    },
     audio: {
       inputDevice: { id: 'default', label: null },
       outputDevice: { id: 'default', label: null },
@@ -139,64 +150,29 @@ const baseState: AppState = {
   updatedAt: 1,
 };
 
+const keyProvider: ProviderConnection = {
+  id: 'openai',
+  label: 'OpenAI (API key)',
+  description: 'Use an OpenAI API key.',
+  billingMode: 'metered',
+  roles: ['transcription', 'inference'],
+  auth: {
+    kind: 'form',
+    fields: [
+      { kind: 'text', key: 'baseUrl', label: 'Base URL', default: '', required: true },
+      { kind: 'text', key: 'apiKey', label: 'API key', default: '', secret: true, required: true },
+    ],
+  },
+  settingsFields: { provider: [], transcription: [], inference: [] },
+  status: 'missing',
+  accountId: null,
+  expires: null,
+  error: null,
+  connectionSummary: {},
+};
+
 function createClient(state: AppState, overrides: Partial<DesktopApi> = {}): DesktopApi {
-  return {
-    platform: state.environment.platform,
-    subscribeState: (listener) => {
-      listener(state);
-      return () => {};
-    },
-    toggleCapture: async () => {},
-    cancelCapture: async () => {},
-    resizeOverlay: async () => {},
-    showSettings: async () => {},
-    hideSettings: async () => {},
-    minimizeSettings: async () => {},
-    toggleSettingsMaximized: async () => {},
-    getSettingsWindowBounds: async () => null,
-    moveSettingsWindow: async () => {},
-    installShortcut: async () => {},
-    installRuleSwitcherShortcut: async () => {},
-    suspendShortcut: async () => {},
-    resumeShortcut: async () => {},
-    openRuleSwitcher: async () => {},
-    closeRuleSwitcher: async () => {},
-    selectRuleSwitcherPreset: async () => {},
-    connectProvider: async () => {},
-    submitProviderAuthorization: async () => {},
-    removeProvider: async () => {},
-    refreshProviders: async () => {},
-    setAuthProvider: async () => {},
-    setTranscriptionProvider: async () => {},
-    setTranscriptionModel: async () => {},
-    setInferenceProvider: async () => {},
-    setInferenceModel: async () => {},
-    setAudioInputDevice: async () => {},
-    setAudioOutputDevice: async () => {},
-    setPolishEnabled: async () => {},
-    setTypingWpm: async () => {},
-    setActivePolishRulePreset: async () => {},
-    createPolishRulePreset: async () => {},
-    updatePolishRulePreset: async () => {},
-    deletePolishRulePreset: async () => {},
-    duplicatePolishRulePreset: async () => {},
-    reorderPolishRulePresets: async () => {},
-    createDictionaryEntry: async () => {},
-    updateDictionaryEntry: async () => {},
-    deleteDictionaryEntry: async () => {},
-    performPermissionAction: async () => {},
-    refreshPermissions: async () => {},
-    rerunSession: async () => {},
-    deleteSession: async () => {},
-    checkForUpdates: async () => {},
-    downloadUpdate: async () => {},
-    restartToUpdate: async () => {},
-    dismissUpdateNotice: async () => {},
-    openUpdateReadme: async () => {},
-    onSoundEvent: () => () => {},
-    quit: async () => {},
-    ...overrides,
-  };
+  return createStaticDesktopApiStub(state, overrides);
 }
 
 describe('HomeApp', () => {
@@ -854,6 +830,83 @@ describe('HomeApp', () => {
       expect(refreshPermissions).toHaveBeenCalledTimes(1);
       expect(refreshProviders).toHaveBeenCalledTimes(1);
     });
+  });
+
+  it('connects the provider chosen in onboarding, with the values it typed', async () => {
+    const connectProvider = vi.fn<DesktopApi['connectProvider']>(async () => {});
+    render(
+      <HomeApp
+        client={createClient(
+          {
+            ...baseState,
+            providers: { ready: false, providers: [baseState.providers.providers[0], keyProvider] },
+            settings: {
+              ...baseState.settings,
+              transcription: { providerId: null },
+              inference: { providerId: null },
+            },
+          },
+          { connectProvider },
+        )}
+      />,
+    );
+
+    await screen.findByRole('heading', { name: /Your fingers called/ });
+    // Nothing is preselected, so no connection UI exists until a provider is picked.
+    expect(screen.queryByRole('button', { name: 'Connect provider' })).toBeNull();
+
+    fireEvent.click(screen.getByRole('button', { name: /OpenAI \(API key\)/ }));
+    fireEvent.change(screen.getByLabelText('Base URL'), {
+      target: { value: 'https://api.test/v1' },
+    });
+    fireEvent.change(screen.getByLabelText('API key'), { target: { value: 'sk-test' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Connect' }));
+
+    await waitFor(() =>
+      expect(connectProvider).toHaveBeenCalledWith('openai', {
+        baseUrl: 'https://api.test/v1',
+        apiKey: 'sk-test',
+      }),
+    );
+  });
+
+  it('submits a manual authorization code against the provider that is connecting', async () => {
+    const submitProviderAuthorization = vi.fn<DesktopApi['submitProviderAuthorization']>(
+      async () => {},
+    );
+    render(
+      <HomeApp
+        client={createClient(
+          {
+            ...baseState,
+            providers: {
+              ready: false,
+              providers: [
+                { ...baseState.providers.providers[0], status: 'connecting' },
+                keyProvider,
+              ],
+            },
+            settings: {
+              ...baseState.settings,
+              transcription: { providerId: null },
+              inference: { providerId: null },
+            },
+          },
+          { submitProviderAuthorization },
+        )}
+      />,
+    );
+
+    await screen.findByRole('heading', { name: /Your fingers called/ });
+    fireEvent.click(screen.getByRole('button', { name: /ChatGPT/ }));
+    fireEvent.change(screen.getByPlaceholderText('Authorization URL or code'), {
+      target: { value: 'code-123' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Submit code' }));
+
+    await waitFor(() =>
+      expect(submitProviderAuthorization).toHaveBeenCalledWith('openai-sub', 'code-123'),
+    );
   });
 
   it('shows complete permissions when no requirements are needed', async () => {

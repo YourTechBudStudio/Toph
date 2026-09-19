@@ -1,13 +1,13 @@
 import type { ProviderFieldSpec, ProviderFieldValue } from '@toph/desktop-contracts';
 
-import { ProviderSecretInput } from './provider-secret-input';
 import {
   SettingsRow,
   SettingsSelect,
   SettingsSwitch,
   SettingsTextInput,
   settingsInputClass,
-} from './settings-controls';
+} from '../settings/settings-controls';
+import { ProviderSecretInput } from './provider-secret-input';
 
 /**
  * How a declared field is being edited.
@@ -97,6 +97,13 @@ export function ProviderFieldControl({
       );
     }
 
-    return <SettingsTextInput value={text} disabled={disabled} onCommit={onChange} />;
+    return (
+      <SettingsTextInput
+        value={text}
+        disabled={disabled}
+        ariaLabel={field.label}
+        onCommit={onChange}
+      />
+    );
   }
 }

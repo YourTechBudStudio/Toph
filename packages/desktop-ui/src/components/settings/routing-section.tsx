@@ -10,8 +10,8 @@ import {
   type ProviderRole,
 } from '@toph/desktop-contracts';
 
-import { ProviderFieldControl } from './provider-field-controls';
-import { providerRoleLabel } from './provider-presentation';
+import { ProviderFieldControl } from '../provider/provider-field-controls';
+import { providerRoleLabel } from '../provider/provider-presentation';
 import { SettingsIcon, SettingsRow, SettingsSection, SettingsSelect } from './settings-controls';
 
 const roleCopy: Record<ProviderRole, { title: string; description: string; placeholder: string }> =

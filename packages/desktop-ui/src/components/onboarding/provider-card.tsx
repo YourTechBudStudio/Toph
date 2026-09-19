@@ -4,8 +4,8 @@ import {
   ProviderKindIcon,
   providerBillingLabel,
   providerRoleLabel,
-} from '../settings/provider-presentation';
-import { ProviderStatusBadge } from '../settings/provider-status-badge';
+} from '../provider/provider-presentation';
+import { ProviderStatusBadge } from '../provider/provider-status-badge';
 import { ProviderConnect } from './provider-connect';
 
 /**

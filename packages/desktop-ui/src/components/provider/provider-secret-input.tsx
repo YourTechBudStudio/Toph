@@ -1,7 +1,7 @@
 import { Eye, EyeOff } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
-import { settingsInputClass } from './settings-controls';
+import { settingsInputClass } from '../settings/settings-controls';
 
 /**
  * A masked text input with a reveal toggle, used for every `secret` provider field: connection

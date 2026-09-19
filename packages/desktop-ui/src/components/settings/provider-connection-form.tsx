@@ -6,7 +6,7 @@ import type {
 
 import { useProviderConnectionDraft } from '../../hooks/use-provider-connection-draft';
 import { Button } from '../button';
-import { ProviderFieldControl } from './provider-field-controls';
+import { ProviderFieldControl } from '../provider/provider-field-controls';
 import { SettingsRow } from './settings-controls';
 
 /**

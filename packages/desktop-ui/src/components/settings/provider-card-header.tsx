@@ -2,8 +2,8 @@ import type { ReactNode } from 'react';
 
 import type { ProviderConnection } from '@toph/desktop-contracts';
 
-import { ProviderKindIcon, providerBillingLabel } from './provider-presentation';
-import { ProviderStatusBadge } from './provider-status-badge';
+import { ProviderKindIcon, providerBillingLabel } from '../provider/provider-presentation';
+import { ProviderStatusBadge } from '../provider/provider-status-badge';
 import { SettingsIcon } from './settings-controls';
 
 /** Identity and status for one provider: the always-visible part of its card. */

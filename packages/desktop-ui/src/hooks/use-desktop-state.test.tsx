@@ -2,6 +2,7 @@ import { act, renderHook } from '@testing-library/react';
 
 import type { AppState, DesktopApi } from '@toph/desktop-contracts';
 
+import { createDesktopApiStub } from '../test-support/desktop-api-stub';
 import { useDesktopState, useRelativeTime } from './use-desktop-state';
 
 const baseState: AppState = {
@@ -44,13 +45,16 @@ const baseState: AppState = {
   },
   providers: {
     ready: true,
-    selectedProviderId: 'openai-sub',
     providers: [
       {
         id: 'openai-sub',
         label: 'OpenAI (ChatGPT Plus/Pro subscription)',
         description: 'Use your ChatGPT subscription to transcribe recordings.',
         billingMode: 'subscription',
+        roles: ['transcription', 'inference'],
+        auth: { kind: 'oauth' },
+        settingsFields: { provider: [], transcription: [], inference: [] },
+        connectionSummary: {},
         status: 'connected',
         accountId: 'account-id',
         expires: Date.now() + 3_600_000,
@@ -67,9 +71,20 @@ const baseState: AppState = {
     version: 1,
     shortcut: { chord: { modifiers: ['control', 'alt'], key: 'Space' } },
     ruleSwitcherShortcut: { chord: { modifiers: ['control'], key: 'Space' } },
-    auth: { providerId: 'openai-sub' },
-    transcription: { providerId: 'openai-sub', model: 'chatgpt-backend-transcribe' },
-    inference: { providerId: 'openai-sub', model: 'gpt-5.4-mini' },
+    transcription: { providerId: 'openai-sub' },
+    inference: { providerId: 'openai-sub' },
+    providers: {
+      'openai-sub': {
+        provider: {},
+        transcription: { model: 'chatgpt-backend-transcribe' },
+        inference: { model: 'gpt-5.4-mini', reasoningEffort: 'medium' },
+      },
+      openai: {
+        provider: {},
+        transcription: { model: 'gpt-4o-transcribe' },
+        inference: { model: 'gpt-5.4-mini', api: 'chat', reasoningEffort: '' },
+      },
+    },
     audio: {
       inputDevice: { id: 'default', label: null },
       outputDevice: { id: 'default', label: null },
@@ -121,59 +136,10 @@ const baseState: AppState = {
 function createClient(
   onSubscribe: (listener: (state: AppState) => void) => () => void,
 ): DesktopApi {
-  return {
+  return createDesktopApiStub({
     platform: baseState.environment.platform,
     subscribeState: onSubscribe,
-    toggleCapture: async () => {},
-    cancelCapture: async () => {},
-    resizeOverlay: async () => {},
-    showSettings: async () => {},
-    hideSettings: async () => {},
-    minimizeSettings: async () => {},
-    toggleSettingsMaximized: async () => {},
-    getSettingsWindowBounds: async () => null,
-    moveSettingsWindow: async () => {},
-    installShortcut: async () => {},
-    installRuleSwitcherShortcut: async () => {},
-    suspendShortcut: async () => {},
-    resumeShortcut: async () => {},
-    openRuleSwitcher: async () => {},
-    closeRuleSwitcher: async () => {},
-    selectRuleSwitcherPreset: async () => {},
-    connectProvider: async () => {},
-    submitProviderAuthorization: async () => {},
-    removeProvider: async () => {},
-    refreshProviders: async () => {},
-    setAuthProvider: async () => {},
-    setTranscriptionProvider: async () => {},
-    setTranscriptionModel: async () => {},
-    setInferenceProvider: async () => {},
-    setInferenceModel: async () => {},
-    setAudioInputDevice: async () => {},
-    setAudioOutputDevice: async () => {},
-    setPolishEnabled: async () => {},
-    setTypingWpm: async () => {},
-    setActivePolishRulePreset: async () => {},
-    createPolishRulePreset: async () => {},
-    updatePolishRulePreset: async () => {},
-    deletePolishRulePreset: async () => {},
-    duplicatePolishRulePreset: async () => {},
-    reorderPolishRulePresets: async () => {},
-    createDictionaryEntry: async () => {},
-    updateDictionaryEntry: async () => {},
-    deleteDictionaryEntry: async () => {},
-    performPermissionAction: async () => {},
-    refreshPermissions: async () => {},
-    rerunSession: async () => {},
-    deleteSession: async () => {},
-    checkForUpdates: async () => {},
-    downloadUpdate: async () => {},
-    restartToUpdate: async () => {},
-    dismissUpdateNotice: async () => {},
-    openUpdateReadme: async () => {},
-    onSoundEvent: () => () => {},
-    quit: async () => {},
-  };
+  });
 }
 
 describe('useDesktopState', () => {
