@@ -43,42 +43,82 @@ interface ModelsDevCacheFile {
   providers: Record<string, ModelsDevProvider>;
 }
 
+interface FallbackPricing {
+  usdPerMinute?: number;
+  inputUsdPerMillionTokens?: number;
+  cachedInputUsdPerMillionTokens?: number;
+  outputUsdPerMillionTokens?: number;
+}
+
+/** A model this app prices explicitly, rather than leaving to a catalog lookup. */
 interface ModelPricingMapping {
+  /** `null` when the catalog has no entry for it, so only the static fallback can price it. */
+  catalogModelId: string | null;
+  fallbackPricing?: FallbackPricing;
+}
+
+interface ProviderPricingMapping {
+  /** The models.dev catalog this provider's models are looked up under by default. */
+  catalogProviderId: string;
+  models: Record<string, ModelPricingMapping>;
+}
+
+/** Where a model's price came from, after resolution. */
+interface ResolvedPricing {
   catalogProviderId: string;
   catalogModelId: string | null;
-  fallbackPricing?: {
-    usdPerMinute?: number;
-    inputUsdPerMillionTokens?: number;
-    cachedInputUsdPerMillionTokens?: number;
-    outputUsdPerMillionTokens?: number;
-  };
+  fallbackPricing?: FallbackPricing;
 }
 
 const modelsDevUrl = 'https://models.dev/api.json';
 const refreshIntervalMs = 24 * 60 * 60 * 1000;
 
-const providerPricingMappings: Record<ProviderId, Record<string, ModelPricingMapping>> = {
+const providerPricingMappings: Record<ProviderId, ProviderPricingMapping> = {
   'openai-sub': {
-    'chatgpt-backend-transcribe': {
-      catalogProviderId: 'openai',
-      catalogModelId: null,
-      fallbackPricing: {
-        usdPerMinute: 0.003,
+    catalogProviderId: 'openai',
+    models: {
+      'chatgpt-backend-transcribe': {
+        catalogModelId: null,
+        fallbackPricing: {
+          usdPerMinute: 0.003,
+        },
       },
-    },
-    'gpt-5.4-mini': {
-      catalogProviderId: 'openai',
-      catalogModelId: 'gpt-5.4-mini',
-      fallbackPricing: {
-        inputUsdPerMillionTokens: 0.75,
-        cachedInputUsdPerMillionTokens: 0.075,
-        outputUsdPerMillionTokens: 4.5,
+      'gpt-5.4-mini': {
+        catalogModelId: 'gpt-5.4-mini',
+        fallbackPricing: {
+          inputUsdPerMillionTokens: 0.75,
+          cachedInputUsdPerMillionTokens: 0.075,
+          outputUsdPerMillionTokens: 4.5,
+        },
       },
     },
   },
-  // Filled in when the OpenAI provider lands; until then every model falls through to an exact
-  // catalog lookup under the `openai` catalog provider.
-  openai: {},
+  openai: {
+    catalogProviderId: 'openai',
+    // models.dev carries no audio pricing for OpenAI at all, so for transcription these static
+    // rates are the only path that will ever run, not a fallback. Verified against OpenAI's
+    // published pricing on 2026-09-18.
+    models: {
+      'gpt-4o-transcribe': {
+        catalogModelId: null,
+        fallbackPricing: {
+          usdPerMinute: 0.006,
+        },
+      },
+      'gpt-4o-mini-transcribe': {
+        catalogModelId: null,
+        fallbackPricing: {
+          usdPerMinute: 0.003,
+        },
+      },
+      'whisper-1': {
+        catalogModelId: null,
+        fallbackPricing: {
+          usdPerMinute: 0.006,
+        },
+      },
+    },
+  },
 };
 
 export interface PricingService {
@@ -88,6 +128,14 @@ export interface PricingService {
     providerId: ProviderId;
     model: string | null;
     usage: PricingUsage;
+    /**
+     * Whether this app's own hardcoded rates may be applied. A client calling an endpoint other
+     * than the provider's official one passes `false`: the published rates are that vendor's
+     * prices and mean nothing for a third-party or self-hosted host, so no estimate is the honest
+     * answer. Catalog lookups are unaffected, because a catalog hit prices the model itself.
+     * Defaults to `true` for callers that only ever reach the official endpoint.
+     */
+    allowStaticFallback?: boolean;
   }) => UsageCostEstimate;
 }
 
@@ -107,21 +155,49 @@ function usdToMicros(usd: number) {
   return Math.max(0, Math.round(usd * 1_000_000));
 }
 
-function resolveMapping(providerId: ProviderId, model: string | null): ModelPricingMapping | null {
-  const providerMappings = providerPricingMappings[providerId];
-  if (!providerMappings || !model) {
+/**
+ * Finds where a model's price should come from. Exact ids only, at every step: neighbouring model
+ * names carry very different prices, so pricing `gpt-4o` as `gpt-4o-mini` would be worse than
+ * reporting nothing. Pure in the cache so it can be tested without a service.
+ *
+ * Order: this app's explicit entry for the model, then the provider's own catalog, then any other
+ * catalog provider by key order (an exact id shared across catalogs is the same model in practice,
+ * and this is what lets an arbitrary OpenAI-compatible endpoint price a model it proxies).
+ */
+function resolveModelPricing(
+  cache: ModelsDevCacheFile | null,
+  providerId: ProviderId,
+  model: string | null,
+): ResolvedPricing | null {
+  const provider = providerPricingMappings[providerId];
+  if (!provider || !model) {
     return null;
   }
 
-  return (
-    providerMappings[model] ?? {
-      catalogProviderId: providerId === 'openai-sub' ? 'openai' : providerId,
-      catalogModelId: model,
+  const normalized = model.trim().toLowerCase();
+  if (!normalized) {
+    return null;
+  }
+
+  const declared = provider.models[normalized];
+  if (declared) {
+    return { catalogProviderId: provider.catalogProviderId, ...declared };
+  }
+
+  if (cache?.providers[provider.catalogProviderId]?.models?.[normalized]) {
+    return { catalogProviderId: provider.catalogProviderId, catalogModelId: normalized };
+  }
+
+  for (const [catalogProviderId, catalogProvider] of Object.entries(cache?.providers ?? {})) {
+    if (catalogProvider.models?.[normalized]) {
+      return { catalogProviderId, catalogModelId: normalized };
     }
-  );
+  }
+
+  return null;
 }
 
-function fromFallback(mapping: ModelPricingMapping, usage: PricingUsage): UsageCostEstimate | null {
+function fromFallback(mapping: ResolvedPricing, usage: PricingUsage): UsageCostEstimate | null {
   if (usage.kind === 'audio_duration' && mapping.fallbackPricing?.usdPerMinute !== undefined) {
     return {
       costUsdMicros: usdToMicros(
@@ -160,7 +236,7 @@ function fromFallback(mapping: ModelPricingMapping, usage: PricingUsage): UsageC
 
 function fromModelsDev(
   cache: ModelsDevCacheFile | null,
-  mapping: ModelPricingMapping,
+  mapping: ResolvedPricing,
   usage: PricingUsage,
 ): UsageCostEstimate | null {
   if (usage.kind !== 'tokens' || !mapping.catalogModelId) {
@@ -240,23 +316,20 @@ export async function createPricingService(options: {
     },
 
     estimateCost(input) {
-      const mapping = resolveMapping(input.providerId, input.model);
-      if (!mapping) {
-        return {
+      const mapping = resolveModelPricing(cache, input.providerId, input.model);
+      const priced = mapping
+        ? (fromModelsDev(cache, mapping, input.usage) ??
+          (input.allowStaticFallback === false ? null : fromFallback(mapping, input.usage)))
+        : null;
+
+      // Catalog fields describe where a price came from, so they stay null when there is no price;
+      // naming a catalog beside `costSource: 'none'` reads as an estimate that was never computed.
+      return (
+        priced ?? {
           costUsdMicros: 0,
           costSource: 'none',
           pricingCatalogProviderId: null,
           pricingCatalogModelId: null,
-        };
-      }
-
-      return (
-        fromModelsDev(cache, mapping, input.usage) ??
-        fromFallback(mapping, input.usage) ?? {
-          costUsdMicros: 0,
-          costSource: 'none',
-          pricingCatalogProviderId: mapping.catalogProviderId,
-          pricingCatalogModelId: mapping.catalogModelId,
         }
       );
     },

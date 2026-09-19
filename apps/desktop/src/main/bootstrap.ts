@@ -31,6 +31,7 @@ import { createPolishService } from './polish/polish-service';
 import { createSessionPolishCoordinator } from './polish/session-polish-coordinator';
 import { createPricingService } from './pricing/pricing-service';
 import { openAiSubProviderDefinition } from './providers/openai-sub/definition';
+import { openAiProviderDefinition } from './providers/openai/definition';
 import { createProviderRegistry } from './providers/provider-registry';
 import { createProviderService } from './providers/provider-service';
 import { createSessionSegmentationService } from './segmentation/session-segmentation-service';
@@ -147,7 +148,10 @@ export async function bootstrap(options: {
   const legacyPolishSettings = await sessionStore.getLegacyPolishSettings();
   // The registry is built first: it owns what each provider declares, and the settings normaliser
   // needs those declarations to materialise provider settings and to validate routing.
-  const providerRegistry = createProviderRegistry([openAiSubProviderDefinition]);
+  const providerRegistry = createProviderRegistry([
+    openAiSubProviderDefinition,
+    openAiProviderDefinition,
+  ]);
   const settingsStore = await createAppSettingsStore({
     settingsPath: dataPaths.settingsPath,
     providerDeclarations: Object.fromEntries(

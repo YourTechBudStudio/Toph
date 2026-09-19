@@ -120,8 +120,17 @@ export interface OAuthAuthStrategy {
 export interface FormAuthStrategy {
   kind: 'form';
   fields: ProviderFieldSpec[];
-  /** Rejects when the values cannot be used; nothing is stored when it throws. */
-  verify: (values: Record<string, string>) => Promise<{ accountId: string | null }>;
+  /**
+   * Verifies and canonicalises the connection values. Rejects when the values cannot be used, and
+   * nothing is stored when it throws. Returning `values` replaces the stored map wholesale, so a
+   * provider that rewrites one field returns the full declared key set; omitting it stores the
+   * values as submitted. This exists so the value stored, the value published in
+   * `connectionSummary` and the value the clients actually call are always the same string.
+   */
+  verify: (values: Record<string, string>) => Promise<{
+    accountId: string | null;
+    values?: Record<string, string>;
+  }>;
 }
 
 export type ProviderAuthStrategy = OAuthAuthStrategy | FormAuthStrategy;

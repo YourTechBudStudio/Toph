@@ -397,9 +397,9 @@ export function createProviderService(options: {
       }
     }
 
-    let accountId: string | null;
+    let verified: { accountId: string | null; values?: Record<string, string> };
     try {
-      ({ accountId } = await verify(values));
+      verified = await verify(values);
     } catch (error) {
       runtime.lastError =
         error instanceof Error ? error.message : 'Provider could not be verified.';
@@ -409,8 +409,10 @@ export function createProviderService(options: {
 
     await storeCredential(runtime, {
       type: 'form',
-      values,
-      ...(accountId ? { accountId } : {}),
+      // `verify` may canonicalise what it was given; the returned map replaces the submitted one
+      // wholesale, so what is stored is what was actually proven to work.
+      values: verified.values ?? values,
+      ...(verified.accountId ? { accountId: verified.accountId } : {}),
     });
     await claimUnsetRoles(runtime.definition);
     return publishState();

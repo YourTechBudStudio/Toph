@@ -96,7 +96,10 @@ function formDefinition(verify: FormAuthVerify): ProviderDefinition {
   };
 }
 
-type FormAuthVerify = (values: Record<string, string>) => Promise<{ accountId: string | null }>;
+type FormAuthVerify = (values: Record<string, string>) => Promise<{
+  accountId: string | null;
+  values?: Record<string, string>;
+}>;
 
 function createSettingsStore(initial?: {
   transcription?: ProviderId | null;
@@ -260,6 +263,30 @@ test('a connected form provider publishes non-secret values only', async () => {
   });
   assert.equal(connection(state, 'openai').accountId, 'acct-1');
   assert.equal(connection(state, 'openai').expires, null);
+});
+
+test('stores the values verify canonicalised, not the ones submitted', async () => {
+  // `verify` may rewrite what it was handed, so the value stored, the value published and the
+  // value the clients call are one string rather than three.
+  const { service, credentialsPath } = await createService({
+    verify: async (values) => ({
+      accountId: null,
+      values: { ...values, baseUrl: values.baseUrl.replace(/\/+$/, '') },
+    }),
+  });
+
+  const state = await service.connectProvider('openai', {
+    baseUrl: 'https://api.test/v1/',
+    apiKey: 'secret-key',
+  });
+
+  assert.deepEqual(connection(state, 'openai').connectionSummary, {
+    baseUrl: 'https://api.test/v1',
+  });
+  assert.deepEqual((await readProviderCredentialStorage(credentialsPath)).openai, {
+    type: 'form',
+    values: { baseUrl: 'https://api.test/v1', apiKey: 'secret-key' },
+  });
 });
 
 test('resolves transcription clients only for providers that serve the role', async () => {
