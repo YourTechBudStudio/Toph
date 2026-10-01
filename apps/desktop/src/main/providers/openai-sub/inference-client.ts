@@ -4,6 +4,7 @@ import {
   type InferenceClientResult,
   type ProviderClientContext,
 } from '../provider-definition';
+import { openAiSubOriginator } from './oauth-flow';
 
 const providerId = 'openai-sub';
 const endpoint = 'https://chatgpt.com/backend-api/codex/responses';
@@ -172,7 +173,7 @@ export function createOpenAiSubInferenceClient(context: ProviderClientContext): 
         Authorization: `Bearer ${credentials.accessToken}`,
         'Content-Type': 'application/json',
         Accept: 'text/event-stream',
-        originator: 'opencode',
+        originator: openAiSubOriginator,
         'User-Agent': 'Toph (openai-sub inference)',
       };
       if (credentials.accountId) {

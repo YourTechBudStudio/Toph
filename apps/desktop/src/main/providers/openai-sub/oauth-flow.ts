@@ -15,6 +15,9 @@ const redirectUri = 'http://localhost:1455/auth/callback';
 const callbackPort = 1455;
 const jwtClaimPath = 'https://api.openai.com/auth';
 
+// Identifies Toph to ChatGPT; sent on the authorize URL and on backend API requests.
+export const openAiSubOriginator = 'toph';
+
 export interface OpenAiSubOAuthTokens {
   access: string;
   refresh: string;
@@ -128,7 +131,7 @@ function buildAuthorizationUrl(pkce: { challenge: string }, state: string) {
   url.searchParams.set('state', state);
   url.searchParams.set('id_token_add_organizations', 'true');
   url.searchParams.set('codex_cli_simplified_flow', 'true');
-  url.searchParams.set('originator', 'toph');
+  url.searchParams.set('originator', openAiSubOriginator);
   return url.toString();
 }
 
