@@ -1,6 +1,6 @@
 import type { ProviderSettings } from '@toph/desktop-contracts';
+import type { UsageCostEstimate } from '@toph/dictation-core';
 
-import type { UsageCostEstimate } from '../../src/main/pricing/pricing-service.ts';
 import type {
   ProviderClientContext,
   ProviderCredentials,

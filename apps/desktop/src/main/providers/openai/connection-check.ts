@@ -1,4 +1,4 @@
-import { normalizeBaseUrl } from './http';
+import { normalizeBaseUrl } from '@toph/dictation-core';
 
 /**
  * How long to wait for the endpoint to answer. The base URL is typed by hand, so pointing at a host

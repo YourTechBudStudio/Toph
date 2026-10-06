@@ -48,7 +48,10 @@ nsis:
 linux:
   category: Utility
   executableName: Toph
-  icon: icon.png
+  icon: linux
+  # Names the embedded .desktop file after package.json desktopName, which Electron
+  # also uses as the window's app_id / WM_CLASS, so launchers match running windows.
+  syncDesktopName: true
   target:
     - target: AppImage
       arch:

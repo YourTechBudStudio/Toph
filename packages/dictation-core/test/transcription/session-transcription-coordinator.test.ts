@@ -1,49 +1,33 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import type { RecordingSession, TranscriptionBatch } from '../src/main/db/schema.ts';
-import type { TranscriptionDiagnosticEvent } from '../src/main/diagnostics/transcription-diagnostics.ts';
-import { registerTsExtensionResolver } from './helpers/ts-extension-resolver.ts';
+import {
+  createSessionTranscriptionCoordinator,
+  type TranscriptionBatchRecord,
+  type TranscriptionCoordinatorEvent,
+} from '../../src/transcription/session-transcription-coordinator.ts';
+import { TransientTranscriptionProviderError } from '../../src/transcription/transcription-client.ts';
 
-registerTsExtensionResolver();
+/** The fake stores keep the failure message a real store would persist, so tests can read it. */
+type TestBatch = TranscriptionBatchRecord & { errorMessage: string | null };
 
-const { createSessionTranscriptionCoordinator } =
-  await import('../src/main/transcription/session-transcription-coordinator.ts');
+const readFakeAudio = async () => new Uint8Array([1, 2, 3]);
 
-function createSession(options: {
-  transcriptionProviderId: string;
-  transcriptionModel: string;
-}): RecordingSession {
-  const now = Date.now();
+function createSession(options: { transcriptionProviderId: string; transcriptionModel: string }) {
   return {
-    id: 'session-1',
-    createdAt: now,
-    startedAt: now,
-    endedAt: null,
-    durationMs: null,
-    rawAudioPath: '/tmp/session.wav',
     transcriptionProviderId: options.transcriptionProviderId,
     transcriptionModel: options.transcriptionModel,
-    status: 'segmented',
-    selectedOutputId: null,
-    errorMessage: null,
   };
 }
 
-function createBatch(): TranscriptionBatch {
+function createBatch(): TestBatch {
   return {
     id: 'batch-1',
     sessionId: 'session-1',
-    sequence: 0,
     status: 'planned' as const,
-    sourceDurationMs: 1_000,
     derivedAudioDurationMs: 1_000,
-    createdLive: false,
     derivedAudioPath: '/tmp/batch.wav',
-    createdAt: Date.now(),
     transcriptionAttempts: 0,
-    transcriptionStartedAt: null,
-    transcribedAt: null,
     errorMessage: null,
   };
 }
@@ -51,6 +35,9 @@ function createBatch(): TranscriptionBatch {
 test('transcribes with the session snapshot model instead of live provider settings', async () => {
   const batch = createBatch();
   let receivedModel: string | null = null;
+  let receivedAudio: Uint8Array | null = null;
+  let returnedAudio: Uint8Array | null = null;
+  const readPaths: string[] = [];
   const store = {
     getSession: async () =>
       createSession({
@@ -79,6 +66,7 @@ test('transcribes with the session snapshot model instead of live provider setti
       id: providerId,
       transcribeBatch: async (input) => {
         receivedModel = input.model;
+        receivedAudio = input.audio;
         return {
           text: 'hello',
           provider: 'openai-sub',
@@ -100,6 +88,11 @@ test('transcribes with the session snapshot model instead of live provider setti
         };
       },
     }),
+    readBatchAudio: async (derivedAudioPath) => {
+      readPaths.push(derivedAudioPath);
+      returnedAudio = await readFakeAudio();
+      return returnedAudio;
+    },
   });
 
   await coordinator.onBatchReady(batch.id);
@@ -107,6 +100,9 @@ test('transcribes with the session snapshot model instead of live provider setti
 
   assert.equal(receivedModel, 'snapshot-model');
   assert.equal(batch.status, 'transcribed');
+  assert.deepEqual(readPaths, ['/tmp/batch.wav']);
+  assert.ok(returnedAudio);
+  assert.equal(receivedAudio, returnedAudio);
 });
 
 test('fails the batch when the session snapshot provider is not registered in this runtime', async () => {
@@ -142,6 +138,7 @@ test('fails the batch when the session snapshot provider is not registered in th
             },
           }
         : null,
+    readBatchAudio: readFakeAudio,
   });
 
   await coordinator.onBatchReady(batch.id);
@@ -159,15 +156,14 @@ test('fails the batch when the session snapshot provider is not registered in th
 // scratch/plans/incremental-polish/phase-02-live-transcription-lag.md.
 
 function createRecordingDiagnostics() {
-  const events: TranscriptionDiagnosticEvent[] = [];
+  const events: TranscriptionCoordinatorEvent[] = [];
   return {
     events,
     kinds: () => events.map((event) => event.kind),
     diagnostics: {
-      record: (event: TranscriptionDiagnosticEvent) => {
+      record: (event: TranscriptionCoordinatorEvent) => {
         events.push(event);
       },
-      flush: async () => {},
     },
   };
 }
@@ -202,7 +198,7 @@ function createSuccessClient() {
   };
 }
 
-function createStore(batch: TranscriptionBatch) {
+function createStore(batch: TestBatch) {
   return {
     getSession: async () =>
       createSession({
@@ -233,6 +229,7 @@ test('a transcribed batch records the full task and attempt trail', async () => 
   const coordinator = createSessionTranscriptionCoordinator({
     sessionStore: createStore(batch),
     resolveTranscriptionClient: createSuccessClientResolver(),
+    readBatchAudio: readFakeAudio,
     diagnostics: recorder.diagnostics,
   });
 
@@ -255,6 +252,7 @@ test('a batch that is handed over but never starts a task records why it was ski
   const coordinator = createSessionTranscriptionCoordinator({
     sessionStore: createStore(batch),
     resolveTranscriptionClient: createSuccessClientResolver(),
+    readBatchAudio: readFakeAudio,
     diagnostics: recorder.diagnostics,
   });
 
@@ -276,8 +274,6 @@ test('a batch that is handed over but never starts a task records why it was ski
 test('a transiently failing batch records every attempt and the final failure', async () => {
   const batch = createBatch();
   const recorder = createRecordingDiagnostics();
-  const { TransientTranscriptionProviderError } =
-    await import('../src/main/providers/provider-definition.ts');
   const coordinator = createSessionTranscriptionCoordinator({
     sessionStore: createStore(batch),
     resolveTranscriptionClient: () => ({
@@ -286,6 +282,7 @@ test('a transiently failing batch records every attempt and the final failure', 
         throw new TransientTranscriptionProviderError('upstream said 503');
       },
     }),
+    readBatchAudio: readFakeAudio,
     diagnostics: recorder.diagnostics,
   });
 
@@ -325,11 +322,11 @@ test('a slow session read is attributable to the gap before batch_session_loaded
       },
     },
     resolveTranscriptionClient: createSuccessClientResolver(),
+    readBatchAudio: readFakeAudio,
     diagnostics: {
-      record: (event: TranscriptionDiagnosticEvent) => {
+      record: (event: TranscriptionCoordinatorEvent) => {
         timeline.push({ kind: event.kind, at: Date.now() });
       },
-      flush: async () => {},
     },
   });
 
@@ -350,6 +347,7 @@ test('notifies a consumer after a batch is marked transcribed', async () => {
   const coordinator = createSessionTranscriptionCoordinator({
     sessionStore: store,
     resolveTranscriptionClient: createSuccessClientResolver(),
+    readBatchAudio: readFakeAudio,
     onBatchTranscribed: (notifiedBatch) => {
       notified.push({ batchId: notifiedBatch.id, status: batch.status });
     },
@@ -367,6 +365,7 @@ test('a failing consumer cannot fail the transcription task', async () => {
   const coordinator = createSessionTranscriptionCoordinator({
     sessionStore: store,
     resolveTranscriptionClient: createSuccessClientResolver(),
+    readBatchAudio: readFakeAudio,
     onBatchTranscribed: async () => {
       throw new Error('The polish side exploded.');
     },
@@ -389,6 +388,7 @@ test('a batch that fails notifies no consumer', async () => {
       getSession: async () => null,
     },
     resolveTranscriptionClient: createSuccessClientResolver(),
+    readBatchAudio: readFakeAudio,
     onBatchTranscribed: () => {
       notifications += 1;
     },
@@ -399,4 +399,40 @@ test('a batch that fails notifies no consumer', async () => {
 
   assert.equal(batch.status, 'failed');
   assert.equal(notifications, 0);
+});
+
+test('a batch audio read failure fails the attempt without a retry', async () => {
+  const batch = createBatch();
+  const transcribingAttempts: number[] = [];
+  let clientCalled = false;
+  const store = createStore(batch);
+  const coordinator = createSessionTranscriptionCoordinator({
+    sessionStore: {
+      ...store,
+      markBatchTranscribing: async (input: { attempts: number }) => {
+        transcribingAttempts.push(input.attempts);
+        await store.markBatchTranscribing(input);
+      },
+    },
+    resolveTranscriptionClient: () => ({
+      id: 'openai-sub',
+      transcribeBatch: async () => {
+        clientCalled = true;
+        throw new Error('should not transcribe');
+      },
+    }),
+    readBatchAudio: async () => {
+      throw new Error('read failed');
+    },
+  });
+
+  await coordinator.onBatchReady(batch.id);
+  const outcome = await coordinator.waitForSession(batch.sessionId);
+
+  assert.deepEqual(transcribingAttempts, [1]);
+  assert.equal(clientCalled, false);
+  assert.equal(batch.status, 'failed');
+  assert.equal(batch.errorMessage, 'read failed');
+  assert.equal(batch.transcriptionAttempts, 1);
+  assert.deepEqual(outcome, { failedOrIncompleteBatchCount: 1 });
 });

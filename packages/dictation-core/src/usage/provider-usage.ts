@@ -1,13 +1,41 @@
-import { randomUUID } from 'node:crypto';
-
 import type { ProviderBillingMode } from '@toph/desktop-contracts';
 
-import type {
-  ProviderUsageEvent,
-  ProviderUsageOperationKind,
-  ProviderUsageRelatedEntityKind,
-} from './db/schema';
-import type { CostSource } from './pricing/pricing-service';
+import { createId } from '../ids';
+import type { CostSource } from './pricing';
+
+export type ProviderUsageOperationKind = 'transcription' | 'inference';
+/**
+ * `polish_chunk` events belong to a session rather than to a row: an incremental polish call has no
+ * transcript and no output row of its own, so its cost is recorded against the session directly.
+ */
+export type ProviderUsageRelatedEntityKind = 'batch_transcript' | 'session_output' | 'polish_chunk';
+
+/**
+ * One `provider_usage_events` row. Mirrors the desktop schema until the schema itself moves into
+ * shared code.
+ */
+export interface ProviderUsageEventRecord {
+  id: string;
+  sessionId: string;
+  operationKind: ProviderUsageOperationKind;
+  relatedEntityKind: ProviderUsageRelatedEntityKind;
+  relatedEntityId: string;
+  provider: string;
+  model: string | null;
+  billingMode: ProviderBillingMode;
+  audioDurationMs: number | null;
+  billableDurationMs: number | null;
+  inputTokens: number | null;
+  cachedInputTokens: number | null;
+  outputTokens: number | null;
+  estimatedCostUsdMicros: number;
+  costSource: CostSource;
+  pricingCatalogProviderId: string | null;
+  pricingCatalogModelId: string | null;
+  providerRequestId: string | null;
+  providerResponseJson: string | null;
+  createdAt: number;
+}
 
 export interface ProviderUsageDetails {
   billingMode: ProviderBillingMode;
@@ -40,9 +68,9 @@ export function toProviderUsageEvent(input: {
   providerRequestId: string | null;
   providerResponseJson: unknown;
   createdAt: number;
-}): ProviderUsageEvent {
+}): ProviderUsageEventRecord {
   return {
-    id: `provider_usage_${input.createdAt}_${randomUUID()}`,
+    id: createId('provider_usage', input.createdAt),
     sessionId: input.sessionId,
     operationKind: input.operationKind,
     relatedEntityKind: input.relatedEntityKind,

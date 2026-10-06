@@ -1,16 +1,17 @@
 import {
-  TransientInferenceProviderError,
-  type InferenceClient,
-  type InferenceClientResult,
-  type ProviderClientContext,
-} from '../provider-definition';
-import {
   endpointFromCredentials,
   isOfficialOpenAiEndpoint,
   isRetryableStatus,
   readRequestId,
   readResponseBody,
-} from './http';
+} from '@toph/dictation-core';
+
+import {
+  TransientInferenceProviderError,
+  type InferenceClient,
+  type InferenceClientResult,
+  type ProviderClientContext,
+} from '../provider-definition';
 
 const providerId = 'openai';
 

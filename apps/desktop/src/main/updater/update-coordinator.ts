@@ -82,6 +82,13 @@ function githubLinuxAppImageUrl(version: string): string {
   return `https://github.com/YourTechBudStudio/Toph/releases/download/v${version}/Toph-${version}-linux-x86_64.AppImage`;
 }
 
+function githubLinuxInstallerUrl(version: string | null): string {
+  return version
+    ? `https://github.com/YourTechBudStudio/Toph/releases/download/v${version}/install-toph-linux.sh`
+    : 'https://github.com/YourTechBudStudio/Toph/releases/latest/download/install-toph-linux.sh';
+}
+
+// Mirrors the README's Linux install steps; install-toph-linux.sh owns the install layout.
 function buildLinuxUpdateCommands(version: string | null, downloadUrl: string | null): string {
   const resolvedVersion = version ?? '<latest-version>';
   const resolvedDownloadUrl =
@@ -89,19 +96,10 @@ function buildLinuxUpdateCommands(version: string | null, downloadUrl: string | 
     `https://github.com/YourTechBudStudio/Toph/releases/latest/download/Toph-${resolvedVersion}-linux-x86_64.AppImage`;
 
   return [
-    'mkdir -p ~/.local/share/toph ~/.local/bin ~/.local/share/applications',
-    `wget -O ~/.local/share/toph/Toph.AppImage "${resolvedDownloadUrl}"`,
-    'chmod +x ~/.local/share/toph/Toph.AppImage',
-    'ln -sfn ~/.local/share/toph/Toph.AppImage ~/.local/bin/toph',
-    "cat > ~/.local/share/applications/toph.desktop <<'EOF'",
-    '[Desktop Entry]',
-    'Name=Toph',
-    'Exec=sh -lc "$HOME/.local/bin/toph"',
-    'Type=Application',
-    'Terminal=false',
-    'Categories=Utility;',
-    'EOF',
-    'update-desktop-database ~/.local/share/applications 2>/dev/null || true',
+    'cd "$(mktemp -d)"',
+    `wget -O Toph.AppImage "${resolvedDownloadUrl}"`,
+    `wget -O install-toph-linux.sh "${githubLinuxInstallerUrl(version)}"`,
+    'sh install-toph-linux.sh Toph.AppImage',
   ].join('\n');
 }
 

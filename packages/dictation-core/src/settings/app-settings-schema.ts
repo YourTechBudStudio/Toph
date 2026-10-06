@@ -10,6 +10,7 @@ import {
   SYSTEM_DEFAULT_AUDIO_DEVICE_ID,
   validateShortcutChord,
   type AppSettings,
+  type HostPlatform,
   type ProviderFieldSpec,
   type ProviderId,
   type ProviderRole,
@@ -77,17 +78,23 @@ const appSettingsFileSchema = z.object({
     .optional(),
 });
 
-type AppSettingsFile = z.infer<typeof appSettingsFileSchema>;
+export type AppSettingsFile = z.infer<typeof appSettingsFileSchema>;
 
-export const defaultAppSettings: AppSettings = {
-  ...DEFAULT_APP_SETTINGS,
-  shortcut: {
-    chord: resolveDefaultShortcutChord(process.platform),
-  },
-  ruleSwitcherShortcut: {
-    chord: resolveDefaultRuleSwitcherShortcutChord(process.platform),
-  },
-};
+/**
+ * The settings a fresh install starts from on `platform`. Replaces the module-level
+ * `defaultAppSettings`.
+ */
+export function createDefaultAppSettings(platform: HostPlatform): AppSettings {
+  return {
+    ...DEFAULT_APP_SETTINGS,
+    shortcut: {
+      chord: resolveDefaultShortcutChord(platform),
+    },
+    ruleSwitcherShortcut: {
+      chord: resolveDefaultRuleSwitcherShortcutChord(platform),
+    },
+  };
+}
 
 /** What normalisation needs to know about one provider, as its definition declares it. */
 export interface ProviderDeclaration {
@@ -144,7 +151,7 @@ function normalizeTypingWpm(typingWpm: number | undefined) {
     typingWpm >= 20 &&
     typingWpm <= 200
     ? Math.round(typingWpm)
-    : defaultAppSettings.dashboard.typingWpm;
+    : DEFAULT_APP_SETTINGS.dashboard.typingWpm;
 }
 
 function normalizeAudioDevicePreference(
@@ -167,8 +174,9 @@ export function parseAppSettingsFile(value: unknown): AppSettingsFile {
 
 export function normalizeAppSettings(
   value: AppSettingsFile,
-  options: { rulePresetIds: string[] } & ProviderSettingsDeclarations,
+  options: { platform: HostPlatform; rulePresetIds: string[] } & ProviderSettingsDeclarations,
 ): AppSettings {
+  const defaults = createDefaultAppSettings(options.platform);
   const selectedRulePresetId = value.polish.rulePresetId ?? value.polish.promptId ?? null;
   const rulePresetId =
     selectedRulePresetId && options.rulePresetIds.includes(selectedRulePresetId)
@@ -182,14 +190,12 @@ export function normalizeAppSettings(
   return {
     version: 1,
     shortcut: {
-      chord: shortcutValidation?.valid
-        ? shortcutValidation.chord
-        : defaultAppSettings.shortcut.chord,
+      chord: shortcutValidation?.valid ? shortcutValidation.chord : defaults.shortcut.chord,
     },
     ruleSwitcherShortcut: {
       chord: ruleSwitcherShortcutValidation?.valid
         ? ruleSwitcherShortcutValidation.chord
-        : defaultAppSettings.ruleSwitcherShortcut.chord,
+        : defaults.ruleSwitcherShortcut.chord,
     },
     transcription: {
       providerId: normalizeRoutedProviderId(

@@ -1,3 +1,4 @@
+import { readFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -5,12 +6,11 @@ import { fileURLToPath } from 'node:url';
 import { app, shell } from 'electron';
 import type { autoUpdater as electronAutoUpdater } from 'electron-updater';
 
+import type { DictationSessionStatus } from '@toph/desktop-contracts';
 import {
-  DEFAULT_APP_SETTINGS,
-  resolveDefaultShortcutChord,
-  resolveDefaultRuleSwitcherShortcutChord,
-  type DictationSessionStatus,
-} from '@toph/desktop-contracts';
+  createDefaultAppSettings,
+  createSessionTranscriptionCoordinator,
+} from '@toph/dictation-core';
 
 import macAppIconPath from '../../../../assets/app-icons/icon-mac.png?asset';
 import appIconPath from '../../../../assets/app-icons/icon.png?asset';
@@ -45,7 +45,6 @@ import {
 } from './settings/writing-settings-validation';
 import { createDesktopStateStore } from './state';
 import { createRecordingSessionStore } from './stores/session-store';
-import { createSessionTranscriptionCoordinator } from './transcription/session-transcription-coordinator';
 import { createDesktopTrayController } from './tray';
 import { createDesktopUpdateCoordinator } from './updater/update-coordinator';
 
@@ -56,15 +55,7 @@ const { autoUpdater } = electronRequire('electron-updater') as {
 };
 const appName = 'Toph';
 
-const defaultAppSettings = {
-  ...DEFAULT_APP_SETTINGS,
-  shortcut: {
-    chord: resolveDefaultShortcutChord(process.platform),
-  },
-  ruleSwitcherShortcut: {
-    chord: resolveDefaultRuleSwitcherShortcutChord(process.platform),
-  },
-};
+const defaultAppSettings = createDefaultAppSettings(process.platform);
 
 function describeUnexpectedError(prefix: string, error: unknown) {
   const detail = error instanceof Error ? error.message : 'Unknown error';
@@ -288,6 +279,7 @@ export async function bootstrap(options: {
   const transcription = createSessionTranscriptionCoordinator({
     sessionStore,
     resolveTranscriptionClient: providers.resolveTranscriptionClient,
+    readBatchAudio: (derivedAudioPath) => readFile(derivedAudioPath),
     diagnostics: transcriptionDiagnostics,
     // Wired here rather than inside either coordinator, so transcription keeps no dependency on
     // polishing. The hook swallows failures, so polishing can never fail a transcription task.

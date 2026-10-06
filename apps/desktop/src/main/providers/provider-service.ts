@@ -7,6 +7,7 @@ import {
   type ProviderSettings,
   type ProviderState,
 } from '@toph/desktop-contracts';
+import type { TranscriptionClient } from '@toph/dictation-core';
 
 import type { PricingService } from '../pricing/pricing-service';
 import type { AppSettingsStore } from '../settings/app-settings-store';
@@ -24,7 +25,6 @@ import type {
   PendingOAuthFlow,
   ProviderCredentials,
   ProviderDefinition,
-  TranscriptionClient,
 } from './provider-definition';
 import type { ProviderRegistry } from './provider-registry';
 

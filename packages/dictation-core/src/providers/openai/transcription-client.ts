@@ -1,12 +1,11 @@
-import { readFile } from 'node:fs/promises';
-import { basename } from 'node:path';
+import type { ProviderBillingMode } from '@toph/desktop-contracts';
 
 import {
   TransientTranscriptionProviderError,
-  type ProviderClientContext,
   type TranscriptionClient,
   type TranscriptionClientResult,
-} from '../provider-definition';
+} from '../../transcription/transcription-client';
+import type { CostEstimator } from '../../usage/pricing';
 import {
   endpointFromCredentials,
   isOfficialOpenAiEndpoint,
@@ -16,6 +15,16 @@ import {
 } from './http';
 
 const providerId = 'openai';
+
+/**
+ * The part of a provider client context this client reads. Desktop's `ProviderClientContext`
+ * satisfies it.
+ */
+export interface OpenAiTranscriptionClientContext {
+  credentials: () => Promise<{ formValues: Record<string, string> }>;
+  pricing: CostEstimator;
+  billingMode: ProviderBillingMode;
+}
 
 /**
  * `null` means the response carried no transcript at all, which is a malformed response. An empty
@@ -32,7 +41,7 @@ function readTranscriptText(body: unknown): string | null {
 }
 
 export function createOpenAiTranscriptionClient(
-  context: ProviderClientContext,
+  context: OpenAiTranscriptionClientContext,
 ): TranscriptionClient {
   return {
     id: providerId,
@@ -41,9 +50,8 @@ export function createOpenAiTranscriptionClient(
       const credentials = await context.credentials();
       const { baseUrl, apiKey } = endpointFromCredentials(credentials.formValues);
       const model = input.model;
-      const audio = await readFile(input.audioPath);
       const form = new FormData();
-      form.set('file', new Blob([audio], { type: 'audio/wav' }), basename(input.audioPath));
+      form.set('file', new Blob([input.audio], { type: 'audio/wav' }), `${input.batchId}.wav`);
       form.set('model', model);
       form.set('response_format', 'json');
 

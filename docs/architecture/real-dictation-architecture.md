@@ -19,7 +19,7 @@ The renderer remains state-driven. It receives snapshots and invokes actions thr
 - `apps/desktop/src/main/stores/session-store.ts`: SQLite persistence, session history, generated data cleanup, retention, and database-backed settings data.
 - `apps/desktop/src/main/segmentation/session-segmentation-service.ts`: live and recorded-session segmentation entry points.
 - `apps/desktop/src/main/segmentation/streaming/segmentation-pipeline-session.ts`: streaming VAD, timeline persistence, batch planning, and derived batch audio writing.
-- `apps/desktop/src/main/transcription/session-transcription-coordinator.ts`: batch transcription scheduling, retry, cancellation, and completion waiting.
+- `packages/dictation-core/src/transcription/session-transcription-coordinator.ts`: batch transcription scheduling, retry, cancellation, and completion waiting.
 - `apps/desktop/src/main/providers/provider-definition.ts`: what a provider is, plus the transcription and inference client boundaries.
 - `apps/desktop/src/main/providers/provider-registry.ts`: the closed list of provider definitions, with lookup by id and by role.
 - `apps/desktop/src/main/providers/provider-service.ts`: connections, credentials, readiness, routing, and client resolution for every provider.
@@ -27,7 +27,8 @@ The renderer remains state-driven. It receives snapshots and invokes actions thr
 - `apps/desktop/src/main/providers/<provider>/`: one folder per provider, holding its definition, auth and clients.
 - `apps/desktop/src/main/outputs/session-output-service.ts`: raw transcript assembly and persisted session outputs.
 - `apps/desktop/src/main/polish/polish-service.ts`: optional LLM-based transcript polishing.
-- `apps/desktop/src/main/provider-usage.ts`: provider usage and cost metadata shapes.
+- `packages/dictation-core/src/usage/`: provider usage and cost metadata shapes.
+- `packages/dictation-core/src/index.ts`: Node-free dictation logic shared by desktop and mobile (segmentation planning, transcription coordination, the OpenAI API-key client, settings normalisation). It owns no I/O; the host app passes in storage, audio bytes, and the platform.
 - `packages/desktop-contracts/src/index.ts`: renderer-facing app state, IPC channels, settings, provider, output, and capture contracts.
 
 ## Data And Contracts
