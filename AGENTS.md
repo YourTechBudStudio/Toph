@@ -8,6 +8,10 @@ Toph is a voice-to-text dictation app.
   - Electron desktop app.
   - Owns the main process, IPC wiring, tray/windows, shortcuts, dictation state, and platform integration.
 
+- `apps/mobile`
+  - Expo React Native app for Android.
+  - Has its own `AGENTS.md` with its stack, structure, and rules; read it before changing mobile code.
+
 - `packages/desktop-ui`
   - React UI package for desktop surfaces.
   - Owns overlay/settings UI components, hooks, layouts, and styling.

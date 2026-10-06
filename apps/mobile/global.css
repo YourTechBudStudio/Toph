@@ -1,0 +1,33 @@
+@import 'tailwindcss';
+@import 'uniwind';
+
+/* Mirrors the desktop palette in `packages/desktop-ui/src/styles.css` so both apps read as Toph. */
+@theme {
+  --color-canvas: #24273a;
+  --color-canvas-elevated: #363a4f;
+  --color-canvas-subtle: #2e3244;
+  --color-text-primary: #cad3f5;
+  --color-text-secondary: #a5adcb;
+  --color-text-tertiary: #6e738d;
+  --color-accent-blue: #8aadf4;
+  --color-accent-violet: #c6a0f6;
+  --color-accent-amber: #f5a97f;
+  --color-accent-green: #a6da95;
+  --color-accent-red: #ed8796;
+  --color-accent-cyan: #91d7e3;
+  --color-spark: #7dc4e4;
+  --color-line: rgba(255, 255, 255, 0.06);
+  --color-line-strong: rgba(255, 255, 255, 0.1);
+
+  --font-display: 'Sora_600SemiBold';
+  --font-display-regular: 'Sora_400Regular';
+  --font-display-medium: 'Sora_500Medium';
+  --font-display-bold: 'Sora_700Bold';
+  --font-body: 'SourceSans3_400Regular';
+  --font-body-medium: 'SourceSans3_500Medium';
+  --font-body-semibold: 'SourceSans3_600SemiBold';
+  --font-body-bold: 'SourceSans3_700Bold';
+
+  --radius-card: 24px;
+  --radius-tile: 16px;
+}

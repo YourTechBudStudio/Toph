@@ -12,7 +12,9 @@ platform-appropriate padding in the Dock and Finder.
 The `.icns` includes the standard 1x and 2x macOS icon representations from 16px
 through 1024px.
 
-Regenerate the app icons from `logo.png` when the logo source changes:
+`waveform-transparent.png` is the waveform glyph on its own. It is the source for the Android icons in `app-icons/android/`, which the mobile app's `app.json` uses: `adaptive-background.png` recreates the logo tile's gradient, `adaptive-foreground.png` keeps the waveform inside the adaptive icon safe zone, `adaptive-monochrome.png` is the themed-icon mask, and `splash.png` is the trimmed waveform for the splash screen.
+
+Regenerate the app icons when `logo.png` or `waveform-transparent.png` changes:
 
 ```sh
 pnpm run icons:app
