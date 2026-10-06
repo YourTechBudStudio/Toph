@@ -9,8 +9,9 @@
     "backgroundColor": "#24273a",
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#24273a",
-        "foregroundImage": "../../assets/logo.png"
+        "backgroundImage": "../../assets/app-icons/android/adaptive-background.png",
+        "foregroundImage": "../../assets/app-icons/android/adaptive-foreground.png",
+        "monochromeImage": "../../assets/app-icons/android/adaptive-monochrome.png"
       },
       "package": "studio.yourtechbud.toph"
     },
@@ -21,7 +22,7 @@
         "expo-splash-screen",
         {
           "backgroundColor": "#24273a",
-          "image": "../../assets/logo.png",
+          "image": "../../assets/app-icons/android/splash.png",
           "imageWidth": 160
         }
       ]

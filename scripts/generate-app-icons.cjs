@@ -7,6 +7,8 @@ const repoRoot = path.resolve(__dirname, '..');
 const assetsDir = path.join(repoRoot, 'assets');
 const outputDir = path.join(assetsDir, 'app-icons');
 const sourcePath = path.join(assetsDir, 'logo.png');
+const waveformSourcePath = path.join(assetsDir, 'waveform-transparent.png');
+const androidOutputDir = path.join(outputDir, 'android');
 
 const pngSizes = [16, 24, 32, 48, 64, 128, 256, 512, 1024];
 const icoSizes = [16, 24, 32, 48, 64, 128, 256];
@@ -83,6 +85,87 @@ function encodeIcnsRunLength(bytes) {
     chunks.push(Buffer.from([literal.length - 1]), literal);
   }
   return Buffer.concat(chunks);
+}
+
+// Android adaptive icons are two 108dp layers that the launcher masks down to the
+// centre 72dp, and only a 66dp circle is guaranteed visible. The background layer
+// recreates the logo tile's gradient across that visible window, and the
+// foreground keeps the waveform inside the safe circle.
+const androidLayerSize = 1024;
+const androidVisibleInset = androidLayerSize / 6;
+const androidWaveformScale = 0.5;
+
+function renderAndroidBackground() {
+  const size = androidLayerSize;
+  const top = androidVisibleInset;
+  const bottom = size - androidVisibleInset;
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}">
+  <defs>
+    <linearGradient id="tile" gradientUnits="userSpaceOnUse" x1="0" y1="${top}" x2="0" y2="${bottom}">
+      <stop offset="0" stop-color="#2e3352"/>
+      <stop offset="0.2" stop-color="#282c44"/>
+      <stop offset="0.55" stop-color="#1c1f31"/>
+      <stop offset="1" stop-color="#161827"/>
+    </linearGradient>
+    <radialGradient id="glow" gradientUnits="userSpaceOnUse" cx="${size / 2}" cy="${top}" r="${size / 2}">
+      <stop offset="0" stop-color="#4a5280" stop-opacity="0.2"/>
+      <stop offset="1" stop-color="#4a5280" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="${size}" height="${size}" fill="url(#tile)"/>
+  <rect width="${size}" height="${size}" fill="url(#glow)"/>
+</svg>`;
+  return sharp(Buffer.from(svg)).png().toBuffer();
+}
+
+async function renderTrimmedWaveform(width) {
+  const trimmed = await sharp(waveformSourcePath).trim().png().toBuffer();
+  return sharp(trimmed).resize({ width }).png().toBuffer();
+}
+
+async function renderAndroidForeground({ monochrome = false } = {}) {
+  const size = androidLayerSize;
+  let waveform = await renderTrimmedWaveform(Math.round(size * androidWaveformScale));
+  const { width, height } = await sharp(waveform).metadata();
+  if (monochrome) {
+    // Themed icons only use the alpha channel; the launcher supplies the colour.
+    waveform = await sharp(waveform)
+      .composite([
+        {
+          input: { create: { width, height, channels: 4, background: '#ffffff' } },
+          blend: 'in',
+        },
+      ])
+      .png()
+      .toBuffer();
+  }
+
+  return sharp({
+    create: { width: size, height: size, channels: 4, background: '#00000000' },
+  })
+    .composite([
+      {
+        input: waveform,
+        left: Math.round((size - width) / 2),
+        top: Math.round((size - height) / 2),
+      },
+    ])
+    .png()
+    .toBuffer();
+}
+
+async function generateAndroidIcons() {
+  await fs.mkdir(androidOutputDir, { recursive: true });
+  const outputs = [
+    ['adaptive-background.png', await renderAndroidBackground()],
+    ['adaptive-foreground.png', await renderAndroidForeground()],
+    ['adaptive-monochrome.png', await renderAndroidForeground({ monochrome: true })],
+    ['splash.png', await renderTrimmedWaveform(androidLayerSize)],
+  ];
+  for (const [name, buffer] of outputs) {
+    await fs.writeFile(path.join(androidOutputDir, name), buffer);
+    console.log(`Generated android/${name}`);
+  }
 }
 
 function encodeIco(images) {
@@ -174,6 +257,8 @@ async function main() {
 
   await fs.writeFile(path.join(outputDir, 'icon.icns'), encodeIcns(macImages));
   console.log('Generated icon.icns');
+
+  await generateAndroidIcons();
 }
 
 main().catch((error) => {

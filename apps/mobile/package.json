@@ -5,10 +5,10 @@
   "type": "module",
   "main": "expo-router/entry",
   "scripts": {
-    "android": "expo run:android --app-id studio.yourtechbud.toph.dev",
-    "android:prebuild": "expo prebuild --platform android",
+    "android": "pnpm --workspace-root run icons:app && expo run:android --app-id studio.yourtechbud.toph.dev",
+    "android:prebuild": "pnpm --workspace-root run icons:app && expo prebuild --platform android",
     "build": "expo export --platform android",
-    "release:android": "expo run:android --variant release --app-id studio.yourtechbud.toph",
+    "release:android": "pnpm --workspace-root run icons:app && expo run:android --variant release --app-id studio.yourtechbud.toph",
     "start": "expo start",
     "test": "node --test \"src/**/*.test.mjs\" \"tests/*.test.mjs\"",
     "typecheck": "tsc --noEmit && tsc --noEmit --project plugins/tsconfig.json"
