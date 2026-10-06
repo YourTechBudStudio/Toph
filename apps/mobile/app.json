@@ -1,0 +1,33 @@
+{
+  "expo": {
+    "name": "Toph",
+    "slug": "toph",
+    "version": "0.0.8",
+    "icon": "../../assets/logo.png",
+    "scheme": "toph",
+    "userInterfaceStyle": "dark",
+    "backgroundColor": "#24273a",
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#24273a",
+        "foregroundImage": "../../assets/logo.png"
+      },
+      "package": "studio.yourtechbud.toph"
+    },
+    "plugins": [
+      "expo-router",
+      "./plugins/dev-variant.ts",
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#24273a",
+          "image": "../../assets/logo.png",
+          "imageWidth": 160
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}

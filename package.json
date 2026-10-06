@@ -3,7 +3,7 @@
   "version": "0.0.8",
   "private": true,
   "scripts": {
-    "build": "pnpm --filter @toph/desktop build",
+    "build": "pnpm --filter @toph/desktop build && pnpm --filter @toph/mobile build",
     "dev": "pnpm --filter @toph/desktop dev",
     "dist": "pnpm --filter @toph/desktop run dist",
     "dist:linux": "pnpm --filter @toph/desktop run dist:linux",
@@ -17,11 +17,14 @@
     "icons:tray": "node scripts/generate-tray-icons.cjs",
     "lint": "oxlint .",
     "lint:fix": "oxlint --fix .",
+    "mobile:android": "pnpm --filter @toph/mobile android",
+    "mobile:start": "pnpm --filter @toph/mobile start",
     "pack": "pnpm --filter @toph/desktop run pack",
     "start": "sh ./scripts/toph-desktop.sh",
+    "test:mobile": "pnpm --filter @toph/mobile test",
     "test:segmentation": "pnpm --filter @toph/desktop test:segmentation",
     "test:ui": "pnpm --filter @toph/desktop-ui test",
-    "typecheck": "pnpm --filter @toph/desktop typecheck && pnpm --filter @toph/desktop-ui typecheck",
+    "typecheck": "pnpm --filter @toph/desktop typecheck && pnpm --filter @toph/desktop-ui typecheck && pnpm --filter @toph/mobile typecheck",
     "versions:sync": "node scripts/sync-package-versions.cjs"
   },
   "devDependencies": {

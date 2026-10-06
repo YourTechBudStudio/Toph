@@ -6,7 +6,16 @@
   },
   "plugins": ["eslint", "typescript", "oxc"],
   "jsPlugins": ["oxlint-tailwindcss"],
-  "ignorePatterns": ["node_modules", "dist", "out", ".turbo", ".opencode"],
+  "ignorePatterns": [
+    "node_modules",
+    "dist",
+    "out",
+    ".turbo",
+    ".opencode",
+    ".expo",
+    "apps/mobile/android",
+    "apps/mobile/ios"
+  ],
   "settings": {
     "tailwindcss": {
       "entryPoint": "packages/desktop-ui/src/styles.css"
@@ -43,6 +52,24 @@
       },
       "rules": {
         "react/react-in-jsx-scope": "off"
+      }
+    },
+    {
+      "files": ["apps/mobile/src/**/*.tsx"],
+      "plugins": ["eslint", "typescript", "oxc", "react"],
+      "env": {
+        "es2022": true
+      },
+      "rules": {
+        "react/only-export-components": "error",
+        "react/react-in-jsx-scope": "off"
+      }
+    },
+    {
+      "files": ["apps/mobile/*.cjs", "apps/mobile/plugins/**/*", "apps/mobile/tests/**/*"],
+      "env": {
+        "node": true,
+        "es2022": true
       }
     },
     {

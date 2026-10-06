@@ -1,5 +1,15 @@
 {
-  "ignorePatterns": ["node_modules", "dist", "out", ".turbo", ".opencode"],
+  "ignorePatterns": [
+    "node_modules",
+    "dist",
+    "out",
+    ".turbo",
+    ".opencode",
+    ".expo",
+    "apps/mobile/android",
+    "apps/mobile/ios",
+    "apps/mobile/uniwind-types.d.ts"
+  ],
   "semi": true,
   "singleQuote": true,
   "sortImports": {
