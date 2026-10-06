@@ -6,11 +6,12 @@ import {
   TransientInferenceProviderError,
   type InferenceClient,
 } from '../../src/main/providers/provider-definition.ts';
-import { defaultAppSettings } from '../../src/main/settings/app-settings-schema.ts';
 import { registerTsExtensionResolver } from '../helpers/ts-extension-resolver.ts';
 
 registerTsExtensionResolver();
 
+const { createDefaultAppSettings } = await import('@toph/dictation-core');
+const defaultAppSettings = createDefaultAppSettings(process.platform);
 const { createPolishService } = await import('../../src/main/polish/polish-service.ts');
 
 const rulePreset = {

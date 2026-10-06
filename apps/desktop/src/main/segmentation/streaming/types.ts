@@ -1,10 +1,4 @@
-import type { PlannedTranscriptionBatch, TimelineRegionDraft } from '../types';
-
-export interface SpeechProbabilityFrame {
-  startMs: number;
-  endMs: number;
-  speechProbability: number;
-}
+import type { PlannedTranscriptionBatch, TimelineRegionDraft } from '@toph/dictation-core';
 
 export interface StreamingSpeechActivityAnalyzer {
   name: string;

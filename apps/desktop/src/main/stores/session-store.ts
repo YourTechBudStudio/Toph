@@ -9,6 +9,7 @@ import { drizzle, type BetterSQLite3Database } from 'drizzle-orm/better-sqlite3'
 import { migrate } from 'drizzle-orm/better-sqlite3/migrator';
 
 import { MAX_POLISH_RULE_PRESETS, type DashboardStats } from '@toph/desktop-contracts';
+import type { PlannedTranscriptionBatch, TimelineRegionDraft } from '@toph/dictation-core';
 
 import {
   batchTranscripts,
@@ -30,7 +31,6 @@ import {
 } from '../db/schema';
 import type { TophDataPaths } from '../paths';
 import { shouldUpgradeRulePresetBody } from '../polish/rule-preset-upgrade';
-import type { PlannedTranscriptionBatch, TimelineRegionDraft } from '../segmentation/types';
 
 export interface RecordingSessionStore {
   createRecordingSession: (options: {

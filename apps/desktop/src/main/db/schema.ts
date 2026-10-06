@@ -13,16 +13,7 @@ export type RecordingSessionStatus =
   | 'cancelled'
   | 'removed';
 
-export type TimelineRegionKind = 'speech' | 'silence';
-export type TranscriptionBatchStatus = 'planned' | 'transcribing' | 'transcribed' | 'failed';
-export type BatchSourceRangeReason = 'speech' | 'pause_buffer' | 'normal_pause';
 export type SessionOutputKind = 'raw_concat' | 'polished';
-export type ProviderUsageOperationKind = 'transcription' | 'inference';
-/**
- * `polish_chunk` events belong to a session rather than to a row: an incremental polish call has no
- * transcript and no output row of its own, so its cost is recorded against the session directly.
- */
-export type ProviderUsageRelatedEntityKind = 'batch_transcript' | 'session_output' | 'polish_chunk';
 
 export const recordingSessions = sqliteTable('recording_sessions', {
   id: text('id').primaryKey(),

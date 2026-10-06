@@ -13,7 +13,8 @@ registerTsExtensionResolver();
 
 const { createDictationController } = await import('../src/main/dictation.ts');
 const { createDesktopStateStore } = await import('../src/main/state.ts');
-const { defaultAppSettings } = await import('../src/main/settings/app-settings-schema.ts');
+const { createDefaultAppSettings } = await import('@toph/dictation-core');
+const defaultAppSettings = createDefaultAppSettings(process.platform);
 
 async function createRawAudioPath() {
   const directory = await mkdtemp(join(tmpdir(), 'toph-dictation-rerun-'));

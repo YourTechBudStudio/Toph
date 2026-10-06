@@ -4,7 +4,7 @@ import type {
   PlannedBatchSourceRange,
   PlannedTranscriptionBatch,
   TimelineRegionDraft,
-} from '../types';
+} from '@toph/dictation-core';
 
 export interface BatchPlanningPolicy {
   preferredMinDerivedBatchMs: number;

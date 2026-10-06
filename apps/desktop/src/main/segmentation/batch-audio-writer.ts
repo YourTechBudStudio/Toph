@@ -1,12 +1,13 @@
 import { dirname, join } from 'node:path';
 
+import type { PlannedTranscriptionBatch } from '@toph/dictation-core';
+
 import {
   readPcm16MonoWavRanges,
   slicePcmByTime,
   writePcm16MonoWav,
   type PcmWavFile,
 } from '../audio/wav';
-import type { PlannedTranscriptionBatch } from './types';
 
 function getBatchAudioPath(options: { sessionRecordingDirectory: string; sequence: number }) {
   return join(
