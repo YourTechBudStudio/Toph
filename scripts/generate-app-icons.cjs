@@ -12,9 +12,11 @@ const pngSizes = [16, 24, 32, 48, 64, 128, 256, 512, 1024];
 const icoSizes = [16, 24, 32, 48, 64, 128, 256];
 const macIconArtworkScale = 832 / 1024;
 const icnsRepresentations = [
-  { logicalSize: 16, scale: 1, type: 'icp4' },
+  // macOS misreads PNG payloads in the 16px and 32px @1x slots (icp4/icp5),
+  // so those use the ARGB-encoded ic04/ic05 types that iconutil emits.
+  { logicalSize: 16, scale: 1, type: 'ic04', encoding: 'argb' },
   { logicalSize: 16, scale: 2, type: 'ic11' },
-  { logicalSize: 32, scale: 1, type: 'icp5' },
+  { logicalSize: 32, scale: 1, type: 'ic05', encoding: 'argb' },
   { logicalSize: 32, scale: 2, type: 'ic12' },
   { logicalSize: 128, scale: 1, type: 'ic07' },
   { logicalSize: 128, scale: 2, type: 'ic13' },
@@ -47,6 +49,36 @@ async function renderMacPng(size) {
     .composite([{ input: artwork, left: offset, top: offset }])
     .png()
     .toBuffer();
+}
+
+async function renderMacArgb(size) {
+  const { data } = await sharp(await renderMacPng(size))
+    .ensureAlpha()
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+  const pixelCount = size * size;
+  // ARGB icns payloads store each channel as a separate plane, in A, R, G, B order.
+  const channelOrder = [3, 0, 1, 2];
+  const planes = channelOrder.map((channel) => {
+    const plane = Buffer.alloc(pixelCount);
+    for (let pixel = 0; pixel < pixelCount; pixel += 1) {
+      plane[pixel] = data[pixel * 4 + channel];
+    }
+    return encodeIcnsRunLength(plane);
+  });
+
+  return Buffer.concat([Buffer.from('ARGB', 'ascii'), ...planes]);
+}
+
+// Icns run-length encoding written as literal runs only: a header byte of n
+// (0-127) is followed by n + 1 raw bytes.
+function encodeIcnsRunLength(bytes) {
+  const chunks = [];
+  for (let offset = 0; offset < bytes.length; offset += 128) {
+    const literal = bytes.subarray(offset, offset + 128);
+    chunks.push(Buffer.from([literal.length - 1]), literal);
+  }
+  return Buffer.concat(chunks);
 }
 
 function encodeIco(images) {
@@ -101,7 +133,10 @@ async function main() {
   const macImages = await Promise.all(
     icnsRepresentations.map(async (representation) => ({
       ...representation,
-      buffer: await renderMacPng(representation.logicalSize * representation.scale),
+      buffer:
+        representation.encoding === 'argb'
+          ? await renderMacArgb(representation.logicalSize * representation.scale)
+          : await renderMacPng(representation.logicalSize * representation.scale),
     })),
   );
 
