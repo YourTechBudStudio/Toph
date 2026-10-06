@@ -67,31 +67,22 @@ Toph stores its local data in `%USERPROFILE%\.toph`. To remove the app, open
 ### Linux install/update
 
 Install Toph into a user-owned location so in-app updates can replace the
-AppImage without `sudo`. The commands below need `curl`, `wget`, and the usual
-desktop-file tools available on most Linux desktops:
+AppImage without `sudo`. Toph's install script copies the AppImage to
+`~/.local/share/toph`, adds Toph to your app launcher with its icon, and links
+`toph` into `~/.local/bin`. It also removes the `toph.desktop` entry that older
+install steps created. The commands below need `curl` and `wget`:
 
 ```bash
-mkdir -p "$HOME/.local/share/toph" "$HOME/.local/bin" "$HOME/.local/share/applications"
-
 TOPH_VERSION="$(curl -fsSIL -o /dev/null -w '%{url_effective}' \
   https://github.com/YourTechBudStudio/Toph/releases/latest | sed 's#.*/v##')"
 
-wget -O "$HOME/.local/share/toph/Toph.AppImage" \
+cd "$(mktemp -d)"
+wget -O Toph.AppImage \
   "https://github.com/YourTechBudStudio/Toph/releases/download/v${TOPH_VERSION}/Toph-${TOPH_VERSION}-linux-x86_64.AppImage"
+wget -O install-toph-linux.sh \
+  "https://github.com/YourTechBudStudio/Toph/releases/download/v${TOPH_VERSION}/install-toph-linux.sh"
 
-chmod +x "$HOME/.local/share/toph/Toph.AppImage"
-ln -sfn "$HOME/.local/share/toph/Toph.AppImage" "$HOME/.local/bin/toph"
-
-cat > "$HOME/.local/share/applications/toph.desktop" <<EOF
-[Desktop Entry]
-Name=Toph
-Exec=$HOME/.local/bin/toph
-Type=Application
-Terminal=false
-Categories=Utility;
-EOF
-
-update-desktop-database "$HOME/.local/share/applications" 2>/dev/null || true
+sh install-toph-linux.sh Toph.AppImage
 ```
 
 After that, launch Toph from your app launcher or run `toph` from a terminal.

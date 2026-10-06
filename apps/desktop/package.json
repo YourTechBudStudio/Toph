@@ -5,6 +5,7 @@
   "description": "Toph is a modern dictation software",
   "author": "YourTechBud <noorain@yourtechbud.studio>",
   "type": "module",
+  "desktopName": "studio.yourtechbud.toph.desktop",
   "main": "out/main/index.js",
   "scripts": {
     "build": "pnpm run rebuild:native && pnpm --workspace-root run icons:app && electron-vite build && pnpm run check:main-bundle",

@@ -10,6 +10,10 @@ const sourcePath = path.join(assetsDir, 'logo.png');
 
 const pngSizes = [16, 24, 32, 48, 64, 128, 256, 512, 1024];
 const icoSizes = [16, 24, 32, 48, 64, 128, 256];
+// electron-builder installs a directory of NxN.png files as the Linux hicolor icon
+// set as-is. A single PNG would only ship one size.
+const linuxIconSizes = [16, 24, 32, 48, 64, 128, 256, 512];
+const linuxIconDir = path.join(outputDir, 'linux');
 const macIconArtworkScale = 832 / 1024;
 const icnsRepresentations = [
   // macOS misreads PNG payloads in the 16px and 32px @1x slots (icp4/icp5),
@@ -151,6 +155,13 @@ async function main() {
   }
   await fs.writeFile(path.join(outputDir, 'icon.png'), linuxIcon.buffer);
   console.log('Generated icon.png');
+
+  await fs.rm(linuxIconDir, { recursive: true, force: true });
+  await fs.mkdir(linuxIconDir, { recursive: true });
+  for (const image of renderedImages.filter(({ size }) => linuxIconSizes.includes(size))) {
+    await fs.writeFile(path.join(linuxIconDir, `${image.size}x${image.size}.png`), image.buffer);
+  }
+  console.log('Generated linux icon set');
 
   await fs.writeFile(path.join(outputDir, 'icon-mac.png'), await renderMacPng(1024));
   console.log('Generated icon-mac.png');
