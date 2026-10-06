@@ -1,4 +1,11 @@
-import type { BatchSourceRangeReason, TimelineRegionKind } from '../db/schema';
+export type TimelineRegionKind = 'speech' | 'silence';
+export type BatchSourceRangeReason = 'speech' | 'pause_buffer' | 'normal_pause';
+
+export interface SpeechProbabilityFrame {
+  startMs: number;
+  endMs: number;
+  speechProbability: number;
+}
 
 export interface TimelineRegionDraft {
   id: string;

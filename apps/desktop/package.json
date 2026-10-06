@@ -29,7 +29,6 @@
     "test:settings": "node --experimental-strip-types --test test/settings/*.test.ts",
     "test:shortcuts": "node --experimental-strip-types --test test/shortcuts/*.test.ts",
     "test:stores": "node --experimental-strip-types --test test/stores/*.test.ts",
-    "test:transcription": "node --experimental-strip-types --test test/session-transcription-coordinator.test.ts",
     "test:updater": "node --experimental-strip-types --test test/updater/*.test.ts",
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
@@ -37,10 +36,10 @@
     "@ricky0123/vad-web": "^0.0.30",
     "@toph/desktop-contracts": "workspace:*",
     "@toph/desktop-ui": "workspace:*",
+    "@toph/dictation-core": "workspace:*",
     "better-sqlite3": "^13.0.1",
     "drizzle-orm": "^0.45.2",
-    "electron-updater": "^6.8.3",
-    "zod": "^4.4.3"
+    "electron-updater": "^6.8.3"
   },
   "devDependencies": {
     "@electron/rebuild": "^4.0.4",

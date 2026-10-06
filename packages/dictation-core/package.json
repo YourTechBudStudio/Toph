@@ -1,0 +1,20 @@
+{
+  "name": "@toph/dictation-core",
+  "version": "0.0.8",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "test": "node --experimental-strip-types --import ./test/helpers/register-ts-extension-resolver.ts --test 'test/**/*.test.ts'",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@toph/desktop-contracts": "workspace:*",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "typescript": "^7.0.2"
+  }
+}

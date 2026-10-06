@@ -16,6 +16,10 @@ Toph is a voice-to-text dictation app.
   - Shared desktop types and constants.
   - Owns API contracts between Electron and UI code.
 
+- `packages/dictation-core`
+  - Node-free dictation logic shared with mobile: segmentation, transcription coordinator, OpenAI API-key client, settings schema.
+  - Owns no I/O; hosts pass in storage, audio bytes and platform.
+
 - `packages/shared`
   - Shared utilities intended to be reused across packages.
 

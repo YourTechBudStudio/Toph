@@ -10,8 +10,13 @@ const workspaceAliases = {
   '@renderer': resolve(rootDir, 'src/renderer/src'),
   '@toph/desktop-contracts': resolve(rootDir, '../../packages/desktop-contracts/src/index.ts'),
   '@toph/desktop-ui': resolve(rootDir, '../../packages/desktop-ui/src/index.ts'),
+  '@toph/dictation-core': resolve(rootDir, '../../packages/dictation-core/src/index.ts'),
 };
-const bundledWorkspacePackages = ['@toph/desktop-contracts', '@toph/desktop-ui'];
+const bundledWorkspacePackages = [
+  '@toph/desktop-contracts',
+  '@toph/desktop-ui',
+  '@toph/dictation-core',
+];
 
 export default defineConfig({
   main: {

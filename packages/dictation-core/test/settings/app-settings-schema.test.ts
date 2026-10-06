@@ -1,16 +1,12 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import {
-  resolveDefaultRuleSwitcherShortcutChord,
-  resolveDefaultShortcutChord,
-} from '@toph/desktop-contracts';
-import type { ProviderFieldSpec } from '@toph/desktop-contracts';
+import type { HostPlatform, ProviderFieldSpec } from '@toph/desktop-contracts';
 
 import {
   normalizeAppSettings,
   parseAppSettingsFile,
-} from '../../src/main/settings/app-settings-schema.ts';
+} from '../../src/settings/app-settings-schema.ts';
 
 /**
  * Mirrors what `providers/openai-sub/definition.ts` declares. Declared here rather than imported
@@ -60,8 +56,11 @@ const openAiSubDefaults = {
 
 const emptyGroups = { provider: {}, transcription: {}, inference: {} };
 
+// Every test normalises as a macOS host, so the expected shortcut defaults are fixed literals.
+const darwinOptions = { platform: 'darwin' as HostPlatform, ...declarations };
+
 function normalize(value: unknown, rulePresetIds: string[] = ['general']) {
-  return normalizeAppSettings(parseAppSettingsFile(value), { rulePresetIds, ...declarations });
+  return normalizeAppSettings(parseAppSettingsFile(value), { rulePresetIds, ...darwinOptions });
 }
 
 test('normalizes unknown providers and unknown rule presets to unresolved setup', () => {
@@ -77,7 +76,7 @@ test('normalizes unknown providers and unknown rule presets to unresolved setup'
   assert.deepEqual(settings, {
     version: 1,
     shortcut: { chord: { modifiers: ['control', 'alt'], key: 'Space' } },
-    ruleSwitcherShortcut: { chord: resolveDefaultRuleSwitcherShortcutChord(process.platform) },
+    ruleSwitcherShortcut: { chord: { modifiers: ['option'], key: 'Space' } },
     transcription: { providerId: null },
     inference: { providerId: null },
     providers: { 'openai-sub': openAiSubDefaults, openai: emptyGroups },
@@ -163,7 +162,7 @@ test('normalizes existing v1 settings without a shortcut to the platform default
     polish: { enabled: false, rulePresetId: 'general' },
   });
 
-  assert.deepEqual(settings.shortcut.chord, resolveDefaultShortcutChord(process.platform));
+  assert.deepEqual(settings.shortcut.chord, { modifiers: ['control', 'option'], key: 'Space' });
   assert.equal(settings.polish.enabled, false);
   assert.equal(settings.polish.dictionaryDefaultsSeeded, false);
   assert.deepEqual(settings.audio, {
@@ -225,4 +224,19 @@ test('rejects invalid settings structure', () => {
       polish: { enabled: 'yes', rulePresetId: 'general' },
     }),
   );
+});
+
+test('falls back to the shortcut defaults of the platform it is given', () => {
+  const settings = normalizeAppSettings(
+    parseAppSettingsFile({
+      version: 1,
+      transcription: { providerId: 'openai-sub' },
+      inference: { providerId: 'openai-sub' },
+      polish: { enabled: false, rulePresetId: 'general' },
+    }),
+    { rulePresetIds: ['general'], ...darwinOptions, platform: 'linux' },
+  );
+
+  assert.deepEqual(settings.shortcut.chord, { modifiers: ['control', 'alt'], key: 'Space' });
+  assert.deepEqual(settings.ruleSwitcherShortcut.chord, { modifiers: ['control'], key: 'Space' });
 });

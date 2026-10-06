@@ -1,12 +1,10 @@
-import { readFile } from 'node:fs/promises';
-import { basename } from 'node:path';
-
 import {
   TransientTranscriptionProviderError,
-  type ProviderClientContext,
   type TranscriptionClient,
   type TranscriptionClientResult,
-} from '../provider-definition';
+} from '@toph/dictation-core';
+
+import type { ProviderClientContext } from '../provider-definition';
 
 const providerId = 'openai-sub';
 const endpoint = 'https://chatgpt.com/backend-api/transcribe';
@@ -55,9 +53,8 @@ export function createOpenAiSubTranscriptionClient(
     async transcribeBatch(input): Promise<TranscriptionClientResult> {
       const credentials = await context.credentials();
       const model = input.model;
-      const audio = await readFile(input.audioPath);
       const form = new FormData();
-      form.set('file', new Blob([audio], { type: 'audio/wav' }), basename(input.audioPath));
+      form.set('file', new Blob([input.audio], { type: 'audio/wav' }), `${input.batchId}.wav`);
       form.set('duration_ms', String(input.durationMs));
       form.set('model', model);
 

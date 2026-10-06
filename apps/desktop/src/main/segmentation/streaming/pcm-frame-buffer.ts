@@ -1,4 +1,6 @@
-import type { SpeechProbabilityFrame, StreamingSpeechActivityAnalyzerSession } from './types';
+import type { SpeechProbabilityFrame } from '@toph/dictation-core';
+
+import type { StreamingSpeechActivityAnalyzerSession } from './types';
 
 const bytesPerPcm16Sample = 2;
 

@@ -6,29 +6,11 @@ import type {
   ProviderSettings,
   ProviderSettingsGroup,
 } from '@toph/desktop-contracts';
-
-import type { PricingService } from '../pricing/pricing-service';
-import type { ProviderUsageDetails } from '../provider-usage';
-
-export interface TranscriptionClientResult {
-  text: string;
-  provider: string;
-  model: string | null;
-  usage: ProviderUsageDetails;
-  providerRequestId: string | null;
-  providerResponseJson: unknown;
-}
-
-export interface TranscriptionClient {
-  id: string;
-  transcribeBatch: (input: {
-    batchId: string;
-    audioPath: string;
-    durationMs: number;
-    model: string;
-    signal?: AbortSignal;
-  }) => Promise<TranscriptionClientResult>;
-}
+import type {
+  CostEstimator,
+  ProviderUsageDetails,
+  TranscriptionClient,
+} from '@toph/dictation-core';
 
 export interface InferenceClientResult {
   text: string;
@@ -46,19 +28,6 @@ export interface InferenceClient {
     inputText: string;
     signal?: AbortSignal;
   }) => Promise<InferenceClientResult>;
-}
-
-export class TransientTranscriptionProviderError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = 'TransientTranscriptionProviderError';
-  }
-}
-
-export function isTransientTranscriptionProviderError(
-  error: unknown,
-): error is TransientTranscriptionProviderError {
-  return error instanceof TransientTranscriptionProviderError;
 }
 
 export class TransientInferenceProviderError extends Error {
@@ -93,7 +62,7 @@ export interface ProviderClientContext {
   credentials: () => Promise<ProviderCredentials>;
   /** This provider's materialised settings groups. */
   settings: () => ProviderSettings;
-  pricing: Pick<PricingService, 'estimateCost'>;
+  pricing: CostEstimator;
   billingMode: ProviderBillingMode;
 }
 
