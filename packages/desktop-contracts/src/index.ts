@@ -66,6 +66,23 @@ export const OVERLAY_WINDOW_GEOMETRY = {
   height: 80,
 } as const;
 
+/**
+ * The host operating system, named the way Node names platforms (`'darwin'`, `'linux'`, `'win32'`,
+ * …). Declared here so code shared with non-Node hosts can name a platform without Node's types.
+ */
+export type HostPlatform =
+  | 'aix'
+  | 'android'
+  | 'cygwin'
+  | 'darwin'
+  | 'freebsd'
+  | 'haiku'
+  | 'linux'
+  | 'netbsd'
+  | 'openbsd'
+  | 'sunos'
+  | 'win32';
+
 export type ShortcutModifier = 'command' | 'control' | 'option' | 'alt' | 'shift';
 export type ShortcutKey = string;
 
@@ -146,14 +163,14 @@ export function normalizeShortcutModifiers(
   return SHORTCUT_MODIFIER_ORDER.filter((modifier) => unique.has(modifier));
 }
 
-export function resolveDefaultShortcutChord(platform: NodeJS.Platform): ShortcutChord {
+export function resolveDefaultShortcutChord(platform: HostPlatform): ShortcutChord {
   return {
     modifiers: platform === 'darwin' ? ['control', 'option'] : ['control', 'alt'],
     key: 'Space',
   };
 }
 
-export function resolveDefaultRuleSwitcherShortcutChord(platform: NodeJS.Platform): ShortcutChord {
+export function resolveDefaultRuleSwitcherShortcutChord(platform: HostPlatform): ShortcutChord {
   return {
     modifiers: platform === 'darwin' ? ['option'] : ['control'],
     key: 'Space',
@@ -163,7 +180,7 @@ export function resolveDefaultRuleSwitcherShortcutChord(platform: NodeJS.Platfor
 export function normalizeDomShortcutModifier(
   key: string,
   code: string,
-  platform: NodeJS.Platform,
+  platform: HostPlatform,
 ): ShortcutModifier | null {
   if (key === 'Meta' || code === 'MetaLeft' || code === 'MetaRight') {
     return 'command';
@@ -289,7 +306,7 @@ export function formatShortcutKeyForDisplay(key: ShortcutKey): string {
   return key;
 }
 
-export function formatShortcutChordKeys(chord: ShortcutChord, platform: NodeJS.Platform): string[] {
+export function formatShortcutChordKeys(chord: ShortcutChord, platform: HostPlatform): string[] {
   return [
     ...normalizeShortcutModifiers(chord.modifiers).map((modifier) =>
       platform === 'darwin'
@@ -300,13 +317,13 @@ export function formatShortcutChordKeys(chord: ShortcutChord, platform: NodeJS.P
   ];
 }
 
-export function formatShortcutChord(chord: ShortcutChord, platform: NodeJS.Platform): string {
+export function formatShortcutChord(chord: ShortcutChord, platform: HostPlatform): string {
   return formatShortcutChordKeys(chord, platform).join(platform === 'darwin' ? '' : '+');
 }
 
 export function shortcutChordToElectronAccelerator(
   chord: ShortcutChord,
-  platform: NodeJS.Platform,
+  platform: HostPlatform,
 ): string {
   const modifiers = normalizeShortcutModifiers(chord.modifiers).map((modifier) => {
     if (modifier === 'command') return platform === 'darwin' ? 'Command' : 'Super';
@@ -770,7 +787,7 @@ export interface AppState {
     message: string | null;
   };
   environment: {
-    platform: NodeJS.Platform;
+    platform: HostPlatform;
     sessionType: string;
     currentDesktop: string;
   };
@@ -788,7 +805,7 @@ export interface AppState {
 }
 
 export interface DesktopApi {
-  platform: NodeJS.Platform;
+  platform: HostPlatform;
   /**
    * Subscribe to the desktop state stream.
    * The listener receives the current snapshot first, then later updates in send order.
