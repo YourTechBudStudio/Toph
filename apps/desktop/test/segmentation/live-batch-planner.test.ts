@@ -99,6 +99,34 @@ describe('LiveBatchPlanner', () => {
     assert.equal(batches[1].sourceRanges[0].sourceEndMs, 15_000);
   });
 
+  it('keeps a trailing pause buffer spanning several pause regions in source order', () => {
+    const planner = new LiveBatchPlanner({ sessionId: 'session', createdLive: true });
+
+    planner.appendRegions([
+      region(0, 'silence', 0, 300),
+      region(1, 'silence', 300, 600),
+      region(2, 'speech', 600, 2_000),
+    ]);
+    const [batch] = planner.flush();
+
+    assert.deepEqual(
+      batch.sourceRanges.map((range) => [range.sourceStartMs, range.sourceEndMs, range.reason]),
+      [
+        [100, 300, 'pause_buffer'],
+        [300, 600, 'pause_buffer'],
+        [600, 2_000, 'speech'],
+      ],
+    );
+    assert.deepEqual(
+      batch.sourceRanges.map((range) => [range.derivedStartMs, range.derivedEndMs]),
+      [
+        [0, 200],
+        [200, 500],
+        [500, 1_900],
+      ],
+    );
+  });
+
   it('does not produce batches for silence-only input', () => {
     const planner = new LiveBatchPlanner({ sessionId: 'session', createdLive: true });
 

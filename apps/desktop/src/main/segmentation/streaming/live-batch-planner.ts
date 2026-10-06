@@ -175,20 +175,27 @@ export class LiveBatchPlanner {
   }
 
   private appendTrailingPauseBuffer() {
+    // Walk backwards to pick the pause closest to the upcoming speech, then append
+    // chronologically so the derived audio plays in source order.
+    const trailingRanges: { region: TimelineRegionDraft; sourceStartMs: number }[] = [];
     let remainingMs = this.policy.shortenedPauseMs;
     for (const region of [...this.pendingPauseRegions].reverse()) {
       if (remainingMs <= 0) {
-        return;
+        break;
       }
 
       const sourceStartMs = Math.max(region.startMs, region.endMs - remainingMs);
+      trailingRanges.unshift({ region, sourceStartMs });
+      remainingMs -= region.endMs - sourceStartMs;
+    }
+
+    for (const { region, sourceStartMs } of trailingRanges) {
       this.appendRange({
         timelineRegionId: region.id,
         sourceStartMs,
         sourceEndMs: region.endMs,
         reason: 'pause_buffer',
       });
-      remainingMs -= region.endMs - sourceStartMs;
     }
   }
 
