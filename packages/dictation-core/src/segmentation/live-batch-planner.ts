@@ -1,10 +1,9 @@
-import { randomUUID } from 'node:crypto';
-
+import { createId } from '../ids';
 import type {
   PlannedBatchSourceRange,
   PlannedTranscriptionBatch,
   TimelineRegionDraft,
-} from '../types';
+} from './types';
 
 export interface LiveBatchPlanningPolicy {
   preferredMinDerivedBatchMs: number;
@@ -17,14 +16,6 @@ const defaultPolicy: LiveBatchPlanningPolicy = {
   longPauseThresholdMs: 1_500,
   shortenedPauseMs: 500,
 };
-
-function createBatchId() {
-  return `batch_${Date.now()}_${randomUUID()}`;
-}
-
-function createRangeId() {
-  return `range_${Date.now()}_${randomUUID()}`;
-}
 
 function regionDuration(region: TimelineRegionDraft) {
   return region.endMs - region.startMs;
@@ -55,7 +46,7 @@ export class LiveBatchPlanner {
   private readonly policy: LiveBatchPlanningPolicy;
   private readonly sessionId: string;
   private readonly createdLive: boolean;
-  private currentBatchId = createBatchId();
+  private currentBatchId = createId('batch');
   private currentRanges: PlannedBatchSourceRange[] = [];
   private currentDerivedMs = 0;
   private nextBatchSequence = 0;
@@ -222,7 +213,7 @@ export class LiveBatchPlanner {
 
     const durationMs = options.sourceEndMs - options.sourceStartMs;
     this.currentRanges.push({
-      id: createRangeId(),
+      id: createId('range'),
       batchId: this.currentBatchId,
       timelineRegionId: options.timelineRegionId,
       sequence: this.currentRanges.length,
@@ -251,7 +242,7 @@ export class LiveBatchPlanner {
     };
 
     this.emittedRanges.push(...this.currentRanges);
-    this.currentBatchId = createBatchId();
+    this.currentBatchId = createId('batch');
     this.currentRanges = [];
     this.currentDerivedMs = 0;
     return batch;

@@ -10,6 +10,7 @@ import type {
   ProviderId,
   ProviderState,
 } from '@toph/desktop-contracts';
+import type { TranscriptionClient } from '@toph/dictation-core';
 
 import {
   readProviderCredentialStorage,
@@ -19,7 +20,6 @@ import {
 import type {
   InferenceClient,
   ProviderDefinition,
-  TranscriptionClient,
 } from '../../src/main/providers/provider-definition.ts';
 import { createProviderRegistry } from '../../src/main/providers/provider-registry.ts';
 import { registerTsExtensionResolver } from '../helpers/ts-extension-resolver.ts';

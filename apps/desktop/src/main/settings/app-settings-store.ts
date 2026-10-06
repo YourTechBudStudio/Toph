@@ -8,13 +8,12 @@ import type {
   ProviderSettingsGroup,
   ShortcutChord,
 } from '@toph/desktop-contracts';
-
 import {
-  defaultAppSettings,
+  createDefaultAppSettings,
   normalizeAppSettings,
   parseAppSettingsFile,
   type ProviderSettingsDeclarations,
-} from './app-settings-schema';
+} from '@toph/dictation-core';
 
 export interface AppSettingsStore {
   getSettings: () => AppSettings;
@@ -60,7 +59,7 @@ export async function createAppSettingsStore(
   } & ProviderSettingsDeclarations,
 ): Promise<AppSettingsStore> {
   const listeners = new Set<(settings: AppSettings) => void>();
-  const fallbackSettings = options.defaultSettings ?? defaultAppSettings;
+  const fallbackSettings = options.defaultSettings ?? createDefaultAppSettings(process.platform);
   let settings = cloneSettings(fallbackSettings);
   let writeQueue: Promise<unknown> = Promise.resolve();
 
@@ -75,6 +74,7 @@ export async function createAppSettingsStore(
   };
 
   const normalizeOptions = async () => ({
+    platform: process.platform,
     rulePresetIds: await options.listRulePresetIds(),
     providerDeclarations: options.providerDeclarations,
   });

@@ -1,8 +1,5 @@
-import { randomUUID } from 'node:crypto';
-
-import type { TimelineRegionKind } from '../../db/schema';
-import type { TimelineRegionDraft } from '../types';
-import type { SpeechProbabilityFrame } from './types';
+import { createId } from '../ids';
+import type { SpeechProbabilityFrame, TimelineRegionDraft, TimelineRegionKind } from './types';
 
 export interface TimelineAssemblerPolicy {
   positiveSpeechThreshold: number;
@@ -19,10 +16,6 @@ const defaultPolicy: TimelineAssemblerPolicy = {
   minSpeechMs: 250,
   silenceEmitIntervalMs: 500,
 };
-
-function createRegionId() {
-  return `region_${Date.now()}_${randomUUID()}`;
-}
 
 interface OpenRegion {
   kind: TimelineRegionKind;
@@ -183,7 +176,7 @@ export class TimelineAssembler {
     }
 
     return {
-      id: createRegionId(),
+      id: createId('region'),
       sequence: this.nextSequence++,
       kind: region.kind,
       startMs: region.startMs,

@@ -1,29 +1,7 @@
 import { readFile, writeFile } from 'node:fs/promises';
 
 import type { ProviderId } from '@toph/desktop-contracts';
-
-export type CostSource = 'provider_reported' | 'models_dev' | 'static_fallback' | 'none';
-
-export interface UsageCostEstimate {
-  costUsdMicros: number;
-  costSource: CostSource;
-  pricingCatalogProviderId: string | null;
-  pricingCatalogModelId: string | null;
-}
-
-export interface TokenUsage {
-  kind: 'tokens';
-  inputTokens: number;
-  cachedInputTokens: number;
-  outputTokens: number;
-}
-
-export interface AudioDurationUsage {
-  kind: 'audio_duration';
-  durationMs: number;
-}
-
-export type PricingUsage = TokenUsage | AudioDurationUsage;
+import type { CostEstimator, PricingUsage, UsageCostEstimate } from '@toph/dictation-core';
 
 interface ModelsDevModel {
   cost?: {
@@ -121,22 +99,9 @@ const providerPricingMappings: Record<ProviderId, ProviderPricingMapping> = {
   },
 };
 
-export interface PricingService {
+export interface PricingService extends CostEstimator {
   refreshModelsDevCatalog: () => Promise<void>;
   refreshModelsDevCatalogInBackground: () => void;
-  estimateCost: (input: {
-    providerId: ProviderId;
-    model: string | null;
-    usage: PricingUsage;
-    /**
-     * Whether this app's own hardcoded rates may be applied. A client calling an endpoint other
-     * than the provider's official one passes `false`: the published rates are that vendor's
-     * prices and mean nothing for a third-party or self-hosted host, so no estimate is the honest
-     * answer. Catalog lookups are unaffected, because a catalog hit prices the model itself.
-     * Defaults to `true` for callers that only ever reach the official endpoint.
-     */
-    allowStaticFallback?: boolean;
-  }) => UsageCostEstimate;
 }
 
 function isObject(value: unknown): value is Record<string, unknown> {

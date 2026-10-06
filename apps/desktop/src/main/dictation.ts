@@ -1,6 +1,7 @@
 import { existsSync } from 'node:fs';
 
 import type { ActiveInputDeviceFallback, PasteAttempt } from '@toph/desktop-contracts';
+import type { SessionTranscriptionCoordinator } from '@toph/dictation-core';
 
 import type { TranscriptionDiagnostics } from './diagnostics/transcription-diagnostics';
 import { resolveDictationRetryStrategy } from './dictation-retry-strategy';
@@ -17,7 +18,6 @@ import type { SegmentationPipelineSession } from './segmentation/streaming/segme
 import type { AppSettingsStore } from './settings/app-settings-store';
 import type { DesktopStateStore } from './state';
 import type { RecordingSessionStore } from './stores/session-store';
-import type { SessionTranscriptionCoordinator } from './transcription/session-transcription-coordinator';
 
 export interface DictationController {
   toggleCapture: () => Promise<void>;

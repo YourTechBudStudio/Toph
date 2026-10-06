@@ -1,8 +1,8 @@
 /**
- * HTTP details shared by this provider's connection check and its two clients. Scoped to
- * `providers/openai/` on purpose: `openai-sub` classifies a 403 carrying an HTML body as transient
- * because it scrapes a consumer endpoint behind a bot check, which is not a rule an API-key
- * endpoint should inherit. The two providers have no common change pressure here.
+ * HTTP details shared by the OpenAI API-key provider's connection check and its clients, wherever
+ * they live. Scoped to this provider on purpose: `openai-sub` classifies a 403 carrying an HTML
+ * body as transient because it scrapes a consumer endpoint behind a bot check, which is not a rule
+ * an API-key endpoint should inherit. The two providers have no common change pressure here.
  */
 
 const officialApiHost = 'api.openai.com';

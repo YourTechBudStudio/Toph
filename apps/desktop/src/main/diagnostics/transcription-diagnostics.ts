@@ -1,6 +1,8 @@
 import { appendFile, mkdir, rename, stat } from 'node:fs/promises';
 import { dirname } from 'node:path';
 
+import type { TranscriptionCoordinatorEvent } from '@toph/dictation-core';
+
 import { sanitizeErrorMessage } from '../history/error-report';
 
 /**
@@ -19,53 +21,9 @@ import { sanitizeErrorMessage } from '../history/error-report';
 export type TranscriptionDiagnosticEvent =
   /** The segmentation pipeline handed a set of batches to the transcription coordinator. */
   | { kind: 'batches_handed_over'; sessionId: string; batchIds: string[]; origin: HandoverOrigin }
-  /** `onBatchReady` was entered for a batch. */
-  | { kind: 'batch_received'; batchId: string; resetAttempts: boolean }
-  /** `onBatchReady` returned without creating a task. */
-  | { kind: 'batch_skipped'; batchId: string; reason: BatchSkipReason }
-  /**
-   * The transcription task body was entered. An async function body runs synchronously up to its
-   * first `await` and `record` never returns a promise, so this always lands in the same tick as
-   * the `batch_received` that precedes it. It records that a task was *created*, not that the task
-   * made progress — read `batch_session_loaded` for that.
-   */
-  | { kind: 'batch_task_created'; sessionId: string; batchId: string }
-  /**
-   * The `getSession` read inside `transcribeBatch` resolved. This is the only `await` between task
-   * creation and the first attempt; everything after it up to the attempt loop is synchronous. So
-   * the gap either side of this event says directly whether a stall sits inside the store read or
-   * before the attempt loop, rather than leaving it to be inferred from an absence.
-   */
-  | { kind: 'batch_session_loaded'; sessionId: string; batchId: string }
-  /** The task body returned, whether by success, failure or abort. */
-  | { kind: 'batch_task_settled'; sessionId: string; batchId: string }
-  | { kind: 'batch_attempt_started'; sessionId: string; batchId: string; attempt: number }
-  | {
-      kind: 'batch_attempt_succeeded';
-      sessionId: string;
-      batchId: string;
-      attempt: number;
-      providerDurationMs: number;
-    }
-  | {
-      kind: 'batch_attempt_failed';
-      sessionId: string;
-      batchId: string;
-      attempt: number;
-      transient: boolean;
-      message: string;
-    }
-  | {
-      kind: 'batch_failed';
-      sessionId: string;
-      batchId: string;
-      attempts: number;
-      message: string;
-    };
+  | TranscriptionCoordinatorEvent;
 
 export type HandoverOrigin = 'live' | 'recorded_rerun' | 'partial_retry';
-
-export type BatchSkipReason = 'already_tracked' | 'missing_row' | 'already_transcribed';
 
 export interface TranscriptionDiagnostics {
   /**

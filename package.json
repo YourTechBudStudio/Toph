@@ -19,9 +19,10 @@
     "lint:fix": "oxlint --fix .",
     "pack": "pnpm --filter @toph/desktop run pack",
     "start": "sh ./scripts/toph-desktop.sh",
+    "test:core": "pnpm --filter @toph/dictation-core test",
     "test:segmentation": "pnpm --filter @toph/desktop test:segmentation",
     "test:ui": "pnpm --filter @toph/desktop-ui test",
-    "typecheck": "pnpm --filter @toph/desktop typecheck && pnpm --filter @toph/desktop-ui typecheck",
+    "typecheck": "pnpm --filter @toph/desktop typecheck && pnpm --filter @toph/desktop-ui typecheck && pnpm --filter @toph/dictation-core typecheck",
     "versions:sync": "node scripts/sync-package-versions.cjs"
   },
   "devDependencies": {
