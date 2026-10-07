@@ -1,0 +1,57 @@
+plugins {
+  id 'com.android.library'
+  id 'expo-module-gradle-plugin'
+}
+
+group = 'studio.yourtechbud.toph'
+version = '0.0.0'
+
+// Desktop's exact Silero v5 model, taken from the @ricky0123/vad-web install desktop resolves
+// (apps/desktop), so mobile and desktop always score with the same file. If desktop upgrades
+// vad-web, mobile follows; the parity check (apps/desktop/scripts/parity-check.ts) re-checks it.
+def desktopDir = file("../../../../desktop")
+def sileroModel = {
+  def resolve = ["node", "--print", "require.resolve('@ricky0123/vad-web/package.json')"].execute(null, desktopDir)
+  def vadWebPackageJson = resolve.text.trim()
+  resolve.waitFor()
+  // An unresolvable vad-web falls back to where pnpm would install it, so the check below reports it.
+  def vadWebDir = vadWebPackageJson ? new File(vadWebPackageJson).parentFile : new File(desktopDir, "node_modules/@ricky0123/vad-web")
+  new File(vadWebDir, "dist/silero_vad_v5.onnx")
+}()
+def sileroAssetsDir = layout.buildDirectory.dir("generated/silero-assets")
+
+// A separate task, because Gradle skips every action of a Copy task whose source is missing
+// (NO-SOURCE), which would build an APK without the model.
+def verifySileroModel = tasks.register("verifySileroModel") {
+  doLast {
+    if (!sileroModel.exists()) {
+      throw new GradleException("Silero model not found at ${sileroModel}; run pnpm install at the repo root.")
+    }
+  }
+}
+
+def copySileroModel = tasks.register("copySileroModel", Copy) {
+  dependsOn(verifySileroModel)
+  from(sileroModel)
+  into(sileroAssetsDir)
+}
+
+android {
+  namespace "studio.yourtechbud.toph.voice"
+  defaultConfig {
+    versionCode 1
+    versionName "0.0.0"
+  }
+  sourceSets {
+    main.assets.srcDir(sileroAssetsDir)
+  }
+  // No `noCompress "onnx"`: a library's setting does not reach the app's APK packaging, and the
+  // model is read as a stream (SileroVad.kt), which works whether or not it is compressed.
+}
+
+tasks.named("preBuild") { dependsOn(copySileroModel) }
+
+dependencies {
+  // The same ONNX Runtime release as desktop's onnxruntime-web.
+  implementation 'com.microsoft.onnxruntime:onnxruntime-android:1.27.0'
+}

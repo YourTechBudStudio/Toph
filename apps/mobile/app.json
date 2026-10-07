@@ -27,7 +27,8 @@
           "imageWidth": 160
         }
       ],
-      "expo-secure-store"
+      "expo-secure-store",
+      "./plugins/arm64-release.ts"
     ],
     "experiments": {
       "typedRoutes": true

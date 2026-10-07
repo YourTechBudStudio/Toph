@@ -10,7 +10,7 @@
     "build": "expo export --platform android",
     "release:android": "pnpm --workspace-root run icons:app && expo run:android --variant release --app-id studio.yourtechbud.toph",
     "start": "expo start",
-    "test": "node --test \"src/**/*.test.mjs\" \"tests/*.test.mjs\"",
+    "test": "node --import ./tests/helpers/register-ts-extension-resolver.mjs --test \"src/**/*.test.mjs\" \"tests/*.test.mjs\"",
     "typecheck": "tsc --noEmit && tsc --noEmit --project plugins/tsconfig.json"
   },
   "dependencies": {

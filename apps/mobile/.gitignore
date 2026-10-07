@@ -37,3 +37,6 @@ yarn-error.*
 # generated native folders (CNG): regenerate with `pnpm android:prebuild`
 /ios
 /android
+
+# Gradle output of local native modules
+/modules/*/android/build

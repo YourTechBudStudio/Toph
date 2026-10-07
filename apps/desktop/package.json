@@ -15,6 +15,7 @@
     "dist:mac": "pnpm run build && electron-builder --mac --arm64 --x64 --publish never",
     "dist:win": "pnpm run build && electron-builder --win --publish never",
     "pack": "pnpm run build && electron-builder --dir",
+    "parity:mobile": "node --experimental-strip-types scripts/parity-check.ts",
     "preview": "pnpm --workspace-root run icons:app && cross-env TOPH_DATA_DIRECTORY=../../.toph ELECTRON_DISABLE_SANDBOX=1 electron-vite preview",
     "rebuild:native": "electron-rebuild -f -w better-sqlite3",
     "test:clipboard": "node --experimental-strip-types --test test/clipboard-*.test.ts",

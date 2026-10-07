@@ -17,13 +17,21 @@ export class PcmFrameBuffer {
   private pendingPcm = Buffer.alloc(0);
   private processedSamples = 0;
 
-  constructor(
-    private readonly options: {
-      sampleRate: number;
-      frameSizeSamples: number;
-      analyzerSession: StreamingSpeechActivityAnalyzerSession;
-    },
-  ) {}
+  private readonly options: {
+    sampleRate: number;
+    frameSizeSamples: number;
+    analyzerSession: StreamingSpeechActivityAnalyzerSession;
+  };
+
+  // An explicit field rather than a constructor parameter property, so Node's strip-only TypeScript
+  // mode can load this file (the mobile parity script, scripts/parity-check.ts, imports it).
+  constructor(options: {
+    sampleRate: number;
+    frameSizeSamples: number;
+    analyzerSession: StreamingSpeechActivityAnalyzerSession;
+  }) {
+    this.options = options;
+  }
 
   async processChunk(chunk: Buffer): Promise<SpeechProbabilityFrame[]> {
     if (chunk.length === 0) {
