@@ -1,7 +1,6 @@
-import { createOpenAiTranscriptionClient } from '@toph/dictation-core';
+import { createOpenAiTranscriptionClient, verifyOpenAiConnection } from '@toph/dictation-core';
 
 import type { ProviderDefinition } from '../provider-definition';
-import { verifyOpenAiConnection } from './connection-check';
 import { createOpenAiInferenceClient } from './inference-client';
 
 const defaultBaseUrl = 'https://api.openai.com/v1';

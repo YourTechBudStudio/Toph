@@ -1,7 +1,7 @@
 import { useKeyboardEnabled } from '../../keyboard';
-import { usePermission } from '../../permissions';
+import { usePermission, usePermissionsChecked } from '../../permissions';
 import { usePresetChosen } from '../../polish';
-import { useProviderReady } from '../../provider';
+import { useProviderLoaded, useProviderReady } from '../../provider';
 
 export interface Readiness {
   readonly provider: boolean;
@@ -27,4 +27,13 @@ export function useReadiness(): Readiness {
     writingStyle,
     ready: provider && microphone && keyboard && writingStyle,
   };
+}
+
+/** Whether the gate's stored and system inputs have been read, so it never decides from defaults. */
+export function useReadinessSettled(): boolean {
+  // Both hooks run on every render; `&&` between the calls would skip the second one and break
+  // React's hook order once the provider finishes loading.
+  const providerLoaded = useProviderLoaded();
+  const permissionsChecked = usePermissionsChecked();
+  return providerLoaded && permissionsChecked;
 }

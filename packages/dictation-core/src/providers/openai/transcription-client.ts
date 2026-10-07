@@ -13,6 +13,7 @@ import {
   readRequestId,
   readResponseBody,
 } from './http';
+import { encodeMultipartFormData } from './multipart';
 
 const providerId = 'openai';
 
@@ -50,10 +51,16 @@ export function createOpenAiTranscriptionClient(
       const credentials = await context.credentials();
       const { baseUrl, apiKey } = endpointFromCredentials(credentials.formValues);
       const model = input.model;
-      const form = new FormData();
-      form.set('file', new Blob([input.audio], { type: 'audio/wav' }), `${input.batchId}.wav`);
-      form.set('model', model);
-      form.set('response_format', 'json');
+      const { body: requestBody, contentType } = encodeMultipartFormData([
+        {
+          name: 'file',
+          filename: `${input.batchId}.wav`,
+          contentType: 'audio/wav',
+          data: input.audio,
+        },
+        { name: 'model', value: model },
+        { name: 'response_format', value: 'json' },
+      ]);
 
       let response: Response;
       try {
@@ -62,9 +69,11 @@ export function createOpenAiTranscriptionClient(
           headers: {
             Accept: 'application/json',
             Authorization: `Bearer ${apiKey}`,
+            'Content-Type': contentType,
           },
-          body: form,
-          signal: input.signal,
+          body: requestBody,
+          // `RequestInit.signal` admits `null` but not `undefined` under `exactOptionalPropertyTypes`.
+          signal: input.signal ?? null,
         });
       } catch (error) {
         if (input.signal?.aborted) {

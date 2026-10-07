@@ -1,4 +1,4 @@
-import { normalizeBaseUrl } from '@toph/dictation-core';
+import { normalizeBaseUrl } from './http';
 
 /**
  * How long to wait for the endpoint to answer. The base URL is typed by hand, so pointing at a host
@@ -34,7 +34,7 @@ export async function verifyOpenAiConnection(values: Record<string, string>): Pr
 
   let response: Response;
   try {
-    response = await fetch(modelsUrl, {
+    response = await fetch(modelsUrl.href, {
       method: 'GET',
       headers: {
         Accept: 'application/json',
