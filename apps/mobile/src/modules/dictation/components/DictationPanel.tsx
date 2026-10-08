@@ -10,7 +10,6 @@ import { LiveWaveform } from './LiveWaveform';
 import { RecordOrb } from './RecordOrb';
 import { useElapsed } from './useElapsed';
 import { useForegroundKey } from './useForegroundKey';
-import { useInputLevel } from './useInputLevel';
 
 /**
  * In-app dictation: the record orb and what it is doing. A finished transcript is not shown here;
@@ -25,7 +24,6 @@ export function DictationPanel() {
   const cancel = useSessionStore((state) => state.cancel);
   const elapsed = useElapsed(startedAt);
   const listening = phase === 'listening';
-  const level = useInputLevel(listening);
   const foregroundKey = useForegroundKey();
   const error = outcome?.kind === 'failed' ? splitErrorDetail(outcome.message) : null;
 
@@ -37,7 +35,7 @@ export function DictationPanel() {
         return redraws both from the current phase.
       */}
       <RecordOrb key={`orb-${foregroundKey}`} onPress={listening ? stop : start} phase={phase} />
-      <LiveWaveform key={`wave-${foregroundKey}`} active={listening} level={level} />
+      <LiveWaveform key={`wave-${foregroundKey}`} active={listening} />
       <View className="mt-4 min-h-18.5 items-center">
         {listening ? (
           <Text

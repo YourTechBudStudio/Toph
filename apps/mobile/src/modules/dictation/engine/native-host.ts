@@ -1,7 +1,7 @@
 import { Directory, File, Paths } from 'expo-file-system';
 
 import { TophVoice } from '../../../../modules/toph-voice';
-import type { DictationHost } from './dictation';
+import { oneDictationAtATime, startDictation, type DictationHost } from './dictation';
 
 /**
  * The real device: the `toph-voice` module, and session folders under
@@ -34,10 +34,7 @@ export const nativeDictationHost: DictationHost = {
   },
 };
 
-/**
- * Calls `listener` with each ~100 ms capture read's loudness (RMS, 0..1) while the mic is on. For
- * the live waveform only: nothing about the recording depends on it.
- */
-export function subscribeInputLevel(listener: (rms: number) => void): { remove(): void } {
-  return TophVoice.addListener('onLevel', ({ rms }) => listener(rms));
-}
+/** Starts a dictation on this device, one at a time across Home and the keyboard. Same contract as `startDictation`. */
+export const startNativeDictation = oneDictationAtATime((config) =>
+  startDictation(config, nativeDictationHost),
+);

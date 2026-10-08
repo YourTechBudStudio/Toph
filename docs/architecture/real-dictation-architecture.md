@@ -37,6 +37,9 @@ The Android app transcribes with the same segmentation, batching, upload, retry 
 
 - `apps/mobile/modules/toph-voice/`: a local Expo native module in Kotlin. It only captures audio, scores frames with Silero, and cuts batch WAVs on request; it makes no segmentation decisions.
 - `apps/mobile/src/modules/dictation/engine/`: React-free TypeScript that runs one dictation. It feeds native frame scores through the shared core's segmentation and transcription coordinator, so every decision about regions, batches, retries and joined text is the core's.
+- `apps/mobile/modules/toph-keyboard/`: the Android voice keyboard and its bridge to JS. It never touches audio.
+
+The keyboard is a second way to start the same engine. Its native side only signals start and stop. Those signals start a headless JS task (registered at bundle load in `apps/mobile/index.ts`), which runs a dictation through the engine exactly as the Home screen does. If the keyboard is still showing the request when the text is ready, the text is inserted into the field. Otherwise it is copied to the clipboard with a toast. Home and the keyboard share one dictation slot, so only one dictation runs at a time.
 
 Kotlin cannot share TypeScript, so a few desktop details are mirrored in `toph-voice` rather than shared: PCM framing (`apps/desktop/src/main/segmentation/streaming/pcm-frame-buffer.ts`), WAV and batch byte layout, and the exact Silero model, which the module's Gradle build copies from desktop's installed `@ricky0123/vad-web`. Changing any of these on desktop means changing mobile too. `apps/desktop/scripts/parity-check.ts` (`pnpm --filter @toph/desktop parity:mobile`) guards against drift by comparing a phone's scores, regions and batches with desktop's for the same recording.
 

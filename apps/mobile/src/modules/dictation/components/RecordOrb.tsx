@@ -38,7 +38,8 @@ function modeOf(phase: DictationPhase): Mode {
 /**
  * The record control and the centrepiece of Home. At rest it breathes; while listening it turns
  * "on air" and sends ripples outward; while transcribing an arc orbits it. Reduced motion keeps
- * every state, without the movement.
+ * every state, without the movement. The voice keyboard draws a native port of it
+ * (`modules/toph-keyboard/.../RecordOrbView.kt`); a change to either must be mirrored in the other.
  */
 export function RecordOrb({ phase, onPress }: { phase: DictationPhase; onPress: () => void }) {
   const mode = modeOf(phase);

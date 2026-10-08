@@ -1,0 +1,66 @@
+plugins {
+  id 'com.android.library'
+  id 'expo-module-gradle-plugin'
+}
+
+group = 'studio.yourtechbud.toph'
+version = '0.0.0'
+
+// The app's fonts (apps/mobile/global.css: --font-display, --font-body, --font-body-semibold),
+// taken from the @expo-google-fonts packages the app loads in JS, because JS font loading cannot
+// reach a native view. Renamed on copy: resource names are lowercase, and library resources share
+// one namespace with the app.
+def mobileDir = file("../../..")
+def fontFile = { String fontPackage, String fileName ->
+  def resolve = ["node", "--print", "require.resolve('${fontPackage}/package.json')"].execute(null, mobileDir)
+  def packageJson = resolve.text.trim()
+  resolve.waitFor()
+  // An unresolvable package falls back to where pnpm would install it, so the check below reports it.
+  def packageDir = packageJson ? new File(packageJson).parentFile : new File(mobileDir, "node_modules/${fontPackage}")
+  new File(packageDir, fileName)
+}
+def fonts = [
+  toph_keyboard_sora_semibold: fontFile("@expo-google-fonts/sora", "600SemiBold/Sora_600SemiBold.ttf"),
+  toph_keyboard_source_sans_regular: fontFile("@expo-google-fonts/source-sans-3", "400Regular/SourceSans3_400Regular.ttf"),
+  toph_keyboard_source_sans_semibold: fontFile("@expo-google-fonts/source-sans-3", "600SemiBold/SourceSans3_600SemiBold.ttf"),
+]
+def fontResDir = layout.buildDirectory.dir("generated/toph-keyboard-res")
+
+// A separate task, because Gradle skips every action of a Copy task whose source is missing
+// (NO-SOURCE), which would build an APK without the fonts.
+def verifyKeyboardFonts = tasks.register("verifyKeyboardFonts") {
+  doLast {
+    def missing = fonts.values().findAll { !it.exists() }
+    if (!missing.isEmpty()) {
+      throw new GradleException("Keyboard fonts not found at ${missing.join(', ')}; run pnpm install at the repo root.")
+    }
+  }
+}
+
+def copyKeyboardFonts = tasks.register("copyKeyboardFonts", Copy) {
+  dependsOn(verifyKeyboardFonts)
+  fonts.each { name, source ->
+    from(source) { rename { "${name}.ttf" } }
+  }
+  into(fontResDir.map { it.dir("font") })
+}
+
+android {
+  namespace "studio.yourtechbud.toph.keyboard"
+  defaultConfig {
+    versionCode 1
+    versionName "0.0.0"
+  }
+  sourceSets {
+    main.res.srcDir(fontResDir)
+  }
+}
+
+tasks.named("preBuild") { dependsOn(copyKeyboardFonts) }
+
+dependencies {
+  // The keyboard talks to the React host (ReactApplication, ReactHost, HeadlessJsTaskContext)
+  // directly, and expo-module-gradle-plugin only exposes expo-modules-core. The app's React Native
+  // Gradle plugin pins the version. It also brings androidx.core (ResourcesCompat, for the fonts).
+  implementation 'com.facebook.react:react-android'
+}

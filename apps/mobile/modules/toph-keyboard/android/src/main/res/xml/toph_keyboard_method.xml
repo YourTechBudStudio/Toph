@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- One subtype, so keyboard pickers list Toph once. A second, auxiliary voice subtype made Gboard's
+     picker show the keyboard twice. Resource names start with toph_keyboard_ because library
+     resources share the app's namespace. -->
+<input-method xmlns:android="http://schemas.android.com/apk/res/android"
+  android:supportsSwitchingToNextInputMethod="true">
+  <subtype
+    android:imeSubtypeLocale="en_US"
+    android:imeSubtypeMode="keyboard"
+    android:isAuxiliary="false"
+    android:label="Dictation"
+    android:subtypeId="0x746f7101" />
+</input-method>

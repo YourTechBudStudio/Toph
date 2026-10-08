@@ -14,7 +14,7 @@
         "monochromeImage": "../../assets/app-icons/android/adaptive-monochrome.png"
       },
       "package": "studio.yourtechbud.toph",
-      "permissions": ["android.permission.RECORD_AUDIO"]
+      "permissions": ["android.permission.RECORD_AUDIO", "android.permission.POST_NOTIFICATIONS"]
     },
     "plugins": [
       "expo-router",
@@ -28,7 +28,8 @@
         }
       ],
       "expo-secure-store",
-      "./plugins/arm64-release.ts"
+      "./plugins/arm64-release.ts",
+      "./plugins/min-sdk.ts"
     ],
     "experiments": {
       "typedRoutes": true

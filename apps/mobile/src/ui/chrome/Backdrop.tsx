@@ -6,6 +6,7 @@ import { colors, withAlpha } from '../theme';
 /**
  * The nebula wash behind every screen: three faint full-bleed gradients at different angles, the
  * same atmosphere as the desktop backdrop. Each layer covers the whole screen, so no edge shows.
+ * The voice keyboard does not draw it: its panel uses the system's dark neutral to sit with other keyboards.
  */
 export function Backdrop() {
   return (
