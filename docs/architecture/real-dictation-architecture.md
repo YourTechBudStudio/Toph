@@ -8,7 +8,7 @@ For terminology, start with `docs/architecture/dictation-mental-model.md`.
 
 ## Runtime Shape
 
-Toph treats one toggle-on to toggle-off interval as one dictation session. The desktop main process records raw audio, derives speech-aware transcription batches, transcribes those batches, assembles a raw text output, optionally polishes it, stores the selected output, and asks the platform layer to paste it.
+Toph treats one toggle-on to toggle-off interval as one dictation session. This section and the ownership list below describe desktop; the Android app runs the same pipeline with a different split, described under "Mobile". The desktop main process records raw audio, derives speech-aware transcription batches, transcribes those batches, assembles a raw text output, optionally polishes it, stores the selected output, and asks the platform layer to paste it.
 
 The renderer remains state-driven. It receives snapshots and invokes actions through desktop contracts; it does not own recording, persistence, transcription, polishing, or platform effects.
 
@@ -28,8 +28,17 @@ The renderer remains state-driven. It receives snapshots and invokes actions thr
 - `apps/desktop/src/main/outputs/session-output-service.ts`: raw transcript assembly and persisted session outputs.
 - `apps/desktop/src/main/polish/polish-service.ts`: optional LLM-based transcript polishing.
 - `packages/dictation-core/src/usage/`: provider usage and cost metadata shapes.
-- `packages/dictation-core/src/index.ts`: Node-free dictation logic shared by desktop and mobile (segmentation planning, transcription coordination, the OpenAI API-key client, settings normalisation). It owns no I/O; the host app passes in storage, audio bytes, and the platform.
+- `packages/dictation-core/src/index.ts`: Node-free dictation logic shared by desktop and mobile (segmentation planning, transcription coordination, the OpenAI API-key client and connection check, settings normalisation). It owns no I/O; the host app passes in storage, audio bytes, and the platform.
 - `packages/desktop-contracts/src/index.ts`: renderer-facing app state, IPC channels, settings, provider, output, and capture contracts.
+
+## Mobile
+
+The Android app transcribes with the same segmentation, batching, upload, retry and joining behaviour as desktop; desktop governs shared behaviour. It does not yet polish or persist sessions.
+
+- `apps/mobile/modules/toph-voice/`: a local Expo native module in Kotlin. It only captures audio, scores frames with Silero, and cuts batch WAVs on request; it makes no segmentation decisions.
+- `apps/mobile/src/modules/dictation/engine/`: React-free TypeScript that runs one dictation. It feeds native frame scores through the shared core's segmentation and transcription coordinator, so every decision about regions, batches, retries and joined text is the core's.
+
+Kotlin cannot share TypeScript, so a few desktop details are mirrored in `toph-voice` rather than shared: PCM framing (`apps/desktop/src/main/segmentation/streaming/pcm-frame-buffer.ts`), WAV and batch byte layout, and the exact Silero model, which the module's Gradle build copies from desktop's installed `@ricky0123/vad-web`. Changing any of these on desktop means changing mobile too. `apps/desktop/scripts/parity-check.ts` (`pnpm --filter @toph/desktop parity:mobile`) guards against drift by comparing a phone's scores, regions and batches with desktop's for the same recording.
 
 ## Data And Contracts
 
