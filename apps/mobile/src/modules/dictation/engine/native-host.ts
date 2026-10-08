@@ -33,3 +33,11 @@ export const nativeDictationHost: DictationHost = {
     };
   },
 };
+
+/**
+ * Calls `listener` with each ~100 ms capture read's loudness (RMS, 0..1) while the mic is on. For
+ * the live waveform only: nothing about the recording depends on it.
+ */
+export function subscribeInputLevel(listener: (rms: number) => void): { remove(): void } {
+  return TophVoice.addListener('onLevel', ({ rms }) => listener(rms));
+}

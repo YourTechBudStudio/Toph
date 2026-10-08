@@ -16,7 +16,7 @@ import Animated, {
 import Svg, { Circle } from 'react-native-svg';
 
 import { colors, easeOut, withAlpha } from '../../../ui';
-import type { DictationPhase } from '../state/session';
+import type { DictationPhase } from '../state/session-store';
 
 const ORB = 132;
 const STAGE = 248;
@@ -29,7 +29,7 @@ function modeOf(phase: DictationPhase): Mode {
   if (phase === 'listening') {
     return 'live';
   }
-  if (phase === 'transcribing' || phase === 'polishing') {
+  if (phase === 'transcribing') {
     return 'busy';
   }
   return 'rest';

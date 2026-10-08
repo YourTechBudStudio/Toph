@@ -17,10 +17,9 @@ export function useHomeStatus(): HomeStatus {
       return { label: 'Listening', tone: 'red', live: true };
     case 'transcribing':
       return { label: 'Transcribing', tone: 'blue', live: true };
-    case 'polishing':
-      return { label: 'Polishing', tone: 'violet', live: true };
     case 'idle':
     case 'done':
+    case 'failed':
       return { label: 'Ready', tone: 'green', live: false };
   }
 }

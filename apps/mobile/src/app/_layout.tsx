@@ -79,8 +79,6 @@ export default function RootLayout() {
           <Stack.Screen name="settings/preset/[id]" />
           <Stack.Screen name="settings/dictionary" />
           <Stack.Screen name="settings/licenses" />
-          {/* TEMPORARY design preview for Toph #7. */}
-          <Stack.Screen name="mocks/dictation-outcomes" />
         </Stack>
       </OnboardingGate>
     </SafeAreaProvider>

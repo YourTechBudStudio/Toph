@@ -14,6 +14,9 @@ export type FramesEvent = {
   error: string | null;
 };
 
+/** How loud the last ~100 ms read was: RMS from 0 (silence) to 1 (full scale). */
+export type LevelEvent = { rms: number };
+
 export type SourceRange = { startMs: number; endMs: number };
 
 /**
@@ -31,10 +34,16 @@ export type SourceRange = { startMs: number; endMs: number };
  * - One Silero user at a time: `startCapture` and `scoreWavFile` reject with
  *   "Voice detection is busy." while a capture or a scoring run is in progress.
  *
+ * - While capturing, `onLevel` reports each ~100 ms read's loudness, for the live waveform only. It
+ *   is cosmetic: nothing about the recording depends on it.
+ *
  * Wait for the final event, not for `stopCapture`: delivery order between an event and a promise
  * result is not guaranteed.
  */
-declare class TophVoiceModule extends NativeModule<{ onFrames: (event: FramesEvent) => void }> {
+declare class TophVoiceModule extends NativeModule<{
+  onFrames: (event: FramesEvent) => void;
+  onLevel: (event: LevelEvent) => void;
+}> {
   /** Loads Silero the first time (with one warm-up inference), opens raw.wav and starts the mic. */
   startCapture(rawWavUri: string): Promise<void>;
   /** Stops the mic, scores the tail, fixes the WAV header, emits the final event, then resolves. Never rejects. */

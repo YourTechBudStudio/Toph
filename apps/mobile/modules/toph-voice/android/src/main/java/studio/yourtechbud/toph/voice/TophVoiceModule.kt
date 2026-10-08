@@ -13,6 +13,7 @@ import java.io.File
 internal const val TAG = "TophVoice"
 
 private const val FRAMES_EVENT = "onFrames"
+private const val LEVEL_EVENT = "onLevel"
 private const val READ_SAMPLES = 1_600 // the 100 ms a capture read delivers
 
 /** A range of raw.wav in milliseconds, as JS's `SourceRange`. */
@@ -45,12 +46,12 @@ class TophVoiceModule : Module() {
   override fun definition() = ModuleDefinition {
     Name("TophVoice")
 
-    Events(FRAMES_EVENT)
+    Events(FRAMES_EVENT, LEVEL_EVENT)
 
     AsyncFunction("startCapture") { rawWavUri: String ->
       claimSilero()
       try {
-        val started = Capture.start(fileOf(rawWavUri), FrameScorer(loadSilero()), ::emitFrames)
+        val started = Capture.start(fileOf(rawWavUri), FrameScorer(loadSilero()), ::emitFrames, ::emitLevel)
         synchronized(this@TophVoiceModule) { capture = started }
       } catch (throwable: Throwable) {
         releaseSilero()
@@ -119,6 +120,10 @@ class TophVoiceModule : Module() {
 
   private fun emitFrames(frames: List<ScoredFrame>, final: Boolean, error: String?) {
     sendEvent(FRAMES_EVENT, framesEvent(frames, final, error))
+  }
+
+  private fun emitLevel(rms: Float) {
+    sendEvent(LEVEL_EVENT, mapOf("rms" to rms.toDouble()))
   }
 
   /** Scores a whole WAV exactly as capture would: 100 ms chunks through a fresh scorer, then the tail. */

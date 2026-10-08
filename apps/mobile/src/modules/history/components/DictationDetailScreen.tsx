@@ -88,7 +88,7 @@ function DictationDetail({ dictation }: { dictation: Dictation }) {
                 <Text className="font-body-semibold text-[13px] text-accent-blue">
                   {dictation.presetTitle} preset
                 </Text>
-                <CopyButton what="polished text" />
+                <CopyButton text={dictation.polished} what="polished text" />
               </View>
             </Card>
           )}
@@ -103,7 +103,7 @@ function DictationDetail({ dictation }: { dictation: Dictation }) {
               {dictation.raw}
             </Text>
             <View className="mt-5 flex-row justify-end">
-              <CopyButton what="raw transcript" />
+              <CopyButton text={dictation.raw} what="raw transcript" />
             </View>
           </Card>
         </View>
