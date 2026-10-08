@@ -28,7 +28,8 @@
         }
       ],
       "expo-secure-store",
-      "./plugins/arm64-release.ts"
+      "./plugins/arm64-release.ts",
+      "./plugins/min-sdk.ts"
     ],
     "experiments": {
       "typedRoutes": true

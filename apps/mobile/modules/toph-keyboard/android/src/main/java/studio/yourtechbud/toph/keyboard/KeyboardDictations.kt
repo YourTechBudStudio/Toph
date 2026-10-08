@@ -190,7 +190,7 @@ internal object KeyboardDictations {
         return // never toast "Transcript copied" for a copy that failed
       }
     }
-    // Android 13+ drops this silently without POST_NOTIFICATIONS; the clipboard still holds the transcript.
+    // Android drops this silently without POST_NOTIFICATIONS; the clipboard still holds the transcript.
     Toast.makeText(context, result.notice(), Toast.LENGTH_SHORT).show()
   }
 

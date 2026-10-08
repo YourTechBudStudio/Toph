@@ -1,21 +1,15 @@
-import { AppState, Linking, PermissionsAndroid, Platform } from 'react-native';
+import { AppState, Linking, PermissionsAndroid } from 'react-native';
 import { create } from 'zustand';
 
 export type PermissionId = 'microphone' | 'notifications';
 
 const PERMISSION_IDS = ['microphone', 'notifications'] as const satisfies readonly PermissionId[];
 
+// Both are runtime permissions on every supported Android version (13 and newer, `plugins/min-sdk.ts`).
 const SYSTEM_PERMISSION = {
   microphone: PermissionsAndroid.PERMISSIONS.RECORD_AUDIO,
   notifications: PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS,
 } as const;
-
-/**
- * Android 13 (API 33) made notifications a runtime permission; before that they are on by default.
- * Asking for it there would read as "never ask again" and send the user to app settings for nothing.
- */
-const isRuntimePermission = (permission: PermissionId): boolean =>
-  permission !== 'notifications' || Number(Platform.Version) >= 33;
 
 interface PermissionsState {
   readonly granted: Readonly<Record<PermissionId, boolean>>;
@@ -41,9 +35,6 @@ function setGranted(permission: PermissionId, value: boolean): void {
 }
 
 async function requestPermission(permission: PermissionId): Promise<void> {
-  if (!isRuntimePermission(permission)) {
-    return; // it already reads as granted
-  }
   usePermissionsStore.setState({ requesting: permission });
   try {
     const result = await PermissionsAndroid.request(SYSTEM_PERMISSION[permission]);
@@ -59,19 +50,12 @@ async function requestPermission(permission: PermissionId): Promise<void> {
   }
 }
 
-function readPermission(permission: PermissionId): Promise<boolean> {
-  if (!isRuntimePermission(permission)) {
-    return Promise.resolve(true);
-  }
-  return PermissionsAndroid.check(SYSTEM_PERMISSION[permission]);
-}
-
 /** Reads every permission from the system. Always marks them checked, even on failure. */
 export async function refreshPermissions(): Promise<void> {
   await Promise.all(
     PERMISSION_IDS.map(async (permission) => {
       try {
-        setGranted(permission, await readPermission(permission));
+        setGranted(permission, await PermissionsAndroid.check(SYSTEM_PERMISSION[permission]));
       } catch (error) {
         console.warn(`[toph:permissions] ${permission} check failed`, error);
       }

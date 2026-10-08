@@ -4,11 +4,9 @@ import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.inputmethodservice.InputMethodService
-import android.os.Build
 import android.os.SystemClock
 import android.view.View
 import android.view.inputmethod.EditorInfo
-import android.view.inputmethod.InputMethodManager
 
 /**
  * Toph Voice, the voice-only keyboard. It owns what the user sees and touches: a mic tap starts a
@@ -157,14 +155,7 @@ class TophKeyboardService : InputMethodService() {
 
   /** Back to the keyboard the user came from. */
   private fun switchBack() {
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-      if (!switchToPreviousInputMethod()) switchToNextInputMethod(false) // false after `adb ime set`, which records no history
-      return
-    }
-    val inputMethods = getSystemService(InputMethodManager::class.java)
-    val token = window.window?.attributes?.token
-    @Suppress("DEPRECATION")
-    if (!inputMethods.switchToLastInputMethod(token)) inputMethods.switchToNextInputMethod(token, false)
+    if (!switchToPreviousInputMethod()) switchToNextInputMethod(false) // false after `adb ime set`, which records no history
   }
 
   private fun render() {

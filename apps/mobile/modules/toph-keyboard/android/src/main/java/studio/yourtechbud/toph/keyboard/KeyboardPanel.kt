@@ -1,17 +1,8 @@
 package studio.yourtechbud.toph.keyboard
 
 import android.content.Context
-import android.graphics.Canvas
 import android.graphics.Color
-import android.graphics.ColorFilter
-import android.graphics.LinearGradient
-import android.graphics.Paint
-import android.graphics.PixelFormat
-import android.graphics.Rect
-import android.graphics.Shader
 import android.graphics.Typeface
-import android.graphics.drawable.Drawable
-import android.os.Build
 import android.os.SystemClock
 import android.text.SpannableString
 import android.text.Spanned
@@ -67,7 +58,6 @@ internal object Palette {
   val accentViolet = Color.parseColor("#c6a0f6")
   val accentAmber = Color.parseColor("#f5a97f")
   val accentRed = Color.parseColor("#ed8796")
-  val accentCyan = Color.parseColor("#91d7e3")
   val spark = Color.parseColor("#7dc4e4")
   val lineStrong = Color.argb(26, 255, 255, 255) // rgba(255, 255, 255, 0.1)
   val white = Color.WHITE
@@ -109,7 +99,7 @@ internal class KeyboardPanel(context: Context, onMic: () -> Unit, private val on
   private val caption =
     TextView(context).apply {
       setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f)
-      setLineHeightPx(sp(18f))
+      lineHeight = sp(18f)
       maxLines = 2
       ellipsize = TextUtils.TruncateAt.END
       setOnClickListener { if (current?.copy?.tone == CaptionTone.Link) onOpenApp() }
@@ -158,17 +148,16 @@ internal class KeyboardPanel(context: Context, onMic: () -> Unit, private val on
     view =
       LinearLayout(context).apply {
         orientation = LinearLayout.VERTICAL
-        background = Backdrop()
+        // The system's Material You dark neutral, the palette Gboard's dark theme draws from, so the
+        // keyboard sits with the system's keyboards rather than Home's backdrop.
+        setBackgroundColor(context.getColor(android.R.color.system_neutral1_900))
         setPadding(0, 0, 0, bottomPadding)
         addView(hairline, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 1))
         addView(row, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
-        // Below API 30 keyboards are not drawn edge to edge, so there is no inset to add.
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-          setOnApplyWindowInsetsListener { root, insets ->
-            val navigationBar = insets.getInsets(WindowInsets.Type.navigationBars()).bottom
-            root.setPadding(0, 0, 0, bottomPadding + navigationBar)
-            insets
-          }
+        setOnApplyWindowInsetsListener { root, insets ->
+          val navigationBar = insets.getInsets(WindowInsets.Type.navigationBars()).bottom
+          root.setPadding(0, 0, 0, bottomPadding + navigationBar)
+          insets
         }
         addOnAttachStateChangeListener(
           object : View.OnAttachStateChangeListener {
@@ -259,15 +248,6 @@ internal class KeyboardPanel(context: Context, onMic: () -> Unit, private val on
     ticker?.let(headline::removeCallbacks)
     ticker = null
   }
-
-  /** `TextView.setLineHeight` is API 28+; below it, the same spacing through line extra. */
-  private fun TextView.setLineHeightPx(lineHeight: Int) {
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-      this.lineHeight = lineHeight
-    } else {
-      setLineSpacing((lineHeight - paint.getFontMetricsInt(null)).toFloat(), 1f)
-    }
-  }
 }
 
 /** Home's `formatClock` (`src/modules/history/format.ts`): "0:07", "1:42", "12:05". */
@@ -277,50 +257,3 @@ private fun formatClock(durationMs: Long): String {
 }
 
 private fun font(context: Context, id: Int): Typeface = checkNotNull(ResourcesCompat.getFont(context, id)) { "Missing keyboard font $id" }
-
-/**
- * Home's backdrop (`src/ui/chrome/Backdrop.tsx`), the panel's background; a change to either must
- * be mirrored in the other. The canvas with three faint full-bleed gradients at different angles,
- * each placed by fractions of the panel's size as `expo-linear-gradient` places them.
- */
-private class Backdrop : Drawable() {
-  private val layers =
-    listOf(
-      Layer(withAlpha(Palette.accentBlue, 0.09f), withAlpha(Palette.accentBlue, 0f), 0f, 0f, 0.7f, 0.55f),
-      Layer(withAlpha(Palette.accentViolet, 0f), withAlpha(Palette.accentViolet, 0.07f), 0.25f, 0.25f, 1f, 0.95f),
-      Layer(withAlpha(Palette.accentCyan, 0f), withAlpha(Palette.accentCyan, 0.05f), 0.6f, 0.45f, 0.2f, 1f),
-    )
-
-  override fun onBoundsChange(bounds: Rect) {
-    val width = bounds.width().toFloat()
-    val height = bounds.height().toFloat()
-    for (layer in layers) {
-      layer.paint.shader =
-        LinearGradient(
-          bounds.left + layer.startX * width,
-          bounds.top + layer.startY * height,
-          bounds.left + layer.endX * width,
-          bounds.top + layer.endY * height,
-          layer.from,
-          layer.to,
-          Shader.TileMode.CLAMP,
-        )
-    }
-  }
-
-  override fun draw(canvas: Canvas) {
-    canvas.drawColor(Palette.canvas)
-    for (layer in layers) canvas.drawRect(bounds, layer.paint)
-  }
-
-  override fun setAlpha(alpha: Int) = Unit
-
-  override fun setColorFilter(colorFilter: ColorFilter?) = Unit
-
-  @Deprecated("Deprecated in Java")
-  override fun getOpacity(): Int = PixelFormat.OPAQUE
-
-  private class Layer(val from: Int, val to: Int, val startX: Float, val startY: Float, val endX: Float, val endY: Float) {
-    val paint = Paint()
-  }
-}
