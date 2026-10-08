@@ -9,12 +9,8 @@ import android.util.Log
 import java.io.File
 import java.io.RandomAccessFile
 import kotlin.math.max
-import kotlin.math.sqrt
 
 internal typealias EmitFrames = (frames: List<ScoredFrame>, final: Boolean, error: String?) -> Unit
-
-/** The RMS of one read, from 0 (silence) to 1 (full scale). For the UI's live waveform only. */
-internal typealias EmitLevel = (rms: Float) -> Unit
 
 /**
  * One microphone capture into raw.wav, scored as it goes.
@@ -22,15 +18,13 @@ internal typealias EmitLevel = (rms: Float) -> Unit
  * A dedicated thread reads about 100 ms at a time, appends it to raw.wav, and only then scores it,
  * so any range JS plans from emitted frames is already on disk. The file is written through an
  * unbuffered [RandomAccessFile], so a separate read handle (batch cutting) sees every byte written.
- * [stop] emits exactly one final event on every path; a mic failure on the way travels on it. Each
- * read's loudness is also reported through [emitLevel]; that is cosmetic, so it never fails capture.
+ * [stop] emits exactly one final event on every path; a mic failure on the way travels on it.
  */
 internal class Capture private constructor(
   private val record: AudioRecord,
   private val file: RandomAccessFile,
   private val scorer: FrameScorer,
   private val emit: EmitFrames,
-  private val emitLevel: EmitLevel,
 ) {
   @Volatile private var running = true
   private var dataBytes = 0L
@@ -58,7 +52,6 @@ internal class Capture private constructor(
         // Write before scoring: frames are only emitted for audio already on disk.
         file.write(Wav.toBytes(samples, read))
         dataBytes += read * 2L
-        runCatching { emitLevel(rms(samples, read)) }
         val frames = scorer.process(samples, read)
         if (frames.isNotEmpty()) emit(frames, false, null)
       }
@@ -107,21 +100,12 @@ internal class Capture private constructor(
   }
 
   companion object {
-    private fun rms(samples: ShortArray, count: Int): Float {
-      var sum = 0.0
-      for (i in 0 until count) {
-        val sample = samples[i] / 32768.0
-        sum += sample * sample
-      }
-      return sqrt(sum / count).toFloat()
-    }
-
     private const val READ_SAMPLES = 1_600 // 100 ms
     private const val MIN_BUFFER_BYTES = 6_400 // 200 ms
 
     /** Opens raw.wav, starts AudioRecord and the capture thread. Cleans up and throws on any failure. */
     @SuppressLint("MissingPermission") // RECORD_AUDIO is checked by the app before it records.
-    fun start(rawFile: File, scorer: FrameScorer, emit: EmitFrames, emitLevel: EmitLevel): Capture {
+    fun start(rawFile: File, scorer: FrameScorer, emit: EmitFrames): Capture {
       var file: RandomAccessFile? = null
       var record: AudioRecord? = null
       try {
@@ -143,7 +127,7 @@ internal class Capture private constructor(
           throw IllegalStateException("The microphone is busy or unavailable.")
         }
         Log.i(TAG, "Capture started: ${rawFile.name}, buffer $bufferBytes bytes")
-        return Capture(record, file, scorer, emit, emitLevel)
+        return Capture(record, file, scorer, emit)
       } catch (throwable: Throwable) {
         runCatching { record?.stop() }
         runCatching { record?.release() }

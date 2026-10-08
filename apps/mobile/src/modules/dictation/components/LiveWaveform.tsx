@@ -10,7 +10,6 @@ import Animated, {
   withRepeat,
   withSequence,
   withTiming,
-  type SharedValue,
 } from 'react-native-reanimated';
 
 import { colors } from '../../../ui';
@@ -18,8 +17,8 @@ import { colors } from '../../../ui';
 const BARS = 31;
 const HEIGHT = 44;
 const REST = 0.08;
-/** Even in silence the bars keep this share of their swing, so a live mic still looks live. */
-const FLOOR = 0.12;
+/** How much of their full swing the bars use while active. They do not follow the mic. */
+const SWING = 0.6;
 
 /** Taller in the middle, quieter at the edges, so the bars read as a voice and not a meter. */
 const envelope = (index: number) => {
@@ -34,11 +33,11 @@ const jitter = (index: number, salt: number) => {
 };
 
 /**
- * A field of bars that follows the microphone while listening and settles into a flat line
- * otherwise. `level` (0..1, from `useInputLevel`) sets how tall the bars are; each bar also sways a
- * little on its own, so speech reads as a voice and not a meter.
+ * A field of bars that sways while listening and settles into a flat line otherwise. Each bar sways
+ * on its own, so it reads as a voice and not a meter. It does not follow the microphone's level, so
+ * the in-app panel and the native keyboard can draw the same thing.
  */
-export function LiveWaveform({ active, level }: { active: boolean; level: SharedValue<number> }) {
+export function LiveWaveform({ active }: { active: boolean }) {
   return (
     <View
       accessibilityElementsHidden
@@ -47,23 +46,15 @@ export function LiveWaveform({ active, level }: { active: boolean; level: Shared
       style={{ height: HEIGHT }}
     >
       {Array.from({ length: BARS }, (_, index) => (
-        <Bar key={index} active={active} index={index} level={level} />
+        <Bar key={index} active={active} index={index} />
       ))}
     </View>
   );
 }
 
-function Bar({
-  active,
-  index,
-  level,
-}: {
-  active: boolean;
-  index: number;
-  level: SharedValue<number>;
-}) {
+function Bar({ active, index }: { active: boolean; index: number }) {
   const reduceMotion = useReducedMotion();
-  // This bar's own sway, as a share of its height; the input level scales it.
+  // This bar's own sway, as a share of its height.
   const sway = useSharedValue(0);
   const peak = envelope(index);
 
@@ -95,10 +86,9 @@ function Bar({
     return () => cancelAnimation(sway);
   }, [active, index, sway, reduceMotion]);
 
-  const style = useAnimatedStyle(() => {
-    const loudness = FLOOR + (1 - FLOOR) * level.value;
-    return { height: Math.max(4, Math.max(REST, peak * sway.value * loudness) * HEIGHT) };
-  });
+  const style = useAnimatedStyle(() => ({
+    height: Math.max(4, Math.max(REST, peak * sway.value * SWING) * HEIGHT),
+  }));
 
   return (
     <Animated.View
