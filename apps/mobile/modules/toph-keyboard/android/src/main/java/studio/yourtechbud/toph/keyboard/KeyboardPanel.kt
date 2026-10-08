@@ -1,9 +1,16 @@
 package studio.yourtechbud.toph.keyboard
 
 import android.content.Context
+import android.graphics.Canvas
 import android.graphics.Color
+import android.graphics.ColorFilter
+import android.graphics.LinearGradient
+import android.graphics.Paint
+import android.graphics.PixelFormat
+import android.graphics.Rect
+import android.graphics.Shader
 import android.graphics.Typeface
-import android.graphics.drawable.GradientDrawable
+import android.graphics.drawable.Drawable
 import android.os.Build
 import android.os.SystemClock
 import android.text.SpannableString
@@ -15,9 +22,10 @@ import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
 import android.view.WindowInsets
-import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.TextView
+import androidx.core.content.res.ResourcesCompat
+import kotlin.math.roundToInt
 
 /** Home's `RecordOrb` modes: breathing at rest, ripples while listening, orbiting arc while transcribing. */
 internal enum class OrbMode { Rest, Live, Busy }
@@ -50,8 +58,8 @@ internal data class PanelState(
   val orbLabel: String? = null,
 )
 
-/** The design tokens the keyboard draws with. `apps/mobile/global.css` is the source of truth. */
-private object Palette {
+/** The design tokens the keyboard and its orb and waveform draw with. `apps/mobile/global.css` is the source of truth. */
+internal object Palette {
   val canvas = Color.parseColor("#24273a")
   val textPrimary = Color.parseColor("#cad3f5")
   val textTertiary = Color.parseColor("#6e738d")
@@ -64,6 +72,10 @@ private object Palette {
   val lineStrong = Color.argb(26, 255, 255, 255) // rgba(255, 255, 255, 0.1)
   val white = Color.WHITE
 }
+
+/** `withAlpha` from `src/ui/theme.ts`: the colour at an opacity. */
+internal fun withAlpha(color: Int, alpha: Float): Int =
+  Color.argb((alpha * 255).roundToInt(), Color.red(color), Color.green(color), Color.blue(color))
 
 private const val CLOCK_TICK_MS = 250L // Home's useElapsed
 private const val DOTS_TICK_MS = 400L
@@ -79,19 +91,17 @@ internal class KeyboardPanel(context: Context, onMic: () -> Unit, private val on
 
   private fun sp(value: Float): Int = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_SP, value, density).toInt()
 
-  // Interim orb, a plain tappable circle: phase 2 replaces it with RecordOrbView, the port of Home's RecordOrb.
-  private val orb =
-    TextView(context).apply {
-      gravity = Gravity.CENTER
-      setTextColor(Palette.canvas)
-      setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f)
-      typeface = Typeface.DEFAULT_BOLD
-      setOnClickListener { onMic() }
-    }
+  private val orb = RecordOrbView(context).apply { setOnClickListener { onMic() } }
+
+  // The app's fonts (global.css: --font-display, --font-body, --font-body-semibold), copied in at build time.
+  private val displayFont = font(context, R.font.toph_keyboard_sora_semibold)
+  private val bodyFont = font(context, R.font.toph_keyboard_source_sans_regular)
+  private val bodySemiBoldFont = font(context, R.font.toph_keyboard_source_sans_semibold)
 
   private val headline =
     TextView(context).apply {
       setTextColor(Palette.textPrimary)
+      typeface = displayFont
       maxLines = 1
       accessibilityLiveRegion = View.ACCESSIBILITY_LIVE_REGION_POLITE
     }
@@ -105,8 +115,7 @@ internal class KeyboardPanel(context: Context, onMic: () -> Unit, private val on
       setOnClickListener { if (current?.copy?.tone == CaptionTone.Link) onOpenApp() }
     }
 
-  /** Where phase 2 puts the 44 dp waveform; reserved now so the panel's height stays the same. */
-  private val waveformSlot = View(context)
+  private val waveform = WaveformView(context)
 
   val view: View
 
@@ -126,20 +135,19 @@ internal class KeyboardPanel(context: Context, onMic: () -> Unit, private val on
           LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { topMargin = dp(2f) },
         )
         addView(
-          waveformSlot,
-          LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(44f)).apply { topMargin = dp(8f) },
+          waveform,
+          LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { topMargin = dp(8f) },
         )
-      }
-    val orbStage =
-      FrameLayout(context).apply {
-        addView(orb, FrameLayout.LayoutParams(dp(55f), dp(55f), Gravity.CENTER))
       }
     val row =
       LinearLayout(context).apply {
         orientation = LinearLayout.HORIZONTAL
         gravity = Gravity.CENTER_VERTICAL
         setPadding(dp(16f), dp(12f), dp(16f), 0)
-        addView(orbStage, LinearLayout.LayoutParams(dp(104f), dp(104f)))
+        // The orb's glow reaches past its stage, as on Home; only the panel itself clips.
+        clipChildren = false
+        clipToPadding = false
+        addView(orb, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT))
         addView(
           column,
           LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply { marginStart = dp(12f) },
@@ -150,7 +158,7 @@ internal class KeyboardPanel(context: Context, onMic: () -> Unit, private val on
     view =
       LinearLayout(context).apply {
         orientation = LinearLayout.VERTICAL
-        setBackgroundColor(Palette.canvas)
+        background = Backdrop()
         setPadding(0, 0, 0, bottomPadding)
         addView(hairline, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 1))
         addView(row, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
@@ -180,32 +188,11 @@ internal class KeyboardPanel(context: Context, onMic: () -> Unit, private val on
     if (state == current) return // a re-render of the same state keeps the clock and dots running
     current = state
     stopTicker()
-    showOrb(state)
+    orb.show(state.orb, state.orbLabel)
+    waveform.show(state.orb == OrbMode.Live)
     showCaption(state.copy)
     showHeadline(state.copy.headline, tick = 0)
     if (view.isAttachedToWindow) startTicker(state)
-  }
-
-  private fun showOrb(state: PanelState) {
-    val (label, fill) =
-      when (state.orb) {
-        OrbMode.Rest -> "Mic" to Palette.spark
-        OrbMode.Live -> "Stop" to Palette.accentRed
-        OrbMode.Busy -> "…" to Palette.textTertiary
-      }
-    orb.text = label
-    orb.background = GradientDrawable().apply {
-      shape = GradientDrawable.OVAL
-      setColor(fill)
-    }
-    orb.isEnabled = state.orb != OrbMode.Busy
-    orb.contentDescription =
-      state.orbLabel
-        ?: when (state.orb) {
-          OrbMode.Rest -> "Start recording"
-          OrbMode.Live -> "Stop recording"
-          OrbMode.Busy -> "Transcribing"
-        }
   }
 
   private fun showCaption(copy: PanelCopy) {
@@ -217,7 +204,7 @@ internal class KeyboardPanel(context: Context, onMic: () -> Unit, private val on
         CaptionTone.Link -> Palette.accentBlue
       },
     )
-    caption.typeface = if (copy.tone == CaptionTone.Link) semiBold() else Typeface.DEFAULT
+    caption.typeface = if (copy.tone == CaptionTone.Link) bodySemiBoldFont else bodyFont
     caption.isClickable = copy.tone == CaptionTone.Link
   }
 
@@ -273,9 +260,6 @@ internal class KeyboardPanel(context: Context, onMic: () -> Unit, private val on
     ticker = null
   }
 
-  private fun semiBold(): Typeface =
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) Typeface.create(Typeface.DEFAULT, 600, false) else Typeface.DEFAULT_BOLD
-
   /** `TextView.setLineHeight` is API 28+; below it, the same spacing through line extra. */
   private fun TextView.setLineHeightPx(lineHeight: Int) {
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
@@ -290,4 +274,53 @@ internal class KeyboardPanel(context: Context, onMic: () -> Unit, private val on
 private fun formatClock(durationMs: Long): String {
   val totalSeconds = maxOf(0L, durationMs) / 1000
   return "${totalSeconds / 60}:${(totalSeconds % 60).toString().padStart(2, '0')}"
+}
+
+private fun font(context: Context, id: Int): Typeface = checkNotNull(ResourcesCompat.getFont(context, id)) { "Missing keyboard font $id" }
+
+/**
+ * Home's backdrop (`src/ui/chrome/Backdrop.tsx`), the panel's background; a change to either must
+ * be mirrored in the other. The canvas with three faint full-bleed gradients at different angles,
+ * each placed by fractions of the panel's size as `expo-linear-gradient` places them.
+ */
+private class Backdrop : Drawable() {
+  private val layers =
+    listOf(
+      Layer(withAlpha(Palette.accentBlue, 0.09f), withAlpha(Palette.accentBlue, 0f), 0f, 0f, 0.7f, 0.55f),
+      Layer(withAlpha(Palette.accentViolet, 0f), withAlpha(Palette.accentViolet, 0.07f), 0.25f, 0.25f, 1f, 0.95f),
+      Layer(withAlpha(Palette.accentCyan, 0f), withAlpha(Palette.accentCyan, 0.05f), 0.6f, 0.45f, 0.2f, 1f),
+    )
+
+  override fun onBoundsChange(bounds: Rect) {
+    val width = bounds.width().toFloat()
+    val height = bounds.height().toFloat()
+    for (layer in layers) {
+      layer.paint.shader =
+        LinearGradient(
+          bounds.left + layer.startX * width,
+          bounds.top + layer.startY * height,
+          bounds.left + layer.endX * width,
+          bounds.top + layer.endY * height,
+          layer.from,
+          layer.to,
+          Shader.TileMode.CLAMP,
+        )
+    }
+  }
+
+  override fun draw(canvas: Canvas) {
+    canvas.drawColor(Palette.canvas)
+    for (layer in layers) canvas.drawRect(bounds, layer.paint)
+  }
+
+  override fun setAlpha(alpha: Int) = Unit
+
+  override fun setColorFilter(colorFilter: ColorFilter?) = Unit
+
+  @Deprecated("Deprecated in Java")
+  override fun getOpacity(): Int = PixelFormat.OPAQUE
+
+  private class Layer(val from: Int, val to: Int, val startX: Float, val startY: Float, val endX: Float, val endY: Float) {
+    val paint = Paint()
+  }
 }

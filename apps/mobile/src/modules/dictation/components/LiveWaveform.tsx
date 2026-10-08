@@ -35,7 +35,8 @@ const jitter = (index: number, salt: number) => {
 /**
  * A field of bars that sways while listening and settles into a flat line otherwise. Each bar sways
  * on its own, so it reads as a voice and not a meter. It does not follow the microphone's level, so
- * the in-app panel and the native keyboard can draw the same thing.
+ * the in-app panel and the native keyboard can draw the same thing. The keyboard's native port is
+ * `modules/toph-keyboard/.../WaveformView.kt`; a change to either must be mirrored in the other.
  */
 export function LiveWaveform({ active }: { active: boolean }) {
   return (
