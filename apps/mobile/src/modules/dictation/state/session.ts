@@ -2,8 +2,7 @@ import { AppState } from 'react-native';
 
 import { recordDictation } from '../../history';
 import { readTranscriptionConfig } from '../../provider';
-import { startDictation } from '../engine/dictation';
-import { nativeDictationHost } from '../engine/native-host';
+import { startNativeDictation } from '../engine/native-host';
 import { createSessionStore, type DictationPhase } from './session-store';
 
 export type { DictationPhase } from './session-store';
@@ -11,7 +10,7 @@ export type { DictationPhase } from './session-store';
 /** The app's one in-app dictation session, recording through the `toph-voice` native module. */
 export const useSessionStore = createSessionStore({
   readTranscriptionConfig,
-  startDictation: (config) => startDictation(config, nativeDictationHost),
+  startDictation: startNativeDictation,
   recordDictation,
 });
 

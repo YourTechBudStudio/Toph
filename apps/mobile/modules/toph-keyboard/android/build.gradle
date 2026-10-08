@@ -1,0 +1,22 @@
+plugins {
+  id 'com.android.library'
+  id 'expo-module-gradle-plugin'
+}
+
+group = 'studio.yourtechbud.toph'
+version = '0.0.0'
+
+android {
+  namespace "studio.yourtechbud.toph.keyboard"
+  defaultConfig {
+    versionCode 1
+    versionName "0.0.0"
+  }
+}
+
+dependencies {
+  // The keyboard talks to the React host (ReactApplication, ReactHost, HeadlessJsTaskContext)
+  // directly, and expo-module-gradle-plugin only exposes expo-modules-core. The app's React Native
+  // Gradle plugin pins the version.
+  implementation 'com.facebook.react:react-android'
+}

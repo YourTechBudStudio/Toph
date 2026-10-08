@@ -4,13 +4,14 @@
  * - `stop()` and `discard()` settle only after the native final event has been handled, the
  *   listener is removed, uploads have settled or been aborted, and the session folder is deleted;
  * - nothing is uploaded after a Discard, even for a cut that was already in flight;
- * - a failed start releases what it took.
+ * - a failed start releases what it took;
+ * - `oneDictationAtATime` lets one run hold the device until its start fails or its end settles.
  */
 
 import assert from 'node:assert/strict';
 import { afterEach, beforeEach, describe, it, mock } from 'node:test';
 
-import { startDictation } from './dictation.ts';
+import { oneDictationAtATime, startDictation } from './dictation.ts';
 import {
   LIVE_BATCH_PATTERN,
   SHORT_SPEECH_PATTERN,
@@ -20,6 +21,7 @@ import {
   scoredFrames,
   settle,
   stubFetch,
+  deferred,
   testConfig,
   track,
   waitFor,
@@ -177,5 +179,98 @@ describe('startDictation', () => {
     });
     assert.equal(fetchStub.requests.length, 0);
     assert.equal(fake.calls.deletedFolders, 1);
+  });
+});
+
+describe('oneDictationAtATime', () => {
+  const STILL_FINISHING = 'Another dictation is still finishing.';
+  const guarded = (fake) => oneDictationAtATime((config) => startDictation(config, fake.host));
+
+  it('holds through a final event that arrives after stopCapture resolved', async () => {
+    fetchStub = stubFetch(() => jsonResponse(200, { text: 'Second.' }));
+    const fake = createFakeHost();
+    const start = guarded(fake);
+    const first = await start(testConfig);
+
+    const firstStopped = track(first.stop());
+    await waitFor(() => fake.calls.stopCapture.length === 1, 'stopCapture');
+    fake.calls.stopCapture[0].resolve(); // native has freed the mic; its final event is still on the way
+    await settle();
+
+    await assert.rejects(start(testConfig), { message: STILL_FINISHING });
+    assert.equal(fake.calls.startCapture.length, 1);
+    assert.equal(fake.listenerCount, 1);
+
+    fake.emit(framesEvent([], { final: true, error: 'Microphone read failed (code -3).' }));
+    await waitFor(() => firstStopped.settled, 'the first stop to settle');
+    assert.deepEqual(firstStopped.value, {
+      kind: 'failed',
+      message: 'Recording failed: Microphone read failed (code -3).',
+    });
+
+    const second = await start(testConfig);
+    assert.equal(fake.calls.startCapture.length, 2);
+    assert.equal(fake.listenerCount, 1);
+    const secondStopped = track(second.stop());
+    await waitFor(() => fake.calls.stopCapture.length === 2, 'the second stopCapture');
+    fake.emit(finalSpeechEvent());
+    fake.calls.stopCapture[1].resolve();
+    await waitFor(() => secondStopped.settled, 'the second stop to settle');
+    assert.deepEqual(secondStopped.value, { kind: 'transcript', text: 'Second.' });
+  });
+
+  it('a failed start releases the hold', async () => {
+    const fake = createFakeHost();
+    fake.autoResolve.startCapture = false;
+    const start = guarded(fake);
+
+    const first = start(testConfig);
+    await waitFor(() => fake.calls.startCapture.length === 1, 'startCapture');
+    fake.calls.startCapture[0].reject(new Error('Microphone busy.'));
+    await assert.rejects(first, { message: 'Microphone busy.' });
+
+    const second = start(testConfig);
+    await waitFor(() => fake.calls.startCapture.length === 2, 'the second startCapture');
+    fake.calls.startCapture[1].resolve();
+    await second;
+  });
+
+  it('discard releases the hold once it settles', async () => {
+    const fake = createFakeHost();
+    const start = guarded(fake);
+    const run = await start(testConfig);
+
+    const discarded = track(run.discard());
+    await waitFor(() => fake.calls.stopCapture.length === 1, 'stopCapture');
+    fake.calls.stopCapture[0].resolve();
+    await settle();
+    await assert.rejects(start(testConfig), { message: STILL_FINISHING });
+
+    fake.emit(emptyFinalEvent());
+    await waitFor(() => discarded.settled, 'discard to settle');
+    await start(testConfig);
+    assert.equal(fake.calls.startCapture.length, 2);
+  });
+
+  it('holds while the last upload is still in flight', async () => {
+    const upload = deferred();
+    fetchStub = stubFetch(() => upload.promise);
+    const fake = createFakeHost();
+    const start = guarded(fake);
+    const run = await start(testConfig);
+
+    const stopped = track(run.stop());
+    await waitFor(() => fake.calls.stopCapture.length === 1, 'stopCapture');
+    fake.emit(finalSpeechEvent());
+    fake.calls.stopCapture[0].resolve();
+    await waitFor(() => fetchStub.requests.length === 1, 'the upload');
+    assert.equal(fake.listenerCount, 0);
+    await assert.rejects(start(testConfig), { message: STILL_FINISHING });
+
+    upload.resolve(jsonResponse(200, { text: 'Done.' }));
+    await waitFor(() => stopped.settled, 'stop to settle');
+    assert.deepEqual(stopped.value, { kind: 'transcript', text: 'Done.' });
+    await start(testConfig);
+    assert.equal(fake.calls.startCapture.length, 2);
   });
 });

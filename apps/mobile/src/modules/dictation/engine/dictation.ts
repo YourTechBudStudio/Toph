@@ -6,8 +6,8 @@ import { createSegmentationRun } from './segmentation';
 import { createTranscription, type DictationOutcome } from './transcription';
 
 /**
- * One recording in progress. The caller calls exactly one of `stop` and `discard`, once. Story #8's
- * keyboard relies on this contract too.
+ * One recording in progress. The caller calls exactly one of `stop` and `discard`, once. The
+ * keyboard's dictation task (`keyboard/dictation-task.ts`) relies on this contract too.
  */
 export interface DictationRun {
   /** Ends recording and returns the outcome. Settles only after the mic, subscription, uploads and files are released. Never rejects. */
@@ -45,6 +45,51 @@ export function describeError(error: unknown): string {
     return error;
   }
   return 'Unknown error.';
+}
+
+const STILL_FINISHING = 'Another dictation is still finishing.';
+
+/**
+ * Lets one dictation hold the device at a time. The engine's frames listener hears every capture's
+ * events, and native frees the mic before the previous run's final event has necessarily reached JS,
+ * so overlapping runs would read each other's events. A run is held from the start call until its
+ * start rejects or its `stop()`/`discard()` settles. Any start meanwhile rejects with
+ * "Another dictation is still finishing." before taking anything.
+ */
+export function oneDictationAtATime(
+  start: (config: TranscriptionConfig) => Promise<DictationRun>,
+): (config: TranscriptionConfig) => Promise<DictationRun> {
+  let held = false;
+  return async (config) => {
+    if (held) {
+      throw new Error(STILL_FINISHING);
+    }
+    held = true;
+    let run: DictationRun;
+    try {
+      run = await start(config);
+    } catch (error) {
+      held = false; // the engine has already released everything it took
+      throw error;
+    }
+    // The engine's "exactly one of stop and discard, once" rule means this releases once.
+    return {
+      async stop() {
+        try {
+          return await run.stop();
+        } finally {
+          held = false;
+        }
+      },
+      async discard() {
+        try {
+          await run.discard();
+        } finally {
+          held = false;
+        }
+      },
+    };
+  };
 }
 
 const toSourceRange = (range: PlannedBatchSourceRange): SourceRange => ({

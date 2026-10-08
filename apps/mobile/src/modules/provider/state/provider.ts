@@ -162,7 +162,7 @@ async function checkAndSave(draft: ConnectionDraft): Promise<void> {
 
 let loading: Promise<void> | undefined;
 
-/** Reads the saved provider once per process. Safe to call more than once (story #8's headless task calls it too). */
+/** Reads the saved provider once per process. Safe to call more than once (the keyboard's dictation task calls it too). */
 export function loadProvider(): Promise<void> {
   loading ??= read();
   return loading;

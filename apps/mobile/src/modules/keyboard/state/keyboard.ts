@@ -1,26 +1,31 @@
+import { AppState } from 'react-native';
 import { create } from 'zustand';
 
-/** How long the mock trip to Android's keyboard settings takes. */
-const SETTINGS_TRIP_MS = 700;
+import { TophKeyboard } from '../../../../modules/toph-keyboard';
 
 interface KeyboardState {
   readonly enabled: boolean;
-  readonly enabling: boolean;
-  enable(): void;
 }
 
 /**
- * Whether Toph Voice is turned on in Android's keyboard settings, mocked: opening the settings
- * "enables" it after a moment. The voice keyboard story makes it real.
+ * Whether Toph Voice is turned on in Android's keyboard settings. Read synchronously when the
+ * store is created, so nothing decides from a default, and again whenever the app comes back to
+ * the foreground, because it is changed in system settings.
  */
-export const useKeyboardStore = create<KeyboardState>()((set) => ({
-  enabled: false,
-  enabling: false,
-  enable: () => {
-    set({ enabling: true });
-    setTimeout(() => set({ enabled: true, enabling: false }), SETTINGS_TRIP_MS);
-  },
+export const useKeyboardStore = create<KeyboardState>()(() => ({
+  enabled: TophKeyboard.isEnabled(),
 }));
+
+AppState.addEventListener('change', (state) => {
+  if (state === 'active') {
+    useKeyboardStore.setState({ enabled: TophKeyboard.isEnabled() });
+  }
+});
+
+/** Opens Android's keyboard settings; coming back to the app refreshes `enabled`. */
+export function openKeyboardSettings(): void {
+  TophKeyboard.openSettings();
+}
 
 export function useKeyboardEnabled(): boolean {
   return useKeyboardStore((state) => state.enabled);

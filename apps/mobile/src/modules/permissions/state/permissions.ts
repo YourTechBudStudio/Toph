@@ -1,69 +1,83 @@
-import { AppState, Linking, PermissionsAndroid } from 'react-native';
+import { AppState, Linking, PermissionsAndroid, Platform } from 'react-native';
 import { create } from 'zustand';
 
 export type PermissionId = 'microphone' | 'notifications';
 
-/** How long a mock system dialog takes to answer, so the request visibly settles. */
-const DIALOG_MS = 700;
+const PERMISSION_IDS = ['microphone', 'notifications'] as const satisfies readonly PermissionId[];
+
+const SYSTEM_PERMISSION = {
+  microphone: PermissionsAndroid.PERMISSIONS.RECORD_AUDIO,
+  notifications: PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS,
+} as const;
+
+/**
+ * Android 13 (API 33) made notifications a runtime permission; before that they are on by default.
+ * Asking for it there would read as "never ask again" and send the user to app settings for nothing.
+ */
+const isRuntimePermission = (permission: PermissionId): boolean =>
+  permission !== 'notifications' || Number(Platform.Version) >= 33;
 
 interface PermissionsState {
   readonly granted: Readonly<Record<PermissionId, boolean>>;
-  /** Whether the microphone has been checked once, so nothing decides from the default. */
+  /** Whether the permissions have been read from the system at least once, so nothing decides from the default. */
   readonly checked: boolean;
   readonly requesting: PermissionId | null;
   request(permission: PermissionId): void;
 }
 
 /**
- * Android runtime permissions. The microphone is real: it is checked at launch and whenever the
- * app returns to the foreground, and requested through the system dialog. Notifications stay
- * mocked, granted after a moment, until the voice keyboard story.
+ * Android runtime permissions, both real: read from the system at launch and whenever the app
+ * returns to the foreground, and requested through the system dialog.
  */
-export const usePermissionsStore = create<PermissionsState>()((set) => ({
+export const usePermissionsStore = create<PermissionsState>()(() => ({
   granted: { microphone: false, notifications: false },
   checked: false,
   requesting: null,
-  request: (permission) => {
-    if (permission === 'microphone') {
-      void requestMicrophone();
-      return;
-    }
-    set({ requesting: permission });
-    setTimeout(() => {
-      set(({ granted }) => ({ granted: { ...granted, [permission]: true }, requesting: null }));
-    }, DIALOG_MS);
-  },
+  request: (permission) => void requestPermission(permission),
 }));
 
-function setMicrophone(microphone: boolean): void {
-  usePermissionsStore.setState(({ granted }) => ({ granted: { ...granted, microphone } }));
+function setGranted(permission: PermissionId, value: boolean): void {
+  usePermissionsStore.setState(({ granted }) => ({ granted: { ...granted, [permission]: value } }));
 }
 
-async function requestMicrophone(): Promise<void> {
-  usePermissionsStore.setState({ requesting: 'microphone' });
+async function requestPermission(permission: PermissionId): Promise<void> {
+  if (!isRuntimePermission(permission)) {
+    return; // it already reads as granted
+  }
+  usePermissionsStore.setState({ requesting: permission });
   try {
-    const result = await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.RECORD_AUDIO);
-    setMicrophone(result === PermissionsAndroid.RESULTS.GRANTED);
+    const result = await PermissionsAndroid.request(SYSTEM_PERMISSION[permission]);
+    setGranted(permission, result === PermissionsAndroid.RESULTS.GRANTED);
     if (result === PermissionsAndroid.RESULTS.NEVER_ASK_AGAIN) {
       // The system will not show the dialog again, so its settings screen is the only way left.
       void Linking.openSettings();
     }
   } catch (error) {
-    console.warn('[toph:permissions] microphone request failed', error);
+    console.warn(`[toph:permissions] ${permission} request failed`, error);
   } finally {
     usePermissionsStore.setState({ requesting: null });
   }
 }
 
-/** Reads the microphone permission from the system. Always marks it checked, even on failure. */
-export async function refreshPermissions(): Promise<void> {
-  try {
-    setMicrophone(await PermissionsAndroid.check(PermissionsAndroid.PERMISSIONS.RECORD_AUDIO));
-  } catch (error) {
-    console.warn('[toph:permissions] microphone check failed', error);
-  } finally {
-    usePermissionsStore.setState({ checked: true });
+function readPermission(permission: PermissionId): Promise<boolean> {
+  if (!isRuntimePermission(permission)) {
+    return Promise.resolve(true);
   }
+  return PermissionsAndroid.check(SYSTEM_PERMISSION[permission]);
+}
+
+/** Reads every permission from the system. Always marks them checked, even on failure. */
+export async function refreshPermissions(): Promise<void> {
+  await Promise.all(
+    PERMISSION_IDS.map(async (permission) => {
+      try {
+        setGranted(permission, await readPermission(permission));
+      } catch (error) {
+        console.warn(`[toph:permissions] ${permission} check failed`, error);
+      }
+    }),
+  );
+  usePermissionsStore.setState({ checked: true });
 }
 
 // A grant or revoke made in system settings is picked up when the user comes back.
@@ -84,7 +98,7 @@ export function usePermission(permission: PermissionId): {
   return { granted, requesting, request: () => request(permission) };
 }
 
-/** Whether the microphone permission has been read from the system at least once. */
+/** Whether the permissions have been read from the system at least once. */
 export function usePermissionsChecked(): boolean {
   return usePermissionsStore((state) => state.checked);
 }

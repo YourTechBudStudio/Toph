@@ -1,7 +1,7 @@
 import { Directory, File, Paths } from 'expo-file-system';
 
 import { TophVoice } from '../../../../modules/toph-voice';
-import type { DictationHost } from './dictation';
+import { oneDictationAtATime, startDictation, type DictationHost } from './dictation';
 
 /**
  * The real device: the `toph-voice` module, and session folders under
@@ -33,3 +33,8 @@ export const nativeDictationHost: DictationHost = {
     };
   },
 };
+
+/** Starts a dictation on this device, one at a time across Home and the keyboard. Same contract as `startDictation`. */
+export const startNativeDictation = oneDictationAtATime((config) =>
+  startDictation(config, nativeDictationHost),
+);

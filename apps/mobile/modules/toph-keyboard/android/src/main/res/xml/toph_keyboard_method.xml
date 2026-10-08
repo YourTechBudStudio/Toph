@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The picker shows the normal subtype; the auxiliary voice subtype is how voice keyboards declare
+     themselves. Resource names start with toph_keyboard_ because library resources share the app's
+     namespace. -->
+<input-method xmlns:android="http://schemas.android.com/apk/res/android"
+  android:supportsSwitchingToNextInputMethod="true">
+  <subtype
+    android:imeSubtypeLocale="en_US"
+    android:imeSubtypeMode="keyboard"
+    android:isAuxiliary="false"
+    android:label="Dictation"
+    android:subtypeId="0x746f7101" />
+  <subtype
+    android:imeSubtypeLocale="en_US"
+    android:imeSubtypeMode="voice"
+    android:isAuxiliary="true"
+    android:label="Dictation"
+    android:subtypeId="0x746f7102" />
+</input-method>
