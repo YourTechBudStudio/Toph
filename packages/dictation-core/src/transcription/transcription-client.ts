@@ -13,7 +13,7 @@ export interface TranscriptionClient {
   id: string;
   transcribeBatch: (input: {
     batchId: string;
-    /** The batch's WAV bytes. ArrayBuffer-backed, because that is what `Blob` accepts as a part. */
+    /** The batch's WAV bytes. ArrayBuffer-backed, because that is what a `fetch` body accepts. */
     audio: Uint8Array<ArrayBuffer>;
     durationMs: number;
     model: string;

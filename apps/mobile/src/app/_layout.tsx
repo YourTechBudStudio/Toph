@@ -18,7 +18,9 @@ import { useEffect } from 'react';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import '../../global.css';
-import { OnboardingGate } from '../modules/onboarding';
+import { OnboardingGate, useReadinessSettled } from '../modules/onboarding';
+import { refreshPermissions } from '../modules/permissions';
+import { loadProvider } from '../modules/provider';
 import { colors } from '../ui';
 
 // Keep Home underneath directly opened routes.
@@ -27,6 +29,10 @@ export const unstable_settings = { initialRouteName: 'index' };
 
 // Keep the splash up until the fonts are ready; no visible text uses the system font.
 void SplashScreen.preventAutoHideAsync();
+// Onboarding decides from the saved provider and the mic permission, so both are read before
+// the splash goes away.
+void loadProvider();
+void refreshPermissions();
 
 export default function RootLayout() {
   const [fontsLoaded, fontError] = useFonts({
@@ -39,7 +45,8 @@ export default function RootLayout() {
     SourceSans3_600SemiBold,
     SourceSans3_700Bold,
   });
-  const ready = fontsLoaded || fontError !== null;
+  const settled = useReadinessSettled();
+  const ready = (fontsLoaded || fontError !== null) && settled;
 
   useEffect(() => {
     if (ready) {
@@ -71,6 +78,7 @@ export default function RootLayout() {
           <Stack.Screen name="settings/polish" />
           <Stack.Screen name="settings/preset/[id]" />
           <Stack.Screen name="settings/dictionary" />
+          <Stack.Screen name="settings/licenses" />
         </Stack>
       </OnboardingGate>
     </SafeAreaProvider>

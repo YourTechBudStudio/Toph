@@ -55,16 +55,23 @@ test('posts wav audio as multipart with the routed model and returns the transcr
   });
 
   assert.equal(request.url, 'https://api.openai.com/v1/audio/transcriptions');
-  assert.deepEqual(request.init.headers, {
+  const headers = request.init.headers as Record<string, string>;
+  const contentType = headers['Content-Type'];
+  assert.match(contentType, /^multipart\/form-data; boundary=toph-/);
+  assert.deepEqual(headers, {
     Accept: 'application/json',
     Authorization: 'Bearer sk-test',
+    'Content-Type': contentType,
   });
 
-  const form = request.init.body as FormData;
-  assert.ok(form instanceof FormData);
+  // Node's own multipart parser is the evidence the hand-built body is well formed.
+  const form = await new Response(request.init.body, {
+    headers: { 'content-type': contentType },
+  }).formData();
   assert.equal(form.get('model'), 'gpt-4o-transcribe');
   assert.equal(form.get('response_format'), 'json');
   const file = form.get('file') as File;
+  assert.ok(file instanceof File);
   assert.equal(file.name, 'batch-1.wav');
   assert.equal(file.type, 'audio/wav');
   assert.deepEqual(new Uint8Array(await file.arrayBuffer()), audio);

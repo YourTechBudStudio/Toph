@@ -34,6 +34,7 @@ export {
   createOpenAiTranscriptionClient,
   type OpenAiTranscriptionClientContext,
 } from './providers/openai/transcription-client';
+export { verifyOpenAiConnection } from './providers/openai/connection-check';
 export {
   endpointFromCredentials,
   isOfficialOpenAiEndpoint,

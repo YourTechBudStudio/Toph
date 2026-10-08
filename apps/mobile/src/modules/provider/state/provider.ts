@@ -1,4 +1,14 @@
+import * as SecureStore from 'expo-secure-store';
 import { create } from 'zustand';
+
+import { verifyOpenAiConnection } from '@toph/dictation-core';
+
+import {
+  parseStoredConnection,
+  parseStoredModels,
+  type StoredConnection,
+  type StoredModels,
+} from './stored-provider';
 
 export const DEFAULT_BASE_URL = 'https://api.openai.com/v1';
 export const DEFAULT_TRANSCRIPTION_MODEL = 'gpt-4o-transcribe';
@@ -20,9 +30,12 @@ export interface ConnectionDraft {
   readonly apiKey: string;
 }
 
-const CHECK_MS = 1100;
+const CONNECTION_KEY = 'toph.provider.connection';
+const MODELS_KEY = 'toph.provider.models';
 
 interface ProviderState {
+  /** Whether the saved provider has been read, so nothing decides from the defaults. */
+  readonly loaded: boolean;
   readonly baseUrl: string;
   readonly apiKey: string;
   readonly status: ConnectionStatus;
@@ -47,10 +60,12 @@ interface ProviderState {
 
 /**
  * The OpenAI (or OpenAI-compatible) connection and how transcription and polish use it, mirroring
- * the fields of desktop's OpenAI provider. Mocked: connecting "verifies" after a moment and
- * accepts any http(s) base URL with a non-empty key. Secure storage and a real check arrive with in-app dictation.
+ * the fields of desktop's OpenAI provider. Connect runs the same check as desktop and saves the
+ * connection only when it passes; the connection and the model fields live in the phone's secure
+ * storage and are read once at launch by `loadProvider()`.
  */
 export const useProviderStore = create<ProviderState>()((set) => ({
+  loaded: false,
   baseUrl: DEFAULT_BASE_URL,
   apiKey: '',
   status: 'disconnected',
@@ -60,40 +75,161 @@ export const useProviderStore = create<ProviderState>()((set) => ({
   polishModel: DEFAULT_POLISH_MODEL,
   reasoningEffort: '',
   polishApi: 'chat',
-  connect: ({ baseUrl, apiKey }) => {
-    set({ status: 'connecting', error: null, submitted: { baseUrl, apiKey } });
-    setTimeout(() => {
-      if (!/^https?:\/\/\S+$/u.test(baseUrl.trim())) {
-        set({
-          status: 'invalid',
-          error: "That base URL isn't something I can reach. Check for typos, then blame DNS.",
-        });
-        return;
-      }
-      set({
-        baseUrl: baseUrl.trim(),
-        apiKey: apiKey.trim(),
-        status: 'connected',
-        error: null,
-        submitted: null,
-      });
-    }, CHECK_MS);
+  connect: (draft) => {
+    void checkAndSave(draft);
   },
-  remove: () =>
+  remove: () => {
     set({
       baseUrl: DEFAULT_BASE_URL,
       apiKey: '',
       status: 'disconnected',
       error: null,
       submitted: null,
-    }),
-  setTranscriptionModel: (model) =>
-    set({ transcriptionModel: model.trim() === '' ? DEFAULT_TRANSCRIPTION_MODEL : model.trim() }),
-  setPolishModel: (model) =>
-    set({ polishModel: model.trim() === '' ? DEFAULT_POLISH_MODEL : model.trim() }),
-  setReasoningEffort: (effort) => set({ reasoningEffort: effort.trim() }),
-  setPolishApi: (polishApi) => set({ polishApi }),
+    });
+    void persist(() => SecureStore.deleteItemAsync(CONNECTION_KEY));
+  },
+  setTranscriptionModel: (model) => {
+    set({ transcriptionModel: model.trim() === '' ? DEFAULT_TRANSCRIPTION_MODEL : model.trim() });
+    persistModels();
+  },
+  setPolishModel: (model) => {
+    set({ polishModel: model.trim() === '' ? DEFAULT_POLISH_MODEL : model.trim() });
+    persistModels();
+  },
+  setReasoningEffort: (effort) => {
+    set({ reasoningEffort: effort.trim() });
+    persistModels();
+  },
+  setPolishApi: (polishApi) => {
+    set({ polishApi });
+    persistModels();
+  },
 }));
+
+let writes: Promise<unknown> = Promise.resolve();
+
+/**
+ * Runs `write` after every earlier write, so storage sees them in the order they were made.
+ * Resolves whether it saved and never rejects, so a failed write neither breaks the queue nor
+ * leaves an unhandled rejection behind a fire-and-forget caller.
+ */
+function persist(write: () => Promise<void>): Promise<boolean> {
+  const saved = writes.then(write).then(
+    () => true,
+    (error: unknown) => {
+      console.warn('[toph:provider] save failed', error);
+      return false;
+    },
+  );
+  writes = saved;
+  return saved;
+}
+
+/** Saves the model fields as they are when the write runs, so the last edit wins. */
+function persistModels(): void {
+  void persist(() => {
+    const { transcriptionModel, polishModel, reasoningEffort, polishApi } =
+      useProviderStore.getState();
+    const models: StoredModels = { transcriptionModel, polishModel, reasoningEffort, polishApi };
+    return SecureStore.setItemAsync(MODELS_KEY, JSON.stringify(models));
+  });
+}
+
+async function checkAndSave(draft: ConnectionDraft): Promise<void> {
+  const set = useProviderStore.setState;
+  set({ status: 'connecting', error: null, submitted: draft });
+  try {
+    const { values } = await verifyOpenAiConnection({
+      baseUrl: draft.baseUrl,
+      apiKey: draft.apiKey.trim(),
+    });
+    const connection: StoredConnection = {
+      baseUrl: values.baseUrl ?? '',
+      apiKey: values.apiKey ?? '',
+    };
+    const saved = await persist(() =>
+      SecureStore.setItemAsync(CONNECTION_KEY, JSON.stringify(connection)),
+    );
+    if (!saved) {
+      throw new Error("Couldn't save the key on this phone.");
+    }
+    set({ ...connection, status: 'connected', error: null, submitted: null });
+  } catch (error) {
+    // The saved connection is left as it was; only this attempt failed.
+    set({ status: 'invalid', error: error instanceof Error ? error.message : String(error) });
+  }
+}
+
+let loading: Promise<void> | undefined;
+
+/** Reads the saved provider once per process. Safe to call more than once (story #8's headless task calls it too). */
+export function loadProvider(): Promise<void> {
+  loading ??= read();
+  return loading;
+}
+
+async function read(): Promise<void> {
+  const [connection, models] = await Promise.all([
+    readEntry(CONNECTION_KEY, parseStoredConnection),
+    readEntry(MODELS_KEY, parseStoredModels),
+  ]);
+  useProviderStore.setState({
+    // A saved connection was verified when it was saved; a key that stopped working since then
+    // shows up as a transcription error rather than being re-checked at every launch.
+    ...(connection === null ? {} : { ...connection, status: 'connected' }),
+    ...models,
+    // Always, so the splash can never hang on a storage error.
+    loaded: true,
+  });
+}
+
+/** One saved entry, or `null` when it is missing, unreadable or malformed. Never rejects. */
+async function readEntry<T>(
+  key: string,
+  parse: (raw: string | null) => T | null,
+): Promise<T | null> {
+  let raw: string | null;
+  try {
+    raw = await SecureStore.getItemAsync(key);
+  } catch (error) {
+    console.warn(`[toph:provider] could not read ${key}`, error);
+    return null;
+  }
+  const value = parse(raw);
+  if (raw !== null && value === null) {
+    // The contents are not logged: the connection entry holds the API key.
+    console.warn(`[toph:provider] ignoring malformed ${key}`);
+  }
+  return value;
+}
+
+/** What dictation needs from the provider. */
+export interface TranscriptionConfig {
+  /** Fixed for the session it starts. */
+  transcriptionModel: string;
+  /** Read on every request, as on desktop. */
+  credentials: () => Promise<{ formValues: Record<string, string> }>;
+}
+
+/** What dictation needs from the provider, or null unless connected. Not a hook. */
+export function readTranscriptionConfig(): TranscriptionConfig | null {
+  const { status, transcriptionModel } = useProviderStore.getState();
+  if (status !== 'connected') {
+    return null;
+  }
+  return {
+    transcriptionModel,
+    credentials: async () => {
+      const { baseUrl, apiKey } = useProviderStore.getState();
+      return { formValues: { baseUrl, apiKey } };
+    },
+  };
+}
+
+/** Whether the saved provider has been read. */
+export function useProviderLoaded(): boolean {
+  return useProviderStore((state) => state.loaded);
+}
 
 /** Whether dictation has a working provider connection. */
 export function useProviderReady(): boolean {

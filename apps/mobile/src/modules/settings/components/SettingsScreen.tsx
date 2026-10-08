@@ -1,7 +1,7 @@
 import Constants from 'expo-constants';
 import { router } from 'expo-router';
-import { BookA, Info, KeyRound, WandSparkles } from 'lucide-react-native';
-import { Text, View } from 'react-native';
+import { Activity, BookA, Info, KeyRound, Scale, WandSparkles } from 'lucide-react-native';
+import { Alert, Text, View } from 'react-native';
 
 import {
   BackBar,
@@ -13,6 +13,7 @@ import {
   Screen,
   SectionLabel,
 } from '../../../ui';
+import { runParityCheck } from '../../dictation';
 import { KeyboardRow } from '../../keyboard';
 import { PermissionRow } from '../../permissions';
 import { usePolishSummary } from '../../polish';
@@ -88,6 +89,25 @@ export function SettingsScreen() {
               icon={Info}
               title="Toph for Android"
             />
+            <RowDivider />
+            <ListRow
+              detail="Silero VAD, ONNX Runtime, Expo and more"
+              icon={Scale}
+              onPress={() => router.push('/settings/licenses')}
+              title="Open-source notices"
+            />
+            {__DEV__ ? (
+              <>
+                <RowDivider />
+                <ListRow
+                  detail="Score files/parity/raw.wav for desktop's parity script"
+                  icon={Activity}
+                  onPress={checkParity}
+                  title="Run parity check"
+                  tone="amber"
+                />
+              </>
+            ) : null}
           </RowGroup>
           <Text className="mt-6 text-center font-body text-[13px] leading-5 text-text-tertiary">
             Built on desktop's dictation engine.{'\n'}Same VAD, same chunking, smaller screen.
@@ -95,5 +115,20 @@ export function SettingsScreen() {
         </View>
       </FadeIn>
     </Screen>
+  );
+}
+
+/** Dev only: runs the mobile half of the parity check and reports what it wrote, or why it failed. */
+function checkParity(): void {
+  runParityCheck().then(
+    ({ frames, regions, batches }) => {
+      Alert.alert(
+        'Parity check',
+        `${String(frames)} frames, ${String(regions)} regions, ${String(batches)} batches. Wrote files/parity/mobile.json.`,
+      );
+    },
+    (error: unknown) => {
+      Alert.alert('Parity check', error instanceof Error ? error.message : String(error));
+    },
   );
 }

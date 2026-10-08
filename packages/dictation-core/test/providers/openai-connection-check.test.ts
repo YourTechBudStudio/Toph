@@ -1,13 +1,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { jsonResponse, stubFetch } from '../helpers/provider-client-harness.ts';
-import { registerTsExtensionResolver } from '../helpers/ts-extension-resolver.ts';
-
-registerTsExtensionResolver();
-
-const { verifyOpenAiConnection } =
-  await import('../../src/main/providers/openai/connection-check.ts');
+import { verifyOpenAiConnection } from '../../src/providers/openai/connection-check.ts';
+import { jsonResponse, stubFetch } from '../helpers/fetch-stub.ts';
 
 test('accepts a connection when the endpoint answers at all', async () => {
   const fetchStub = stubFetch(() => jsonResponse(200, { data: [] }));
