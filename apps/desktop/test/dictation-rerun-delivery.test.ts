@@ -5,8 +5,8 @@ import { join } from 'node:path';
 import test from 'node:test';
 
 import type { PasteAttempt } from '@toph/desktop-contracts';
+import type { RecordingSession, TranscriptionBatch } from '@toph/dictation-core';
 
-import type { RecordingSession, TranscriptionBatch } from '../src/main/db/schema.ts';
 import { registerTsExtensionResolver } from './helpers/ts-extension-resolver.ts';
 
 registerTsExtensionResolver();

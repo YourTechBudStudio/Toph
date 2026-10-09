@@ -1,8 +1,3 @@
-/**
- * Mirrors `stubFetch` and `jsonResponse` from desktop's
- * `apps/desktop/test/helpers/provider-client-harness.ts`.
- */
-
 export interface RecordedRequest {
   url: string;
   init: RequestInit;

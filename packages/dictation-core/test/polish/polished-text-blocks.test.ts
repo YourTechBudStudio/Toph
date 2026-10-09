@@ -7,7 +7,7 @@ import {
   selectContextWindow,
   splitPolishedBlocks,
   splitRewritableTail,
-} from '../../src/main/polish/polished-text-blocks.ts';
+} from '../../src/polish/polished-text-blocks.ts';
 
 // Synthetic polished markdown only. The evaluation corpus is real dictation and stays out of the
 // repository; these fixtures reproduce its shapes, not its content.

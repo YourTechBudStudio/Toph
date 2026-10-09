@@ -1,4 +1,4 @@
-import type { RecordingSession, TranscriptionBatch } from './db/schema';
+import type { RecordingSession, TranscriptionBatch } from '@toph/dictation-core';
 
 /** What a new recording would be transcribed with right now; `null` while no provider is chosen. */
 export interface TranscriptionRouting {

@@ -1,19 +1,18 @@
 import { strict as assert } from 'node:assert';
 import test from 'node:test';
 
-import type { PolishRulePreset, ProviderUsageEvent } from '../../src/main/db/schema.ts';
-import type { SessionOutputService } from '../../src/main/outputs/session-output-service.ts';
-import type { InferenceClient } from '../../src/main/providers/provider-definition.ts';
-import type { OrderedBatchTranscript } from '../../src/main/stores/session-store.ts';
-import { registerTsExtensionResolver } from '../helpers/ts-extension-resolver.ts';
+import type { PolishRulePreset, ProviderUsageEvent } from '../../src/db/schema.ts';
+import type { InferenceClient } from '../../src/inference/inference-client.ts';
+import type { SessionOutputService } from '../../src/outputs/session-output-service.ts';
+import { createPolishService } from '../../src/polish/polish-service.ts';
+import {
+  chunkCloseThresholdChars,
+  createSessionPolishCoordinator,
+  type OrderedBatchTranscript,
+} from '../../src/polish/session-polish-coordinator.ts';
+import { createDefaultAppSettings } from '../../src/settings/app-settings-schema.ts';
 
-registerTsExtensionResolver();
-
-const { createDefaultAppSettings } = await import('@toph/dictation-core');
 const defaultAppSettings = createDefaultAppSettings(process.platform);
-const { createPolishService } = await import('../../src/main/polish/polish-service.ts');
-const { createSessionPolishCoordinator, chunkCloseThresholdChars } =
-  await import('../../src/main/polish/session-polish-coordinator.ts');
 
 const sessionId = 'session-1';
 

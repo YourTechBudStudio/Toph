@@ -2,8 +2,9 @@ import {
   TransientInferenceProviderError,
   type InferenceClient,
   type InferenceClientResult,
-  type ProviderClientContext,
-} from '../provider-definition';
+} from '@toph/dictation-core';
+
+import type { ProviderClientContext } from '../provider-definition';
 import { openAiSubOriginator } from './oauth-flow';
 
 const providerId = 'openai-sub';

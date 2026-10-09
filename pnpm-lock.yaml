@@ -254,9 +254,15 @@ importers:
 
   packages/dictation-core:
     dependencies:
+      '@noble/hashes':
+        specifier: ^2.2.0
+        version: 2.2.0
       '@toph/desktop-contracts':
         specifier: workspace:*
         version: link:../desktop-contracts
+      drizzle-orm:
+        specifier: ^0.45.2
+        version: 0.45.2(@types/better-sqlite3@7.6.13)(better-sqlite3@13.0.1)
       zod:
         specifier: ^4.4.3
         version: 4.4.3

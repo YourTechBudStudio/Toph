@@ -1,21 +1,31 @@
-import { randomUUID } from 'node:crypto';
-
+import type { SessionOutput } from '../db/schema';
+import { createId } from '../ids';
+import { assembleRawTranscriptText } from '../transcription/raw-transcript';
 import {
-  assembleRawTranscriptText,
   toProviderUsageEvent,
   type ProviderUsageDetails,
-} from '@toph/dictation-core';
+  type ProviderUsageEventRecord,
+} from '../usage/provider-usage';
 
-import type { RecordingSessionStore } from '../stores/session-store';
+/** Where session outputs are read from and written to. Desktop's `RecordingSessionStore` satisfies it. */
+export interface SessionOutputStore {
+  listOrderedBatchTranscriptTexts: (sessionId: string) => Promise<string[]>;
+  createSessionOutput: (options: {
+    output: SessionOutput;
+    usageEvent?: ProviderUsageEventRecord | undefined;
+    supersedesPolishChunkUsage?: boolean | undefined;
+  }) => Promise<void>;
+  selectSessionOutput: (options: { sessionId: string; outputId: string }) => Promise<void>;
+}
 
 export interface SessionOutputService {
   createRawConcatOutput: (
     sessionId: string,
-    options?: { outputId?: string; supersedesPolishChunkUsage?: boolean },
+    options?: { outputId?: string | undefined; supersedesPolishChunkUsage?: boolean | undefined },
   ) => Promise<{ id: string; text: string; createdAt: number }>;
   createPolishedOutput: (options: {
     sessionId: string;
-    outputId?: string;
+    outputId?: string | undefined;
     sourceOutputId: string;
     text: string;
     provider: string;
@@ -31,7 +41,7 @@ export interface SessionOutputService {
     rulePresetId: string;
     rulePresetHash: string;
     /** See `createSessionOutput`: set by a rerun, whose output replaces an incremental one. */
-    supersedesPolishChunkUsage?: boolean;
+    supersedesPolishChunkUsage?: boolean | undefined;
   }) => Promise<{
     id: string;
     text: string;
@@ -43,14 +53,11 @@ export interface SessionOutputService {
 }
 
 function createSessionOutputId() {
-  return `session_output_${Date.now()}_${randomUUID()}`;
+  return createId('session_output');
 }
 
 export function createSessionOutputService(options: {
-  sessionStore: Pick<
-    RecordingSessionStore,
-    'listOrderedBatchTranscriptTexts' | 'createSessionOutput' | 'selectSessionOutput'
-  >;
+  sessionStore: SessionOutputStore;
 }): SessionOutputService {
   return {
     async createRawConcatOutput(sessionId, createOptions) {

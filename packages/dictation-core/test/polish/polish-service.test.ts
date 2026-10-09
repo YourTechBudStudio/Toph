@@ -1,18 +1,15 @@
 import { strict as assert } from 'node:assert';
 import test from 'node:test';
 
-import type { DictionaryEntry } from '../../src/main/db/schema.ts';
+import type { DictionaryEntry } from '../../src/db/schema.ts';
 import {
   TransientInferenceProviderError,
   type InferenceClient,
-} from '../../src/main/providers/provider-definition.ts';
-import { registerTsExtensionResolver } from '../helpers/ts-extension-resolver.ts';
+} from '../../src/inference/inference-client.ts';
+import { createPolishService } from '../../src/polish/polish-service.ts';
+import { createDefaultAppSettings } from '../../src/settings/app-settings-schema.ts';
 
-registerTsExtensionResolver();
-
-const { createDefaultAppSettings } = await import('@toph/dictation-core');
 const defaultAppSettings = createDefaultAppSettings(process.platform);
-const { createPolishService } = await import('../../src/main/polish/polish-service.ts');
 
 const rulePreset = {
   id: 'general',

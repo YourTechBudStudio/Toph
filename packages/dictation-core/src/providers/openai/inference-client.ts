@@ -1,19 +1,31 @@
+import type { ProviderBillingMode } from '@toph/desktop-contracts';
+
+import {
+  TransientInferenceProviderError,
+  type InferenceClient,
+  type InferenceClientResult,
+} from '../../inference/inference-client';
+import type { CostEstimator } from '../../usage/pricing';
 import {
   endpointFromCredentials,
   isOfficialOpenAiEndpoint,
   isRetryableStatus,
   readRequestId,
   readResponseBody,
-} from '@toph/dictation-core';
-
-import {
-  TransientInferenceProviderError,
-  type InferenceClient,
-  type InferenceClientResult,
-  type ProviderClientContext,
-} from '../provider-definition';
+} from './http';
 
 const providerId = 'openai';
+
+/**
+ * The part of a provider client context this client reads. Desktop's `ProviderClientContext`
+ * satisfies it.
+ */
+export interface OpenAiInferenceClientContext {
+  credentials: () => Promise<{ formValues: Record<string, string> }>;
+  settings: () => { inference: Record<string, unknown> };
+  pricing: CostEstimator;
+  billingMode: ProviderBillingMode;
+}
 
 interface TokenCounts {
   inputTokens: number;
@@ -142,7 +154,9 @@ function buildResponsesCall(input: CallInput): InferenceCall {
   };
 }
 
-export function createOpenAiInferenceClient(context: ProviderClientContext): InferenceClient {
+export function createOpenAiInferenceClient(
+  context: OpenAiInferenceClientContext,
+): InferenceClient {
   return {
     id: providerId,
 
@@ -172,7 +186,8 @@ export function createOpenAiInferenceClient(context: ProviderClientContext): Inf
             'Content-Type': 'application/json',
           },
           body: JSON.stringify(call.body),
-          signal: input.signal,
+          // `RequestInit.signal` admits `null` but not `undefined` under `exactOptionalPropertyTypes`.
+          signal: input.signal ?? null,
         });
       } catch (error) {
         if (input.signal?.aborted) {

@@ -6,42 +6,7 @@ import type {
   ProviderSettings,
   ProviderSettingsGroup,
 } from '@toph/desktop-contracts';
-import type {
-  CostEstimator,
-  ProviderUsageDetails,
-  TranscriptionClient,
-} from '@toph/dictation-core';
-
-export interface InferenceClientResult {
-  text: string;
-  provider: string;
-  model: string | null;
-  usage: ProviderUsageDetails;
-  providerRequestId: string | null;
-  providerResponseJson: unknown;
-}
-
-export interface InferenceClient {
-  id: string;
-  inferText: (input: {
-    instructions: string;
-    inputText: string;
-    signal?: AbortSignal;
-  }) => Promise<InferenceClientResult>;
-}
-
-export class TransientInferenceProviderError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = 'TransientInferenceProviderError';
-  }
-}
-
-export function isTransientInferenceProviderError(
-  error: unknown,
-): error is TransientInferenceProviderError {
-  return error instanceof TransientInferenceProviderError;
-}
+import type { CostEstimator, InferenceClient, TranscriptionClient } from '@toph/dictation-core';
 
 /**
  * Resolved credentials for one provider. Flat rather than a union across the two credential kinds:

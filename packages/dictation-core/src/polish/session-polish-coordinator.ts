@@ -1,11 +1,27 @@
-import { assembleRawTranscriptText, toProviderUsageEvent } from '@toph/dictation-core';
-
 import type { DictionaryEntry, PolishRulePreset } from '../db/schema';
-import type { SessionOutputService } from '../outputs/session-output-service';
-import type { AppSettingsStore } from '../settings/app-settings-store';
-import type { RecordingSessionStore } from '../stores/session-store';
-import type { PolishChunkResult, PolishService } from './polish-service';
+import { assembleRawTranscriptText } from '../transcription/raw-transcript';
+import { toProviderUsageEvent, type ProviderUsageEventRecord } from '../usage/provider-usage';
+import type {
+  PolishChunkResult,
+  PolishOutputs,
+  PolishRulesStore,
+  PolishService,
+  PolishSettingsReader,
+} from './polish-service';
 import { selectContextWindow, splitRewritableTail } from './polished-text-blocks';
+
+/** A batch transcript in spoken order, with the identity the incremental polish path needs. */
+export interface OrderedBatchTranscript {
+  batchId: string;
+  sequence: number;
+  text: string;
+}
+
+/** Where the coordinator reads transcripts and rules, and records each chunk's usage. */
+export interface PolishCoordinatorStore extends PolishRulesStore {
+  listOrderedBatchTranscripts: (sessionId: string) => Promise<OrderedBatchTranscript[]>;
+  createProviderUsageEvent: (usageEvent: ProviderUsageEventRecord) => Promise<void>;
+}
 
 export interface SessionPolishCoordinator {
   /**
@@ -20,8 +36,8 @@ export interface SessionPolishCoordinator {
   finalizeSession: (input: {
     sessionId: string;
     rawOutput: { id: string; text: string };
-    outputId?: string;
-    signal?: AbortSignal;
+    outputId?: string | undefined;
+    signal?: AbortSignal | undefined;
   }) => Promise<{
     id: string;
     text: string;
@@ -92,15 +108,9 @@ function createSessionPolishState(): SessionPolishState {
 }
 
 export function createSessionPolishCoordinator(options: {
-  settingsStore: Pick<AppSettingsStore, 'getSettings'>;
-  sessionStore: Pick<
-    RecordingSessionStore,
-    | 'listOrderedBatchTranscripts'
-    | 'getPolishRulePreset'
-    | 'listDictionaryEntries'
-    | 'createProviderUsageEvent'
-  >;
-  outputs: Pick<SessionOutputService, 'createPolishedOutput'>;
+  settingsStore: PolishSettingsReader;
+  sessionStore: PolishCoordinatorStore;
+  outputs: PolishOutputs;
   polish: PolishService;
 }): SessionPolishCoordinator {
   const sessions = new Map<string, SessionPolishState>();
@@ -214,7 +224,7 @@ export function createSessionPolishCoordinator(options: {
   const runChunk = async (
     sessionId: string,
     state: SessionPolishState,
-    chunkOptions: { isFinal: boolean; signal?: AbortSignal },
+    chunkOptions: { isFinal: boolean; signal?: AbortSignal | undefined },
   ) => {
     const rules = await resolvePinnedRules(state);
     if (!rules) {
@@ -313,8 +323,8 @@ export function createSessionPolishCoordinator(options: {
   const fallbackToSingleShot = (input: {
     sessionId: string;
     rawOutput: { id: string; text: string };
-    outputId?: string;
-    signal?: AbortSignal;
+    outputId?: string | undefined;
+    signal?: AbortSignal | undefined;
   }) =>
     options.polish.polishOutput({
       sessionId: input.sessionId,

@@ -1,9 +1,10 @@
-import { createHash } from 'node:crypto';
+import { sha256 } from '@noble/hashes/sha2.js';
+import { bytesToHex, utf8ToBytes } from '@noble/hashes/utils.js';
 
 import { shippedRulePresetBodyHashes } from './rule-preset-history';
-import emailWritingRuleBody from './rules/email-writing.txt?raw';
-import engineerRuleBody from './rules/engineer.txt?raw';
-import generalRuleBody from './rules/general.txt?raw';
+import emailWritingRuleBody from './rules/email-writing';
+import engineerRuleBody from './rules/engineer';
+import generalRuleBody from './rules/general';
 
 export const defaultPolishRulePresets = [
   {
@@ -32,6 +33,7 @@ export const defaultPolishRulePresets = [
   },
 ] as const;
 
+/** SHA-256 of the UTF-8 body, as lowercase hex. Same output as desktop's former `node:crypto` hash. */
 export function createRulePresetHash(body: string) {
-  return createHash('sha256').update(body, 'utf8').digest('hex');
+  return bytesToHex(sha256(utf8ToBytes(body)));
 }

@@ -1,13 +1,14 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import type { DictionaryEntry } from '../../src/main/db/schema.ts';
+import type { DictionaryEntry } from '../../src/db/schema.ts';
+import { defaultPolishRulePresets } from '../../src/polish/builtin-rules.ts';
 import {
   ensureDictionaryEnabledLimit,
   maxEnabledDictionaryEntries,
   normalizeDictionaryEntryDraft,
   normalizeRulePresetDraft,
-} from '../../src/main/settings/writing-settings-validation.ts';
+} from '../../src/polish/writing-drafts.ts';
 
 function dictionaryEntry(id: string, enabled: boolean): DictionaryEntry {
   return {
@@ -42,20 +43,14 @@ test('normalizes and bounds custom rule presets', () => {
   );
 });
 
-test('accepts every shipped builtin rule preset body', async () => {
+test('accepts every shipped builtin rule preset body', () => {
   // The builtin presets are offered for editing in the settings UI, so a body the validator
-  // rejects would be a preset the user cannot open and save. `builtin-rules.ts` uses Vite `?raw`
-  // imports and cannot be loaded here, so read the rule files directly.
-  const { readdir, readFile } = await import('node:fs/promises');
-  const rulesDirectory = new URL('../../src/main/polish/rules/', import.meta.url);
-  const fileNames = await readdir(rulesDirectory);
-
-  assert.ok(fileNames.length > 0, 'expected builtin rule files to exist');
-  for (const fileName of fileNames) {
-    const body = await readFile(new URL(fileName, rulesDirectory), 'utf8');
+  // rejects would be a preset the user cannot open and save.
+  assert.ok(defaultPolishRulePresets.length > 0, 'expected builtin rule presets to exist');
+  for (const { id, body } of defaultPolishRulePresets) {
     assert.doesNotThrow(
-      () => normalizeRulePresetDraft({ title: fileName, description: fileName, body }),
-      `builtin rule preset "${fileName}" is not accepted by the settings validator`,
+      () => normalizeRulePresetDraft({ title: id, description: id, body }),
+      `builtin rule preset "${id}" is not accepted by the settings validator`,
     );
   }
 });

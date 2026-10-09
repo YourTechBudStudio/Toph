@@ -1,8 +1,6 @@
 import type { DictionaryEntry, PolishRulePreset } from '../db/schema';
+import type { InferenceClient, InferenceClientResult } from '../inference/inference-client';
 import type { SessionOutputService } from '../outputs/session-output-service';
-import type { InferenceClient, InferenceClientResult } from '../providers/provider-definition';
-import type { AppSettingsStore } from '../settings/app-settings-store';
-import type { RecordingSessionStore } from '../stores/session-store';
 import {
   cleanTrailingEllipsis,
   composeIncrementalPolishInput,
@@ -12,6 +10,19 @@ import {
   removeEchoedContextBlocks,
   wrapTranscriptForPolish,
 } from './polish-prompt';
+
+/** The part of a settings store polish reads. Desktop's `AppSettingsStore` satisfies it. */
+export interface PolishSettingsReader {
+  getSettings: () => { polish: { enabled: boolean; rulePresetId: string | null } };
+}
+
+/** Where polish reads the active rule preset and the dictionary. */
+export interface PolishRulesStore {
+  getPolishRulePreset: (rulePresetId: string) => Promise<PolishRulePreset | null>;
+  listDictionaryEntries: () => Promise<DictionaryEntry[]>;
+}
+
+export type PolishOutputs = Pick<SessionOutputService, 'createPolishedOutput'>;
 
 export interface PolishChunkResult {
   text: string;
@@ -30,10 +41,10 @@ export interface PolishService {
   polishOutput: (input: {
     sessionId: string;
     rawOutput: { id: string; text: string };
-    outputId?: string;
-    signal?: AbortSignal;
+    outputId?: string | undefined;
+    signal?: AbortSignal | undefined;
     /** See `createSessionOutput`: set by a rerun, whose output replaces an incremental one. */
-    supersedesPolishChunkUsage?: boolean;
+    supersedesPolishChunkUsage?: boolean | undefined;
   }) => Promise<{
     id: string;
     text: string;
@@ -61,7 +72,7 @@ export interface PolishService {
     transcript: string;
     isFirstChunk: boolean;
     isFinal: boolean;
-    signal?: AbortSignal;
+    signal?: AbortSignal | undefined;
   }) => Promise<PolishChunkResult>;
 }
 
@@ -125,9 +136,9 @@ async function runWithPolishRetries<T>(
 }
 
 export function createPolishService(options: {
-  settingsStore: Pick<AppSettingsStore, 'getSettings'>;
-  sessionStore: Pick<RecordingSessionStore, 'getPolishRulePreset' | 'listDictionaryEntries'>;
-  outputs: Pick<SessionOutputService, 'createPolishedOutput'>;
+  settingsStore: PolishSettingsReader;
+  sessionStore: PolishRulesStore;
+  outputs: PolishOutputs;
   /** Resolved per call so a routing change takes effect without a restart. */
   resolveInferenceClient: () => InferenceClient;
 }): PolishService {

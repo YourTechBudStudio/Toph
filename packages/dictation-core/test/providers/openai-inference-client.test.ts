@@ -1,29 +1,38 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
+import { isTransientInferenceProviderError } from '../../src/inference/inference-client.ts';
 import {
-  createClientContext,
-  jsonResponse,
-  stubFetch,
-} from '../helpers/provider-client-harness.ts';
-import { registerTsExtensionResolver } from '../helpers/ts-extension-resolver.ts';
-
-registerTsExtensionResolver();
-
-const { createOpenAiInferenceClient } =
-  await import('../../src/main/providers/openai/inference-client.ts');
-const { isTransientInferenceProviderError } =
-  await import('../../src/main/providers/provider-definition.ts');
+  createOpenAiInferenceClient,
+  type OpenAiInferenceClientContext,
+} from '../../src/providers/openai/inference-client.ts';
+import type { CostEstimateInput } from '../../src/usage/pricing.ts';
+import { jsonResponse, stubFetch } from '../helpers/fetch-stub.ts';
 
 async function infer(options: {
   inference: Record<string, string>;
   respond: () => Response;
   baseUrl?: string;
 }) {
-  const { context, pricingCalls } = createClientContext({
-    formValues: { baseUrl: options.baseUrl ?? 'https://api.openai.com/v1', apiKey: 'sk-test' },
-    settings: { inference: options.inference },
-  });
+  const pricingCalls: CostEstimateInput[] = [];
+  const context: OpenAiInferenceClientContext = {
+    credentials: async () => ({
+      formValues: { baseUrl: options.baseUrl ?? 'https://api.openai.com/v1', apiKey: 'sk-test' },
+    }),
+    settings: () => ({ inference: options.inference }),
+    pricing: {
+      estimateCost(input) {
+        pricingCalls.push(input);
+        return {
+          costUsdMicros: 0,
+          costSource: 'none',
+          pricingCatalogProviderId: null,
+          pricingCatalogModelId: null,
+        };
+      },
+    },
+    billingMode: 'metered',
+  };
   const fetchStub = stubFetch(options.respond);
   try {
     const result = await createOpenAiInferenceClient(context)

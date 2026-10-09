@@ -1,8 +1,13 @@
 import { strict as assert } from 'node:assert';
+import { createHash } from 'node:crypto';
 import test from 'node:test';
 
-import { shippedRulePresetBodyHashes } from '../../src/main/polish/rule-preset-history.ts';
-import { shouldUpgradeRulePresetBody } from '../../src/main/polish/rule-preset-upgrade.ts';
+import { createRulePresetHash, defaultPolishRulePresets } from '../../src/polish/builtin-rules.ts';
+import { shippedRulePresetBodyHashes } from '../../src/polish/rule-preset-history.ts';
+import { shouldUpgradeRulePresetBody } from '../../src/polish/rule-preset-upgrade.ts';
+
+/** The hash desktop shipped with before core owned it, kept as the oracle. */
+const nodeHash = (text: string) => createHash('sha256').update(text, 'utf8').digest('hex');
 
 const previousBodyHashes = ['previous-untrimmed-hash', 'previous-trimmed-hash'];
 
@@ -80,35 +85,38 @@ test('leaves any stored body alone when no previous hashes are declared', () => 
 });
 
 test('every shipped rule preset body is recorded in its hash history', async () => {
-  // Editing a rules file fails here until its new hashes are recorded, because an unrecorded
+  // Editing a rule module fails here until its new hashes are recorded, because an unrecorded
   // predecessor strands every install still holding that body. Note the limit: this proves the
   // current hashes are present, not that they were appended. Replacing older entries instead of
   // appending would also satisfy it, and would silently strand the installs those entries cover.
   // `rule-preset-history.ts` tells contributors to append; nothing here can enforce it.
-  const { createHash } = await import('node:crypto');
-  const { readFile } = await import('node:fs/promises');
-  const hash = (text: string) => createHash('sha256').update(text, 'utf8').digest('hex');
+  assert.ok(defaultPolishRulePresets.length > 0, 'expected builtin rule presets to exist');
 
-  const presetIds = Object.keys(shippedRulePresetBodyHashes);
-  assert.ok(presetIds.length > 0, 'expected builtin rule presets to have a recorded hash history');
-
-  for (const presetId of presetIds) {
+  for (const { id: presetId, body } of defaultPolishRulePresets) {
     const recorded = shippedRulePresetBodyHashes[presetId];
-    const body = await readFile(
-      new URL(`../../src/main/polish/rules/${presetId}.txt`, import.meta.url),
-      'utf8',
-    );
 
     assert.ok(
-      recorded.includes(hash(body)),
-      `rules/${presetId}.txt was edited without appending its new hash to ` +
+      recorded.includes(nodeHash(body)),
+      `rules/${presetId}.ts was edited without appending its new hash to ` +
         `shippedRulePresetBodyHashes; existing installs would keep the old body forever`,
     );
     assert.ok(
-      recorded.includes(hash(body.trim())),
-      `rules/${presetId}.txt is missing the trimmed hash of its current body, which is the ` +
+      recorded.includes(nodeHash(body.trim())),
+      `rules/${presetId}.ts is missing the trimmed hash of its current body, which is the ` +
         `spelling stored when a preset is saved through the settings UI`,
     );
     assert.equal(new Set(recorded).size, recorded.length, `duplicate hashes for ${presetId}`);
+  }
+});
+
+test('every builtin rule preset carries the node:crypto hash of its body', () => {
+  for (const preset of defaultPolishRulePresets) {
+    assert.equal(preset.bodyHash, nodeHash(preset.body), `bodyHash mismatch for ${preset.id}`);
+  }
+});
+
+test('createRulePresetHash matches node:crypto, including non-ASCII and lone surrogates', () => {
+  for (const text of ['', 'Toph', 'naïve café — 日本語 🎙️', '\ud800']) {
+    assert.equal(createRulePresetHash(text), nodeHash(text), JSON.stringify(text));
   }
 });

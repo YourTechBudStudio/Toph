@@ -6,19 +6,21 @@
  * strands every install still holding that body on an old prompt, silently.
  *
  * Each shipped body contributes TWO entries: `createRulePresetHash` in `builtin-rules.ts` hashes
- * the untrimmed `?raw` file, while `normalizeRulePresetDraft` hashes the trimmed body when a
+ * the untrimmed rule module, while `normalizeRulePresetDraft` hashes the trimmed body when a
  * preset is saved through the settings UI. Both spellings mean "untouched shipped text".
  *
  * The final entries are the body this build ships. `rule-preset-upgrade.test.ts` asserts the
- * current rules files hash to entries present here, so editing a rules file without touching this
+ * current rule modules hash to entries present here, so editing a rule module without touching this
  * list fails the suite. When that happens, APPEND the new hashes — never replace the last ones,
  * or the body users are still holding stops being recognised. The test cannot tell appending from
  * replacing, so that part is on you.
  *
- * This is a separate module because `builtin-rules.ts` uses Vite `?raw` imports and cannot be
- * loaded by the desktop test runner, which leaves this list untestable if it lives there.
+ * This is kept separate so it has no imports.
  */
-export const shippedRulePresetBodyHashes: Record<string, readonly string[]> = {
+export const shippedRulePresetBodyHashes: Record<
+  'general' | 'engineer' | 'email-writing',
+  readonly string[]
+> = {
   general: [
     // Shipped since the preset was introduced.
     '3c306a6a007f94607e78c730fa625e5c6a8ff01a540427963ac76b0ab931766c',

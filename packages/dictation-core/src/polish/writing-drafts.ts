@@ -1,5 +1,3 @@
-import { createHash } from 'node:crypto';
-
 import {
   MAX_ENABLED_DICTIONARY_ENTRIES,
   type DictionaryEntryDraft,
@@ -7,6 +5,7 @@ import {
 } from '@toph/desktop-contracts';
 
 import type { DictionaryEntry } from '../db/schema';
+import { createRulePresetHash } from './builtin-rules';
 
 const maxRulePresetTitleLength = 80;
 const maxRulePresetDescriptionLength = 180;
@@ -14,10 +13,6 @@ const maxRulePresetBodyLength = 12_000;
 const maxDictionaryTermLength = 120;
 const maxDictionaryHintLength = 500;
 export const maxEnabledDictionaryEntries = MAX_ENABLED_DICTIONARY_ENTRIES;
-
-function createRulePresetHash(body: string) {
-  return createHash('sha256').update(body, 'utf8').digest('hex');
-}
 
 export function normalizeRulePresetDraft(draft: PolishRulePresetDraft) {
   const title = draft.title.trim();
@@ -66,7 +61,7 @@ export function normalizeDictionaryEntryDraft(draft: DictionaryEntryDraft) {
 export function ensureDictionaryEnabledLimit(options: {
   entries: DictionaryEntry[];
   draft: { enabled: boolean };
-  existingId?: string;
+  existingId?: string | undefined;
 }) {
   if (!options.draft.enabled) {
     return;

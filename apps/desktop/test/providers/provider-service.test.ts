@@ -10,17 +10,14 @@ import type {
   ProviderId,
   ProviderState,
 } from '@toph/desktop-contracts';
-import type { TranscriptionClient } from '@toph/dictation-core';
+import type { InferenceClient, TranscriptionClient } from '@toph/dictation-core';
 
 import {
   readProviderCredentialStorage,
   writeProviderCredentialStorage,
   type ProviderCredentialStorage,
 } from '../../src/main/providers/credential-storage.ts';
-import type {
-  InferenceClient,
-  ProviderDefinition,
-} from '../../src/main/providers/provider-definition.ts';
+import type { ProviderDefinition } from '../../src/main/providers/provider-definition.ts';
 import { createProviderRegistry } from '../../src/main/providers/provider-registry.ts';
 import { registerTsExtensionResolver } from '../helpers/ts-extension-resolver.ts';
 

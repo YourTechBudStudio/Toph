@@ -1,12 +1,8 @@
 import { strict as assert } from 'node:assert';
 import test from 'node:test';
 
-import type { DictionaryEntry, PolishRulePreset } from '../../src/main/db/schema.ts';
-import { registerTsExtensionResolver } from '../helpers/ts-extension-resolver.ts';
-
-registerTsExtensionResolver();
-
-const {
+import type { DictionaryEntry, PolishRulePreset } from '../../src/db/schema.ts';
+import {
   cleanTrailingEllipsis,
   composeIncrementalPolishInput,
   composeIncrementalPolishInstructions,
@@ -14,7 +10,7 @@ const {
   parsePolishedResponse,
   removeEchoedContextBlocks,
   wrapTranscriptForPolish,
-} = await import('../../src/main/polish/polish-prompt.ts');
+} from '../../src/polish/polish-prompt.ts';
 
 const rulePreset: PolishRulePreset = {
   id: 'engineer',

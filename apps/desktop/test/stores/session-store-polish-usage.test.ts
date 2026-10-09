@@ -5,7 +5,8 @@ import { join } from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 
-import type { ProviderUsageEvent, SessionOutput } from '../../src/main/db/schema.ts';
+import type { ProviderUsageEvent, SessionOutput } from '@toph/dictation-core';
+
 import type { TophDataPaths } from '../../src/main/paths.ts';
 import type { RecordingSessionStore } from '../../src/main/stores/session-store.ts';
 import { registerTsExtensionResolver } from '../helpers/ts-extension-resolver.ts';

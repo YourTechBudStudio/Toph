@@ -2,12 +2,9 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import type { ProviderFieldSpec } from '@toph/desktop-contracts';
-import type { TranscriptionClient } from '@toph/dictation-core';
+import type { InferenceClient, TranscriptionClient } from '@toph/dictation-core';
 
-import type {
-  InferenceClient,
-  ProviderDefinition,
-} from '../../src/main/providers/provider-definition.ts';
+import type { ProviderDefinition } from '../../src/main/providers/provider-definition.ts';
 import { createProviderRegistry } from '../../src/main/providers/provider-registry.ts';
 
 function modelField(): ProviderFieldSpec {
