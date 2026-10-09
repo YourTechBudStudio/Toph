@@ -127,6 +127,7 @@ export {
   normalizeDictionaryEntryDraft,
   normalizeRulePresetDraft,
 } from './polish/writing-drafts';
+export type { PolishRulePresetDraft } from '@toph/desktop-contracts';
 export {
   defaultDictionaryEntries,
   seedDefaultDictionaryEntries,
