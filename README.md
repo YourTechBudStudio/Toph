@@ -101,11 +101,11 @@ better backtick rules, new structural commands), **your existing preset stays
 exactly as it was**. We won't push the change down on top of your work.
 
 If you want our latest cut, the source of truth lives in
-[`apps/desktop/src/main/polish/rules/`](apps/desktop/src/main/polish/rules/).
+[`packages/dictation-core/src/polish/rules/`](packages/dictation-core/src/polish/rules/).
 Two ways to pull in an update:
 
-- **Copy-paste.** Open the file (e.g., `engineer.txt`), grab the contents, and
-  paste them into the preset body in Settings → Polish.
+- **Copy-paste.** Open the file (e.g., `engineer.ts`), grab the text inside
+  the backticks, and paste it into the preset body in Settings → Polish.
 - **Nuke and re-seed.** Delete the preset in Settings → Polish and restart the
   app. Toph will re-create it from the latest source. Caveat: this also drops
   any customizations you made to it.
@@ -144,14 +144,17 @@ versions and the app fails with a `NODE_MODULE_VERSION` mismatch, run:
 pnpm --filter @toph/desktop run rebuild:native
 ```
 
-**Database migrations** — After changing the schema in
-`apps/desktop/src/main/db/schema.ts`, generate a migration with:
+**Database migrations** — Desktop and mobile share one schema in
+`packages/dictation-core/src/db/schema.ts`, but each keeps its own migrations.
+After changing the schema, generate a migration for both:
 
 ```bash
 pnpm --filter @toph/desktop exec drizzle-kit generate
+pnpm --filter @toph/mobile db:generate
 ```
 
-Don't edit files in `apps/desktop/drizzle` directly — those are generated.
+Don't edit files in `apps/desktop/drizzle` or `apps/mobile/drizzle` directly —
+those are generated.
 
 ## License
 
