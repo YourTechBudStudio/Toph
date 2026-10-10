@@ -12,15 +12,15 @@ Read the `version` field from the root `package.json` and compute the tag as `v<
 
 - Root `package.json` exists and has a valid semver `version`.
 - The computed tag doesn't already exist: `git tag --list "<tag>"` is empty and `gh release view "<tag>"` fails.
-- Current branch is `master`: `git rev-parse --abbrev-ref HEAD` returns `master`.
+- Current branch is `main`: `git rev-parse --abbrev-ref HEAD` returns `main`.
 - Working tree is clean: `git status --porcelain` is empty.
-- Local `master` is up to date with `origin/master`: `git fetch origin master` then verify `git rev-parse HEAD` equals `git rev-parse origin/master`.
+- Local `main` is up to date with `origin/main`: `git fetch origin main` then verify `git rev-parse HEAD` equals `git rev-parse origin/main`.
 
 ## Confirm with the user before drafting
 
 Once prerequisites pass, ask the user to confirm — explicitly — before doing any more work:
 
-> About to draft release `<tag>` from `master` at commit `<short-sha>` — `<commit subject>`. Continue?
+> About to draft release `<tag>` from `main` at commit `<short-sha>` — `<commit subject>`. Continue?
 
 Wait for an explicit yes. Don't proceed on silence.
 
