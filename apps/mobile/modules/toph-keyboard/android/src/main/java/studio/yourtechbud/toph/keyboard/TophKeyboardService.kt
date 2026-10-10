@@ -23,7 +23,8 @@ class TophKeyboardService : InputMethodService() {
     /** `startedAt` is `SystemClock.elapsedRealtime()` when capture started, for the clock. */
     data class Recording(val requestId: String, val startedAt: Long) : Phase
 
-    data class Transcribing(val requestId: String) : Phase
+    /** `polishing` only changes the wording: transcription is done and polish is running. */
+    data class Transcribing(val requestId: String, val polishing: Boolean = false) : Phase
   }
 
   // At most one request belongs to the keyboard at a time, because a new one starts only from Idle.
@@ -121,6 +122,14 @@ class TophKeyboardService : InputMethodService() {
     render()
   }
 
+  /** Called by [KeyboardDictations.polishingStarted], only while this keyboard holds the request. */
+  internal fun onPolishingStarted(requestId: String) {
+    val current = phase
+    if (current !is Phase.Transcribing || current.requestId != requestId) return
+    phase = current.copy(polishing = true)
+    render()
+  }
+
   /**
    * Shows or inserts a result. Called by [KeyboardDictations.deliver], only while this keyboard holds
    * the request and it was not cancelled. False means "not handled here": KeyboardDictations copies
@@ -171,7 +180,12 @@ class TophKeyboardService : InputMethodService() {
           }
         is Phase.Starting -> PanelState(OrbMode.Rest, PanelCopy.Starting, orbLabel = "Cancel")
         is Phase.Recording -> PanelState(OrbMode.Live, PanelCopy.listening(current.startedAt))
-        is Phase.Transcribing -> PanelState(OrbMode.Busy, PanelCopy.Transcribing)
+        is Phase.Transcribing ->
+          if (current.polishing) {
+            PanelState(OrbMode.Busy, PanelCopy.Polishing, orbLabel = "Polishing")
+          } else {
+            PanelState(OrbMode.Busy, PanelCopy.Transcribing)
+          }
       },
     )
   }

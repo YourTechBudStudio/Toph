@@ -168,15 +168,17 @@ async function read(): Promise<void> {
 }
 
 /** What dictation needs from the provider. */
-export interface TranscriptionConfig {
+export interface ProviderConfig {
   /** Fixed for the session it starts. */
   transcriptionModel: string;
   /** Read on every request, as on desktop. */
   credentials: () => Promise<{ formValues: Record<string, string> }>;
+  /** Desktop's `settings().inference`: read on every polish request. Empty reasoning effort means the model's default. */
+  inference: () => { model: string; reasoningEffort: string; api: PolishApi };
 }
 
 /** What dictation needs from the provider, or null unless connected. Not a hook. */
-export function readTranscriptionConfig(): TranscriptionConfig | null {
+export function readProviderConfig(): ProviderConfig | null {
   const { status, transcriptionModel } = useProviderStore.getState();
   if (status !== 'connected') {
     return null;
@@ -186,6 +188,10 @@ export function readTranscriptionConfig(): TranscriptionConfig | null {
     credentials: async () => {
       const { baseUrl, apiKey } = useProviderStore.getState();
       return { formValues: { baseUrl, apiKey } };
+    },
+    inference: () => {
+      const { polishModel, reasoningEffort, polishApi } = useProviderStore.getState();
+      return { model: polishModel, reasoningEffort, api: polishApi };
     },
   };
 }

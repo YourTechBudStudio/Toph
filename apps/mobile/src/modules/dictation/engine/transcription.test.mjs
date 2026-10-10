@@ -1,6 +1,7 @@
 /**
  * One dictation's uploads go through the core coordinator and OpenAI client, and their results
  * become one outcome: texts joined in batch order, "no speech", or the first failed batch's message.
+ * The transcribed batches stay readable in spoken order for polish and the raw output.
  */
 
 import assert from 'node:assert/strict';
@@ -31,12 +32,13 @@ function plannedBatch(sequence) {
   };
 }
 
-function newTranscription(lines = []) {
+function newTranscription(lines = [], onBatchTranscribed = undefined) {
   return createTranscription({
     sessionId: SESSION,
     config: testConfig,
     readBatchAudio: async () => new Uint8Array([1, 2, 3, 4]),
     log: (line) => lines.push(line),
+    onBatchTranscribed,
   });
 }
 
@@ -116,5 +118,33 @@ describe('createTranscription', () => {
     assert.equal(cancelled.error, undefined);
     assert.equal(cancelled.value, undefined);
     assert.equal(fetchStub.requests[0].init.signal.aborted, true);
+  });
+
+  it('orderedTranscripts lists transcribed batches by sequence, skips failed ones, and outlives finish', async () => {
+    const responses = new Map([
+      ['batch_0', deferred()],
+      ['batch_1', deferred()],
+      ['batch_2', deferred()],
+    ]);
+    fetchStub = stubFetch((request) => responses.get(batchIdOf(request)).promise);
+    const notified = [];
+    const transcription = newTranscription([], async (batch) => {
+      notified.push(batch.id);
+    });
+
+    for (const sequence of [0, 1, 2]) {
+      await transcription.addBatch(plannedBatch(sequence), `file:///batch-${sequence}.wav`);
+    }
+    await waitFor(() => fetchStub.requests.length === 3, 'every upload');
+    responses.get('batch_2').resolve(jsonResponse(200, { text: 'third.' }));
+    responses.get('batch_1').resolve(jsonResponse(400, { error: { message: 'Invalid file.' } }));
+    responses.get('batch_0').resolve(jsonResponse(200, { text: 'First' }));
+
+    assert.equal((await transcription.finish()).kind, 'failed');
+    assert.deepEqual(transcription.orderedTranscripts(), [
+      { batchId: 'batch_0', sequence: 0, text: 'First' },
+      { batchId: 'batch_2', sequence: 2, text: 'third.' },
+    ]);
+    assert.deepEqual(notified.sort(), ['batch_0', 'batch_2']);
   });
 });

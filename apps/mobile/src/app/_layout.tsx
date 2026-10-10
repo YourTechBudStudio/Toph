@@ -18,6 +18,7 @@ import { useEffect } from 'react';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import '../../global.css';
+import { loadHistory } from '../modules/history';
 import { OnboardingGate, useReadinessSettled } from '../modules/onboarding';
 import { refreshPermissions } from '../modules/permissions';
 import { loadPolish } from '../modules/polish';
@@ -35,6 +36,8 @@ void SplashScreen.preventAutoHideAsync();
 void loadProvider();
 void refreshPermissions();
 void loadPolish();
+// History is not part of readiness: Recent shows its header alone until the first read settles.
+void loadHistory();
 
 export default function RootLayout() {
   const [fontsLoaded, fontError] = useFonts({

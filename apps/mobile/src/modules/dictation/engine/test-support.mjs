@@ -1,6 +1,6 @@
 /**
- * Shared fakes for the engine tests: Silero frame events, a hand-driven native host, and a fetch
- * stub. Not a test file itself.
+ * Shared fakes for the engine tests: Silero frame events, a hand-driven native host with fake
+ * history records and polish sources, and a fetch stub. Not a test file itself.
  */
 
 const FRAME_SAMPLES = 512;
@@ -91,13 +91,90 @@ export function track(promise) {
 }
 
 /**
+ * History's writes, in memory. `calls` lists every call as `[method, argument]` in order;
+ * `failOn.add(method)` makes that method reject with "<method> failed." from then on.
+ */
+export function createFakeRecords() {
+  const calls = [];
+  const failOn = new Set();
+  const outputs = [];
+  const method =
+    (name, effect = () => {}) =>
+    async (argument) => {
+      calls.push([name, argument]);
+      if (failOn.has(name)) {
+        throw new Error(`${name} failed.`);
+      }
+      effect(argument);
+    };
+  const records = {
+    ready: method('ready'),
+    createRecordingSession: method('createRecordingSession'),
+    markRecorded: method('markRecorded'),
+    markNoSpeech: method('markNoSpeech'),
+    markFailed: method('markFailed'),
+    markCancelled: method('markCancelled'),
+    createSessionOutput: method('createSessionOutput', ({ output }) => outputs.push(output)),
+    selectSessionOutput: method('selectSessionOutput'),
+    pruneAndRefresh: method('pruneAndRefresh'),
+  };
+  return {
+    records,
+    calls,
+    failOn,
+    outputs,
+    /** The method names called, in order. */
+    get names() {
+      return calls.map(([name]) => name);
+    },
+    /** The argument of each call to `name`. */
+    argumentsOf(name) {
+      return calls.filter(([called]) => called === name).map(([, argument]) => argument);
+    },
+  };
+}
+
+export const testPreset = {
+  id: 'preset-test',
+  title: 'Test',
+  description: 'For tests.',
+  body: 'Fix the punctuation.',
+  bodyHash: 'hash-test',
+  isBuiltin: false,
+  sortOrder: 0,
+  createdAt: 0,
+  updatedAt: 0,
+};
+
+/** Polish sources with one preset and an empty dictionary. Polish is off unless the test turns it on. */
+export function createFakePolish() {
+  const settings = { enabled: false, rulePresetId: testPreset.id };
+  const sources = {
+    ready: async () => {},
+    getSettings: () => ({ polish: { ...settings } }),
+    getPolishRulePreset: async (id) => (id === testPreset.id ? testPreset : null),
+    listDictionaryEntries: async () => [],
+  };
+  return { sources, settings };
+}
+
+/**
  * A `DictationHost` whose native calls the test resolves by hand. Each `startCapture`,
  * `stopCapture` and `cutBatch` call returns a fresh deferred recorded in `calls`, unless the test
- * set `autoResolve` for it.
+ * set `autoResolve` for it. `records` and `polish` are the fakes above.
  */
 export function createFakeHost() {
   const listeners = new Set();
-  const calls = { startCapture: [], stopCapture: [], cutBatch: [], deletedFolders: 0 };
+  const calls = {
+    startCapture: [],
+    stopCapture: [],
+    cutBatch: [],
+    createdFolders: 0,
+    deletedFolders: 0,
+    deletedBatches: 0,
+  };
+  const records = createFakeRecords();
+  const polish = createFakePolish();
   const autoResolve = { startCapture: true, stopCapture: false, cutBatch: true };
 
   const call = (name, args) => {
@@ -122,21 +199,32 @@ export function createFakeHost() {
       stopCapture: () => call('stopCapture', []),
       cutBatch: (rawWavUri, ranges, outUri) => call('cutBatch', [rawWavUri, ranges, outUri]),
     },
-    createSessionFolder: (sessionId) => ({
-      rawWavUri: `file:///cache/dictation/${sessionId}/raw.wav`,
-      batchUri: (sequence) =>
-        `file:///cache/dictation/${sessionId}/batches/batch-${String(sequence + 1).padStart(4, '0')}.wav`,
-      readBytes: async () => new Uint8Array([1, 2, 3, 4]),
-      delete: () => {
-        calls.deletedFolders += 1;
-      },
-    }),
+    createSessionFolder: (sessionId) => {
+      calls.createdFolders += 1;
+      return {
+        rawWavUri: `file:///documents/recordings/${sessionId}/raw.wav`,
+        relativeRawAudioPath: `recordings/${sessionId}/raw.wav`,
+        batchUri: (sequence) =>
+          `file:///documents/recordings/${sessionId}/batches/batch-${String(sequence + 1).padStart(4, '0')}.wav`,
+        readBytes: async () => new Uint8Array([1, 2, 3, 4]),
+        deleteBatches: () => {
+          calls.deletedBatches += 1;
+        },
+        delete: () => {
+          calls.deletedFolders += 1;
+        },
+      };
+    },
+    records: records.records,
+    polish: polish.sources,
   };
 
   return {
     host,
     calls,
     autoResolve,
+    records,
+    polish: polish.settings,
     get listenerCount() {
       return listeners.size;
     },
@@ -154,6 +242,7 @@ export const testConfig = {
   credentials: async () => ({
     formValues: { baseUrl: 'https://api.openai.com/v1', apiKey: 'sk-test' },
   }),
+  inference: () => ({ model: 'gpt-test', reasoningEffort: '', api: 'chat' }),
 };
 
 /** The batch id the client sent, read from the multipart file name (`<batchId>.wav`). */
@@ -169,23 +258,43 @@ export function jsonResponse(status, body) {
   });
 }
 
+/** A Chat Completions response body whose message is `text`. */
+export function chatCompletion(text) {
+  return {
+    id: 'chatcmpl-test',
+    choices: [{ index: 0, message: { role: 'assistant', content: text } }],
+    usage: { prompt_tokens: 10, completion_tokens: 5 },
+  };
+}
+
+const isInference = (url) => url.endsWith('/chat/completions');
+
 /**
- * Replaces `globalThis.fetch` for one test and records each request. A request whose handler is
- * still pending rejects when its signal aborts, as a real fetch does.
+ * Replaces `globalThis.fetch` for one test and records each request. Transcription requests go to
+ * `handler` and are recorded in `requests`; polish requests (`/chat/completions`) go to `inference`,
+ * which answers "Polished text." unless the test passes its own, and are recorded in
+ * `inferenceRequests`. A request whose handler is still pending rejects when its signal aborts, as
+ * a real fetch does.
  */
-export function stubFetch(handler) {
+export function stubFetch(
+  handler,
+  inference = () => jsonResponse(200, chatCompletion('Polished text.')),
+) {
   const requests = [];
+  const inferenceRequests = [];
   const original = globalThis.fetch;
   globalThis.fetch = (input, init = {}) => {
     const request = { url: String(input), init };
-    requests.push(request);
+    const polish = isInference(request.url);
+    (polish ? inferenceRequests : requests).push(request);
     return new Promise((resolve, reject) => {
       init.signal?.addEventListener('abort', () => reject(init.signal.reason), { once: true });
-      Promise.resolve(handler(request)).then(resolve, reject);
+      Promise.resolve((polish ? inference : handler)(request)).then(resolve, reject);
     });
   };
   return {
     requests,
+    inferenceRequests,
     restore() {
       globalThis.fetch = original;
     },

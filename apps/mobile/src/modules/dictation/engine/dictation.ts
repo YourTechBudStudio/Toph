@@ -1,7 +1,11 @@
-import type { PlannedBatchSourceRange } from '@toph/dictation-core';
+import { createId, type PlannedBatchSourceRange } from '@toph/dictation-core';
 
 import type { FramesEvent, SourceRange, TophVoice } from '../../../../modules/toph-voice';
-import type { TranscriptionConfig } from '../../provider';
+// Type-only, so node tests load this file without the database or any Expo module.
+import type { SessionRecords } from '../../history';
+import type { PolishSources } from '../../polish';
+import type { ProviderConfig } from '../../provider';
+import { createRunPolish } from './polish';
 import { createSegmentationRun } from './segmentation';
 import { createTranscription, type DictationOutcome } from './transcription';
 
@@ -10,10 +14,22 @@ import { createTranscription, type DictationOutcome } from './transcription';
  * keyboard's dictation task (`keyboard/dictation-task.ts`) relies on this contract too.
  */
 export interface DictationRun {
-  /** Ends recording and returns the outcome. Settles only after the mic, subscription, uploads and files are released. Never rejects. */
-  stop(): Promise<DictationOutcome>;
+  /**
+   * Ends recording, saves the run to history and returns the outcome: the selected text (polished
+   * when polish ran, raw otherwise). Settles only after the mic, subscription, uploads, polish calls
+   * and files are released. Never rejects.
+   */
+  stop(options?: StopOptions): Promise<DictationOutcome>;
   /** Ends recording and drops everything. Settles only after the same resources are released. Never rejects. */
   discard(): Promise<void>;
+}
+
+export interface StopOptions {
+  /**
+   * Called once, just before the final polish, when transcription has ended and only polish is left.
+   * Not called when polish is off or the run has no transcript. A throw is logged and ignored.
+   */
+  onPolishing?: (() => void) | undefined;
 }
 
 /**
@@ -23,15 +39,23 @@ export interface DictationRun {
  */
 export interface DictationHost {
   voice: Pick<typeof TophVoice, 'addListener' | 'startCapture' | 'stopCapture' | 'cutBatch'>;
-  /** Creates the session's folder (throws if it cannot) and names the files in it. */
+  /** Creates the session's folder under the app's documents (throws if it cannot) and names its files. */
   createSessionFolder(sessionId: string): SessionFolder;
+  /** History's persistence. Every method may reject; the engine decides what a rejection means. */
+  records: SessionRecords;
+  /** Polish settings, rules and dictionary, from the polish module. */
+  polish: PolishSources;
 }
 
 export interface SessionFolder {
   rawWavUri: string;
+  /** `recordings/<sessionId>/raw.wav`, relative to the app's documents, as stored in the row. */
+  relativeRawAudioPath: string;
   /** `batches/batch-NNNN.wav`, NNNN = sequence + 1 (desktop's naming). */
   batchUri(sequence: number): string;
   readBytes(uri: string): Promise<Uint8Array<ArrayBuffer>>;
+  /** Deletes `batches/` and keeps raw.wav. Never throws (logs a warning). */
+  deleteBatches(): void;
   /** Deletes the folder and everything in it. Never throws (logs a warning). */
   delete(): void;
 }
@@ -57,8 +81,8 @@ const STILL_FINISHING = 'Another dictation is still finishing.';
  * "Another dictation is still finishing." before taking anything.
  */
 export function oneDictationAtATime(
-  start: (config: TranscriptionConfig) => Promise<DictationRun>,
-): (config: TranscriptionConfig) => Promise<DictationRun> {
+  start: (config: ProviderConfig) => Promise<DictationRun>,
+): (config: ProviderConfig) => Promise<DictationRun> {
   let held = false;
   return async (config) => {
     if (held) {
@@ -74,9 +98,9 @@ export function oneDictationAtATime(
     }
     // The engine's "exactly one of stop and discard, once" rule means this releases once.
     return {
-      async stop() {
+      async stop(options) {
         try {
-          return await run.stop();
+          return await run.stop(options);
         } finally {
           held = false;
         }
@@ -97,21 +121,57 @@ const toSourceRange = (range: PlannedBatchSourceRange): SourceRange => ({
   endMs: range.sourceEndMs,
 });
 
+/** Runs a step whose failure must not change the outcome, and logs that failure. Never rejects. */
+async function logged(what: string, step: () => Promise<unknown>): Promise<void> {
+  try {
+    await step();
+  } catch (error) {
+    console.warn(`[toph:dictation] ${what} failed`, error);
+  }
+}
+
+/** Calls `onPolishing`; a throw is logged and never changes the outcome. */
+function notifyPolishing(options: StopOptions | undefined): void {
+  try {
+    options?.onPolishing?.();
+  } catch (error) {
+    console.warn('[toph:dictation] onPolishing failed', error);
+  }
+}
+
 /**
- * Starts recording. Rejects (after releasing everything it took) if capture cannot start.
+ * Starts recording, as desktop does: the session row and folder exist before the mic opens.
+ * Rejects (after releasing everything it took) if the database or polish storage is unusable, the
+ * row cannot be written, or capture cannot start.
  *
  * Native frames are segmented with desktop's order; each planned batch is cut from raw.wav and
- * handed to the core's coordinator, which uploads it at once. Stopping waits for the native final
- * event, flushes, waits for every upload and joins the texts.
+ * handed to the core's coordinator, which uploads it at once, and each transcribed batch is offered
+ * to the core's incremental polish. Stopping runs desktop's end of run: mark recorded, wait for
+ * every upload, write the raw output, polish when polish is on, select the final text, then
+ * delete `batches/` and prune history to the newest sessions.
  */
 export async function startDictation(
-  config: TranscriptionConfig,
+  config: ProviderConfig,
   host: DictationHost,
 ): Promise<DictationRun> {
-  const { voice } = host;
-  const sessionId = globalThis.crypto.randomUUID();
-  const folder = host.createSessionFolder(sessionId); // if this throws, nothing has been taken yet
+  const { voice, records } = host;
+  await records.ready(); // the database is unusable: nothing has been taken yet
+  await host.polish.ready(); // polish storage is unusable: nothing has been taken yet
+  const sessionId = createId('session');
   const startedAt = Date.now();
+  const folder = host.createSessionFolder(sessionId); // if this throws, nothing has been taken yet
+  try {
+    await records.createRecordingSession({
+      id: sessionId,
+      startedAt,
+      rawAudioPath: folder.relativeRawAudioPath,
+      transcriptionModel: config.transcriptionModel,
+    });
+  } catch (error) {
+    folder.delete(); // the start is refused before the mic opens
+    throw error;
+  }
+
   let stage: 'recording' | 'stopping' = 'recording';
   const log = (message: string) => {
     console.log('[toph:dictation]', `+${Date.now() - startedAt}ms`, stage, message);
@@ -123,10 +183,21 @@ export async function startDictation(
     config,
     log,
     readBatchAudio: (uri) => folder.readBytes(uri),
+    onBatchTranscribed: (batch) => polish.onBatchTranscribed(batch),
   });
+  const polish = createRunPolish({
+    sessionId,
+    config,
+    sources: host.polish,
+    records,
+    transcripts: transcription,
+  });
+  polish.begin(); // registers incremental work only if polish is on now
 
   let firstError: string | null = null; // the run fails with this, if set
   let discarded = false;
+  /** The end of the last scored frame, in samples at 16 kHz: the recording's audio length. */
+  let lastEndSample = 0;
   let chain = Promise.resolve(); // events are handled one at a time, in arrival order
   let captureEnded = () => {};
   const ended = new Promise<void>((resolve) => {
@@ -158,6 +229,9 @@ export async function startDictation(
 
   // Added before capture starts, so no event is missed.
   const subscription = voice.addListener('onFrames', (event) => {
+    for (const endSample of event.endSamples) {
+      lastEndSample = Math.max(lastEndSample, endSample);
+    }
     chain = chain
       .then(() => handle(event))
       .catch((error: unknown) => {
@@ -173,8 +247,12 @@ export async function startDictation(
   try {
     await voice.startCapture(folder.rawWavUri);
   } catch (error) {
+    // Released in discard's order; the row is kept as `cancelled`, as desktop's cancelStartedSession does.
     subscription.remove();
+    await logged('cancel transcription', () => transcription.cancel());
+    await logged('settle polish', () => polish.settle());
     folder.delete();
+    await logged('mark cancelled', () => records.markCancelled(sessionId));
     throw error;
   }
   log('recording started');
@@ -193,7 +271,49 @@ export async function startDictation(
   };
 
   return {
-    async stop() {
+    async stop(options) {
+      let outcome: DictationOutcome;
+      // Guards the catch below, so transcription is cancelled at most once and never after `finish`.
+      let transcriptionEnded = false;
+
+      // Every write here is required: a rejection fails the dictation and withholds its text.
+      const settleOutcome = async (): Promise<DictationOutcome> => {
+        if (firstError !== null) {
+          const message = firstError;
+          transcriptionEnded = true;
+          await transcription.cancel();
+          await records.markFailed({ sessionId, errorMessage: message });
+          return { kind: 'failed', message };
+        }
+        transcriptionEnded = true;
+        const result = await transcription.finish(); // waits for every upload, then disposes
+        if (result.kind === 'no_speech') {
+          await records.markNoSpeech(sessionId);
+          return result;
+        }
+        if (result.kind === 'failed') {
+          await records.markFailed({ sessionId, errorMessage: result.message });
+          return result;
+        }
+        const raw = await polish.outputs.createRawConcatOutput(sessionId);
+        if (!polish.isEnabled()) {
+          await polish.outputs.selectOutput({ sessionId, outputId: raw.id });
+          return { kind: 'transcript', text: raw.text };
+        }
+        notifyPolishing(options);
+        try {
+          // Writing or selecting the polished output counts as polish, as desktop groups it.
+          const polished = await polish.finish(raw);
+          await polish.outputs.selectOutput({ sessionId, outputId: polished.id });
+          return { kind: 'transcript', text: polished.text };
+        } catch (error) {
+          // No trailing period, so splitErrorDetail can still separate a JSON body at the end.
+          const message = `Polish failed unexpectedly. Raw text saved in Toph history. ${describeError(error)}`;
+          await records.markFailed({ sessionId, errorMessage: message });
+          return { kind: 'failed', message };
+        }
+      };
+
       try {
         try {
           await endCapture();
@@ -201,32 +321,37 @@ export async function startDictation(
           // stopCapture broke its contract; the subscription is already removed.
           firstError ??= describeError(error);
         }
-        if (firstError !== null) {
-          await transcription.cancel();
-          return { kind: 'failed', message: firstError };
-        }
-        return await transcription.finish();
+        await records.markRecorded({
+          sessionId,
+          endedAt: Date.now(),
+          durationMs: Math.round(lastEndSample / 16),
+        });
+        outcome = await settleOutcome();
       } catch (error) {
-        // `finish` or `cancel` already ran, so the other one is never called here.
-        return { kind: 'failed', message: describeError(error) };
+        // A required write threw.
+        if (!transcriptionEnded) {
+          transcriptionEnded = true;
+          await logged('cancel transcription', () => transcription.cancel());
+        }
+        const message = `Couldn't save this dictation. ${describeError(error)}`;
+        outcome = { kind: 'failed', message };
+        await logged('mark failed', () => records.markFailed({ sessionId, errorMessage: message }));
       } finally {
-        folder.delete();
+        // Ancillary: the outcome is committed, so each step is only logged.
+        await logged('settle polish', () => polish.settle()); // aborts and awaits any running chunk
+        folder.deleteBatches();
+        await logged('prune history', () => records.pruneAndRefresh());
       }
+      return outcome;
     },
 
     async discard() {
       discarded = true;
-      try {
-        await endCapture();
-      } catch (error) {
-        console.warn('[toph:dictation] discard', error);
-      }
-      try {
-        await transcription.cancel();
-      } catch (error) {
-        console.warn('[toph:dictation] discard', error);
-      }
+      await logged('discard: end capture', endCapture);
+      await logged('discard: cancel transcription', () => transcription.cancel());
+      await logged('discard: settle polish', () => polish.settle());
       folder.delete();
+      await logged('discard: mark cancelled', () => records.markCancelled(sessionId));
     },
   };
 }

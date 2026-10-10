@@ -13,7 +13,7 @@ import { useForegroundKey } from './useForegroundKey';
 
 /**
  * In-app dictation: the record orb and what it is doing. A finished transcript is not shown here;
- * it is filed as the newest row of Home's Recent list.
+ * the engine saves it, and it appears as the newest row of Home's Recent list.
  */
 export function DictationPanel() {
   const phase = useSessionStore((state) => state.phase);
@@ -99,6 +99,8 @@ function headline(
       return 'Tap to dictate';
     case 'transcribing':
       return 'Transcribing…';
+    case 'polishing':
+      return 'Polishing…';
     case 'done':
       return outcome?.kind === 'no_speech' ? "Didn't catch that." : 'Shipped.';
     case 'failed':
@@ -115,6 +117,8 @@ function caption(phase: DictationPhase, outcome: DictationOutcome | null): strin
       return 'Listening. Tap the orb when you are done.';
     case 'transcribing':
       return "Sending what's left of your recording.";
+    case 'polishing':
+      return 'Applying your writing style.';
     case 'done':
       return outcome?.kind === 'no_speech'
         ? 'No speech came through. Tap the orb to try again.'

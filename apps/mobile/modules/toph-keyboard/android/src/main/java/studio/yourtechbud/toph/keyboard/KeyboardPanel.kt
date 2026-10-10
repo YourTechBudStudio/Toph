@@ -37,6 +37,7 @@ internal data class PanelCopy(val headline: Headline, val caption: String, val t
     val MicMissing = PanelCopy(Headline.Text("Microphone is off"), "Allow the microphone in Toph ›", CaptionTone.Link)
     val Starting = PanelCopy(Headline.Text("Starting", animatedDots = true), "Getting the mic ready. Tap to cancel.")
     val Transcribing = PanelCopy(Headline.Text("Transcribing…"), "Sending what's left of your recording.")
+    val Polishing = PanelCopy(Headline.Text("Polishing…"), "Applying your writing style.")
 
     fun listening(startedAt: Long) = PanelCopy(Headline.Clock(startedAt), "Listening. Tap the orb when you are done.")
   }

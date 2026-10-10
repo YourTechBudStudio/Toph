@@ -147,6 +147,14 @@ internal object KeyboardDictations {
     request.keyboard?.onCaptureStarted(id) // null when detached or cancelled: nothing to show
   }
 
+  /** Transcription is done and polish is running; only the wording changes. */
+  @MainThread
+  fun polishingStarted(id: String) {
+    val request = requests[id] ?: return // unknown or already delivered
+    Log.i(TAG, "request $id polishing started")
+    request.keyboard?.onPolishingStarted(id) // null when detached or cancelled: nothing to show
+  }
+
   /** Resolves `promise` when the request is stopped, or at once if it already is (or is unknown). */
   @MainThread
   fun waitForStop(id: String, promise: Promise) {

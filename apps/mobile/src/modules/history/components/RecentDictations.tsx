@@ -2,22 +2,25 @@ import { Fragment } from 'react';
 import { Text, View } from 'react-native';
 
 import { SectionLabel } from '../../../ui';
-import { useHistoryStore } from '../state/history';
+import { useHistory } from '../state/history';
 import { useNow } from '../state/now';
 import { DictationRow } from './DictationRow';
 
-/** Every dictation from the app and the keyboard, newest first. */
+/** Every saved dictation from the app and the keyboard, newest first. */
 export function RecentDictations() {
-  const dictations = useHistoryStore((state) => state.dictations);
+  const { loaded, dictations } = useHistory();
   const now = useNow();
 
   return (
     <View>
       <View className="flex-row items-baseline justify-between">
         <SectionLabel>Recent</SectionLabel>
-        <Text className="font-body text-xs text-text-tertiary">{dictations.length} saved</Text>
+        {loaded ? (
+          <Text className="font-body text-xs text-text-tertiary">{dictations.length} saved</Text>
+        ) : null}
       </View>
-      {dictations.length === 0 ? (
+      {/* Until the first read settles, the header shows alone: no rows and no empty state. */}
+      {!loaded ? null : dictations.length === 0 ? (
         <View className="items-center rounded-card border border-dashed border-line-strong px-6 py-10">
           <Text className="font-display text-base text-text-primary">Nothing here yet.</Text>
           <Text className="mt-1 text-center font-body text-sm text-text-tertiary">

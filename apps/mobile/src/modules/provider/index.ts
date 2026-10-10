@@ -3,9 +3,9 @@ export { ConnectionStatusPill } from './components/ConnectionStatusPill';
 export { ProviderScreen } from './components/ProviderScreen';
 export {
   loadProvider,
-  readTranscriptionConfig,
+  readProviderConfig,
   useProviderLoaded,
   useProviderReady,
   useProviderSummary,
-  type TranscriptionConfig,
+  type ProviderConfig,
 } from './state/provider';

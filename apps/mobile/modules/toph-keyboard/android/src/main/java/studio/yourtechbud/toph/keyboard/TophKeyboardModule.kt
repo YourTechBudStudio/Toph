@@ -55,6 +55,9 @@ class TophKeyboardModule : Module() {
     AsyncFunction("captureStarted") { requestId: String -> KeyboardDictations.captureStarted(requestId) }
       .runOnQueue(Queues.MAIN)
 
+    AsyncFunction("polishingStarted") { requestId: String -> KeyboardDictations.polishingStarted(requestId) }
+      .runOnQueue(Queues.MAIN)
+
     AsyncFunction("waitForStop") { requestId: String, promise: Promise -> KeyboardDictations.waitForStop(requestId, promise) }
       .runOnQueue(Queues.MAIN)
 

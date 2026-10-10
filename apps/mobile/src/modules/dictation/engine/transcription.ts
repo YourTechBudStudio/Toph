@@ -4,14 +4,15 @@ import {
   createSessionTranscriptionCoordinator,
 } from '@toph/dictation-core';
 import type {
-  CostEstimator,
+  OrderedBatchTranscript,
   PlannedTranscriptionBatch,
   TranscriptionBatchRecord,
   TranscriptionCoordinatorEvent,
   TranscriptionStore,
 } from '@toph/dictation-core';
 
-import type { TranscriptionConfig } from '../../provider';
+import type { ProviderConfig } from '../../provider';
+import { noCost } from './no-cost';
 
 /** How a dictation ended. */
 export type DictationOutcome =
@@ -28,6 +29,11 @@ export interface Transcription {
   finish(): Promise<DictationOutcome>;
   /** Aborts in-flight uploads, waits for them, and releases the coordinator. */
   cancel(): Promise<void>;
+  /**
+   * Transcribed batches in spoken order, as desktop's batch/transcript join returns them. Stays
+   * readable after `finish()` and `cancel()`.
+   */
+  orderedTranscripts(): OrderedBatchTranscript[];
 }
 
 interface BatchEntry {
@@ -37,27 +43,19 @@ interface BatchEntry {
   error: string | null;
 }
 
-// No usage or cost tracking on mobile in this story.
-const noCost: CostEstimator = {
-  estimateCost: () => ({
-    costUsdMicros: 0,
-    costSource: 'none',
-    pricingCatalogProviderId: null,
-    pricingCatalogModelId: null,
-  }),
-};
-
 /**
  * Exactly one of `finish` and `cancel` is called per transcription.
  *
  * The coordinator is the core's, unchanged; it gets an in-memory store that lives as long as this
- * dictation (story #9 can back the same interface with SQLite).
+ * dictation. Batches stay in memory: history needs only the session's outputs.
  */
 export function createTranscription(options: {
   sessionId: string;
-  config: TranscriptionConfig;
+  config: ProviderConfig;
   readBatchAudio: (uri: string) => Promise<Uint8Array<ArrayBuffer>>;
   log: (message: string) => void;
+  /** Called after each batch's transcript is stored. Core logs and swallows its failures. */
+  onBatchTranscribed?: ((batch: { sessionId: string }) => Promise<void>) | undefined;
 }): Transcription {
   const { sessionId, config, log } = options;
   const batches = new Map<string, BatchEntry>();
@@ -147,8 +145,15 @@ export function createTranscription(options: {
     sessionStore,
     resolveTranscriptionClient: (providerId) => (providerId === client.id ? client : null),
     readBatchAudio: options.readBatchAudio,
+    onBatchTranscribed: async (batch) => options.onBatchTranscribed?.(batch),
     diagnostics: { record },
   });
+
+  const orderedTranscripts = (): OrderedBatchTranscript[] =>
+    [...batches.values()]
+      .filter((found): found is BatchEntry & { text: string } => found.text !== null)
+      .sort((a, b) => a.sequence - b.sequence)
+      .map(({ record: { id }, sequence, text }) => ({ batchId: id, sequence, text }));
 
   const toOutcome = (failedOrIncompleteBatchCount: number): DictationOutcome => {
     const ordered = [...batches.values()].sort((a, b) => a.sequence - b.sequence);
@@ -160,7 +165,10 @@ export function createTranscription(options: {
       const failed = ordered.find(({ error }) => error !== null);
       return { kind: 'failed', message: failed?.error ?? 'Transcription did not finish.' };
     }
-    const text = assembleRawTranscriptText(ordered.map(({ text: batchText }) => batchText ?? ''));
+    // The same texts the raw output is assembled from, so a transcript here always has a raw output.
+    const text = assembleRawTranscriptText(
+      orderedTranscripts().map(({ text: batchText }) => batchText),
+    );
     return text === '' ? { kind: 'no_speech' } : { kind: 'transcript', text };
   };
 
@@ -194,5 +202,7 @@ export function createTranscription(options: {
       await coordinator.cancelSession(sessionId);
       await coordinator.dispose();
     },
+
+    orderedTranscripts,
   };
 }

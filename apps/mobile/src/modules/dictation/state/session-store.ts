@@ -1,20 +1,23 @@
 import { create, type StoreApi, type UseBoundStore } from 'zustand';
 
-import type { Dictation } from '../../history';
-import type { TranscriptionConfig } from '../../provider';
+import type { ProviderConfig } from '../../provider';
 import type { DictationRun } from '../engine/dictation';
 import { describeError } from '../engine/dictation';
 import type { DictationOutcome } from '../engine/transcription';
 
 /** Where an in-app dictation stands. `done` and `failed` keep the outcome on screen until the next start. */
-export type DictationPhase = 'idle' | 'listening' | 'transcribing' | 'done' | 'failed';
+export type DictationPhase =
+  | 'idle'
+  | 'listening'
+  | 'transcribing'
+  | 'polishing'
+  | 'done'
+  | 'failed';
 
 /** What the store needs from other capabilities. `state/session.ts` passes the real ones; tests pass fakes. */
 export interface SessionStoreDeps {
-  readTranscriptionConfig(): TranscriptionConfig | null;
-  startDictation(config: TranscriptionConfig): Promise<DictationRun>;
-  /** Files a finished transcript at the top of Recent (history's `recordDictation` in the app). */
-  recordDictation(dictation: Dictation): void;
+  readProviderConfig(): ProviderConfig | null;
+  startDictation(config: ProviderConfig): Promise<DictationRun>;
 }
 
 export interface SessionState {
@@ -34,8 +37,6 @@ type Ending = 'stop' | 'discard';
 interface HeldRun {
   readonly startedAt: number;
   ending: Ending | null;
-  /** When Stop was tapped (or the app went to the background); the filed transcript's duration ends here. */
-  stoppedAt: number | null;
   end(ending: Ending): void;
   readonly ended: Promise<Ending>;
 }
@@ -48,12 +49,8 @@ function holdRun(startedAt: number): HeldRun {
   const run: HeldRun = {
     startedAt,
     ending: null,
-    stoppedAt: null,
     end(ending) {
       run.ending = ending;
-      if (ending === 'stop') {
-        run.stoppedAt = Date.now();
-      }
       resolve(ending);
     },
     ended,
@@ -64,15 +61,16 @@ function holdRun(startedAt: number): HeldRun {
 /**
  * The in-app dictation session. It holds at most one run, from the moment `start()` is accepted
  * until that run's mic, subscription, uploads and files are released, so a new start never overlaps
- * the previous run. The phase leaves `listening`/`transcribing` only when the run is released.
- * Stop or Discard during a pending start is recorded and applied once the start settles.
+ * the previous run. The phase leaves `listening`, `transcribing` or `polishing` only when the run is
+ * released, so `onPolishing`, which the engine calls while the run is held, never overwrites a later
+ * phase. Stop or Discard during a pending start is recorded and applied once the start settles.
  */
 export function createSessionStore(deps: SessionStoreDeps): UseBoundStore<StoreApi<SessionState>> {
   let held: HeldRun | null = null;
 
   /** One dictation from start to release. `null` means discarded. */
   async function dictate(run: HeldRun): Promise<DictationOutcome | null> {
-    const config = deps.readTranscriptionConfig();
+    const config = deps.readProviderConfig();
     if (config === null) {
       return { kind: 'failed', message: 'Connect a provider first.' };
     }
@@ -88,22 +86,11 @@ export function createSessionStore(deps: SessionStoreDeps): UseBoundStore<StoreA
       await dictation.discard();
       return null;
     }
-    const outcome = await dictation.stop();
-    if (outcome.kind === 'transcript') {
-      deps.recordDictation({
-        id: globalThis.crypto.randomUUID(),
-        createdAt: Date.now(),
-        durationMs: (run.stoppedAt ?? Date.now()) - run.startedAt,
-        source: 'app',
-        raw: outcome.text,
-        polished: null,
-        presetTitle: null,
-      });
-    }
-    return outcome;
+    // The engine saves the run to history; the outcome carries the selected text.
+    return await dictation.stop({ onPolishing: () => store.setState({ phase: 'polishing' }) });
   }
 
-  return create<SessionState>()((set) => ({
+  const store = create<SessionState>()((set) => ({
     phase: 'idle',
     startedAt: null,
     outcome: null,
@@ -132,7 +119,7 @@ export function createSessionStore(deps: SessionStoreDeps): UseBoundStore<StoreA
       if (held === null || held.ending !== null) {
         return;
       }
-      set({ phase: 'transcribing' });
+      set({ phase: 'transcribing' }); // `polishing` follows if the engine reports it
       held.end('stop');
     },
     cancel: () => {
@@ -143,4 +130,5 @@ export function createSessionStore(deps: SessionStoreDeps): UseBoundStore<StoreA
       held.end('discard');
     },
   }));
+  return store;
 }

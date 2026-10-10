@@ -3,7 +3,8 @@
  * test resolves by hand:
  * - Stop or Discard during a pending start is applied once the start settles;
  * - a new start is refused until the held run's teardown has settled;
- * - only a finished transcript is filed in history, with its duration ending at the stop tap.
+ * - the phase moves from transcribing to polishing when the run reports it, while the run is held.
+ *   (The engine saves runs to history; its tests cover that.)
  */
 
 import assert from 'node:assert/strict';
@@ -44,13 +45,12 @@ function fakeRun() {
 function harness({ connected = true } = {}) {
   const starts = [];
   const deps = {
-    readTranscriptionConfig: mock.fn(() => (connected ? config : null)),
+    readProviderConfig: mock.fn(() => (connected ? config : null)),
     startDictation: mock.fn(() => {
       const start = deferred();
       starts.push(start);
       return start.promise;
     }),
-    recordDictation: mock.fn(),
   };
   const store = createSessionStore(deps);
   return { store, deps, starts, state: () => store.getState() };
@@ -127,7 +127,6 @@ describe('session store', () => {
     await settle();
     assert.equal(h.state().phase, 'idle');
     assert.equal(h.state().outcome, null);
-    assert.equal(h.deps.recordDictation.mock.callCount(), 0);
   });
 
   it('ignores taps while a discard is tearing down', async () => {
@@ -201,60 +200,33 @@ describe('session store', () => {
     });
   });
 
-  it('files a transcript once, timed from start to the stop tap, before done is set', async () => {
-    let now = 1_000_000;
-    mock.method(Date, 'now', () => now);
+  it('shows polishing once the run reports it, until the run settles', async () => {
     const h = harness();
-    h.deps.recordDictation.mock.mockImplementation(() => {
-      assert.equal(h.state().phase, 'transcribing', 'filed before done is set');
-    });
     const fake = await startedRun(h);
-
-    now += 4_250;
     h.state().stop();
-    now += 9_000; // transcribing takes a while; the duration ignores it
-    fake.stopped.resolve({ kind: 'transcript', text: 'ship it' });
     await settle();
+    assert.equal(h.state().phase, 'transcribing');
 
+    const [options] = fake.run.stop.mock.calls[0].arguments;
+    options.onPolishing();
+    assert.equal(h.state().phase, 'polishing');
+    h.state().start();
+    assert.equal(h.deps.startDictation.mock.callCount(), 1, 'polishing still holds the run');
+
+    fake.stopped.resolve({ kind: 'transcript', text: 'Ship it.' });
+    await settle();
     assert.equal(h.state().phase, 'done');
-    assert.equal(h.deps.recordDictation.mock.callCount(), 1);
-    const [dictation] = h.deps.recordDictation.mock.calls[0].arguments;
-    assert.equal(typeof dictation.id, 'string');
-    assert.deepEqual(
-      { ...dictation, id: undefined },
-      {
-        id: undefined,
-        createdAt: now,
-        durationMs: 4_250,
-        source: 'app',
-        raw: 'ship it',
-        polished: null,
-        presetTitle: null,
-      },
-    );
+    assert.deepEqual(h.state().outcome, { kind: 'transcript', text: 'Ship it.' });
   });
 
-  it('files nothing for no speech, a failure or a discard', async () => {
+  it('ends in failed after polishing when polish fails', async () => {
     const h = harness();
-
-    let fake = await startedRun(h);
+    const fake = await startedRun(h);
     h.state().stop();
-    fake.stopped.resolve({ kind: 'no_speech' });
     await settle();
-    assert.equal(h.state().phase, 'done');
-
-    fake = await startedRun(h);
-    h.state().stop();
-    fake.stopped.resolve({ kind: 'failed', message: 'Recording failed: read error' });
+    fake.run.stop.mock.calls[0].arguments[0].onPolishing();
+    fake.stopped.resolve({ kind: 'failed', message: 'Polish failed unexpectedly.' });
     await settle();
     assert.equal(h.state().phase, 'failed');
-
-    fake = await startedRun(h);
-    h.state().cancel();
-    fake.discarded.resolve();
-    await settle();
-    assert.equal(h.state().phase, 'idle');
-
-    assert.equal(h.deps.recordDictation.mock.callCount(), 0);
   });
 });
