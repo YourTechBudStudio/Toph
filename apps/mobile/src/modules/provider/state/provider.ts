@@ -3,6 +3,7 @@ import { create } from 'zustand';
 
 import { verifyOpenAiConnection } from '@toph/dictation-core';
 
+import { persistSecurely, readSecureJson, writeSecureJson } from '../../../storage/secure-json';
 import {
   parseStoredConnection,
   parseStoredModels,
@@ -32,6 +33,7 @@ export interface ConnectionDraft {
 
 const CONNECTION_KEY = 'toph.provider.connection';
 const MODELS_KEY = 'toph.provider.models';
+const LOG_TAG = '[toph:provider]';
 
 interface ProviderState {
   /** Whether the saved provider has been read, so nothing decides from the defaults. */
@@ -86,7 +88,7 @@ export const useProviderStore = create<ProviderState>()((set) => ({
       error: null,
       submitted: null,
     });
-    void persist(() => SecureStore.deleteItemAsync(CONNECTION_KEY));
+    void persistSecurely(() => SecureStore.deleteItemAsync(CONNECTION_KEY), LOG_TAG);
   },
   setTranscriptionModel: (model) => {
     set({ transcriptionModel: model.trim() === '' ? DEFAULT_TRANSCRIPTION_MODEL : model.trim() });
@@ -106,33 +108,17 @@ export const useProviderStore = create<ProviderState>()((set) => ({
   },
 }));
 
-let writes: Promise<unknown> = Promise.resolve();
-
-/**
- * Runs `write` after every earlier write, so storage sees them in the order they were made.
- * Resolves whether it saved and never rejects, so a failed write neither breaks the queue nor
- * leaves an unhandled rejection behind a fire-and-forget caller.
- */
-function persist(write: () => Promise<void>): Promise<boolean> {
-  const saved = writes.then(write).then(
-    () => true,
-    (error: unknown) => {
-      console.warn('[toph:provider] save failed', error);
-      return false;
-    },
-  );
-  writes = saved;
-  return saved;
-}
-
 /** Saves the model fields as they are when the write runs, so the last edit wins. */
 function persistModels(): void {
-  void persist(() => {
-    const { transcriptionModel, polishModel, reasoningEffort, polishApi } =
-      useProviderStore.getState();
-    const models: StoredModels = { transcriptionModel, polishModel, reasoningEffort, polishApi };
-    return SecureStore.setItemAsync(MODELS_KEY, JSON.stringify(models));
-  });
+  void writeSecureJson(
+    MODELS_KEY,
+    (): StoredModels => {
+      const { transcriptionModel, polishModel, reasoningEffort, polishApi } =
+        useProviderStore.getState();
+      return { transcriptionModel, polishModel, reasoningEffort, polishApi };
+    },
+    LOG_TAG,
+  );
 }
 
 async function checkAndSave(draft: ConnectionDraft): Promise<void> {
@@ -147,9 +133,7 @@ async function checkAndSave(draft: ConnectionDraft): Promise<void> {
       baseUrl: values.baseUrl ?? '',
       apiKey: values.apiKey ?? '',
     };
-    const saved = await persist(() =>
-      SecureStore.setItemAsync(CONNECTION_KEY, JSON.stringify(connection)),
-    );
+    const saved = await writeSecureJson(CONNECTION_KEY, () => connection, LOG_TAG);
     if (!saved) {
       throw new Error("Couldn't save the key on this phone.");
     }
@@ -170,8 +154,8 @@ export function loadProvider(): Promise<void> {
 
 async function read(): Promise<void> {
   const [connection, models] = await Promise.all([
-    readEntry(CONNECTION_KEY, parseStoredConnection),
-    readEntry(MODELS_KEY, parseStoredModels),
+    readSecureJson(CONNECTION_KEY, parseStoredConnection, LOG_TAG),
+    readSecureJson(MODELS_KEY, parseStoredModels, LOG_TAG),
   ]);
   useProviderStore.setState({
     // A saved connection was verified when it was saved; a key that stopped working since then
@@ -183,36 +167,18 @@ async function read(): Promise<void> {
   });
 }
 
-/** One saved entry, or `null` when it is missing, unreadable or malformed. Never rejects. */
-async function readEntry<T>(
-  key: string,
-  parse: (raw: string | null) => T | null,
-): Promise<T | null> {
-  let raw: string | null;
-  try {
-    raw = await SecureStore.getItemAsync(key);
-  } catch (error) {
-    console.warn(`[toph:provider] could not read ${key}`, error);
-    return null;
-  }
-  const value = parse(raw);
-  if (raw !== null && value === null) {
-    // The contents are not logged: the connection entry holds the API key.
-    console.warn(`[toph:provider] ignoring malformed ${key}`);
-  }
-  return value;
-}
-
 /** What dictation needs from the provider. */
-export interface TranscriptionConfig {
+export interface ProviderConfig {
   /** Fixed for the session it starts. */
   transcriptionModel: string;
   /** Read on every request, as on desktop. */
   credentials: () => Promise<{ formValues: Record<string, string> }>;
+  /** Desktop's `settings().inference`: read on every polish request. Empty reasoning effort means the model's default. */
+  inference: () => { model: string; reasoningEffort: string; api: PolishApi };
 }
 
 /** What dictation needs from the provider, or null unless connected. Not a hook. */
-export function readTranscriptionConfig(): TranscriptionConfig | null {
+export function readProviderConfig(): ProviderConfig | null {
   const { status, transcriptionModel } = useProviderStore.getState();
   if (status !== 'connected') {
     return null;
@@ -222,6 +188,10 @@ export function readTranscriptionConfig(): TranscriptionConfig | null {
     credentials: async () => {
       const { baseUrl, apiKey } = useProviderStore.getState();
       return { formValues: { baseUrl, apiKey } };
+    },
+    inference: () => {
+      const { polishModel, reasoningEffort, polishApi } = useProviderStore.getState();
+      return { model: polishModel, reasoningEffort, api: polishApi };
     },
   };
 }

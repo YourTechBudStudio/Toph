@@ -18,8 +18,10 @@ import { useEffect } from 'react';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import '../../global.css';
+import { loadHistory } from '../modules/history';
 import { OnboardingGate, useReadinessSettled } from '../modules/onboarding';
 import { refreshPermissions } from '../modules/permissions';
+import { loadPolish } from '../modules/polish';
 import { loadProvider } from '../modules/provider';
 import { colors } from '../ui';
 
@@ -29,10 +31,13 @@ export const unstable_settings = { initialRouteName: 'index' };
 
 // Keep the splash up until the fonts are ready; no visible text uses the system font.
 void SplashScreen.preventAutoHideAsync();
-// Onboarding decides from the saved provider and the mic permission, so both are read before
-// the splash goes away.
+// Onboarding decides from the saved provider, the mic permission and the saved writing style, so
+// all three are read before the splash goes away.
 void loadProvider();
 void refreshPermissions();
+void loadPolish();
+// History is not part of readiness: Recent shows its header alone until the first read settles.
+void loadHistory();
 
 export default function RootLayout() {
   const [fontsLoaded, fontError] = useFonts({

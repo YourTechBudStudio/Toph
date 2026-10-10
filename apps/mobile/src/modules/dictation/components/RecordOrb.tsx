@@ -29,7 +29,7 @@ function modeOf(phase: DictationPhase): Mode {
   if (phase === 'listening') {
     return 'live';
   }
-  if (phase === 'transcribing') {
+  if (phase === 'transcribing' || phase === 'polishing') {
     return 'busy';
   }
   return 'rest';
@@ -37,7 +37,7 @@ function modeOf(phase: DictationPhase): Mode {
 
 /**
  * The record control and the centrepiece of Home. At rest it breathes; while listening it turns
- * "on air" and sends ripples outward; while transcribing an arc orbits it. Reduced motion keeps
+ * "on air" and sends ripples outward; while transcribing or polishing an arc orbits it. Reduced motion keeps
  * every state, without the movement. The voice keyboard draws a native port of it
  * (`modules/toph-keyboard/.../RecordOrbView.kt`); a change to either must be mirrored in the other.
  */
@@ -59,7 +59,13 @@ export function RecordOrb({ phase, onPress }: { phase: DictationPhase; onPress: 
   }));
 
   const label =
-    mode === 'live' ? 'Stop recording' : mode === 'busy' ? 'Transcribing' : 'Start recording';
+    mode === 'live'
+      ? 'Stop recording'
+      : mode === 'busy'
+        ? phase === 'polishing'
+          ? 'Polishing'
+          : 'Transcribing'
+        : 'Start recording';
   const Icon = mode === 'live' ? Square : mode === 'busy' ? AudioLines : Mic;
 
   return (

@@ -21,7 +21,7 @@ Toph is a voice-to-text dictation app.
   - Owns API contracts between Electron and UI code.
 
 - `packages/dictation-core`
-  - Node-free dictation logic shared with mobile: segmentation, transcription coordinator, OpenAI API-key client, settings schema.
+  - Node-free dictation logic shared with mobile: segmentation, transcription coordinator, polish, session outputs, database schema, OpenAI API-key and inference clients, settings schema.
   - Owns no I/O; hosts pass in storage, audio bytes and platform.
 
 - `packages/shared`
@@ -41,5 +41,5 @@ Toph is a voice-to-text dictation app.
   - `pnpm run typecheck`
   - `pnpm run build`
 - Don't make git commits unless you have the user's explicit consent.
-- Don't change files in `apps/desktop/drizzle`. Those are generated migrations.
+- Don't change files in `apps/desktop/drizzle` or `apps/mobile/drizzle`. Those are generated migrations.
 - Don't read the .env file

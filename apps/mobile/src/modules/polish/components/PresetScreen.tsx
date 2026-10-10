@@ -3,9 +3,11 @@ import { Check } from 'lucide-react-native';
 import { useState } from 'react';
 import { Text, View } from 'react-native';
 
+import type { PolishRulePreset } from '@toph/dictation-core';
+
 import { BackBar, Button, FadeIn, PageTitle, Screen, StatusPill, TextField } from '../../../ui';
 import { usePolishStore } from '../state/polish';
-import type { RulePreset } from '../state/presets';
+import { ErrorLine } from './ErrorLine';
 
 export function PresetScreen({ id }: { id: string }) {
   const preset = usePolishStore((state) => state.presets.find((candidate) => candidate.id === id));
@@ -24,13 +26,15 @@ export function PresetScreen({ id }: { id: string }) {
   return <PresetEditor key={preset.id} preset={preset} />;
 }
 
-function PresetEditor({ preset }: { preset: RulePreset }) {
+function PresetEditor({ preset }: { preset: PolishRulePreset }) {
   const active = usePolishStore((state) => state.activePresetId === preset.id);
   const updatePreset = usePolishStore((state) => state.updatePreset);
   const setActivePreset = usePolishStore((state) => state.setActivePreset);
   const [title, setTitle] = useState(preset.title);
   const [description, setDescription] = useState(preset.description);
   const [body, setBody] = useState(preset.body);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const dirty =
     title !== preset.title || description !== preset.description || body !== preset.body;
 
@@ -66,15 +70,24 @@ function PresetEditor({ preset }: { preset: RulePreset }) {
       <FadeIn index={2}>
         <View className="mt-8 gap-3">
           <Button
-            disabled={!dirty || title.trim() === ''}
+            disabled={saving || !dirty || title.trim() === ''}
             icon={Check}
             onPress={() => {
-              updatePreset(preset.id, { title: title.trim(), description, body });
-              router.back();
+              setSaving(true);
+              setError(null);
+              // Core's validator trims, so the fields go in as typed.
+              updatePreset(preset.id, { title, description, body }).then(
+                () => router.back(),
+                (failure: unknown) => {
+                  setError(failure instanceof Error ? failure.message : String(failure));
+                  setSaving(false);
+                },
+              );
             }}
             title="Save rules"
             variant="primary"
           />
+          {error === null ? null : <ErrorLine message={error} />}
           {active ? null : (
             <Button onPress={() => setActivePreset(preset.id)} title="Use this preset" />
           )}

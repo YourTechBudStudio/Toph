@@ -2,6 +2,8 @@ import { Plus, Trash2 } from 'lucide-react-native';
 import { Fragment, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 
+import type { DictionaryEntry } from '@toph/dictation-core';
+
 import {
   BackBar,
   Button,
@@ -14,13 +16,30 @@ import {
   Switch,
   TextField,
 } from '../../../ui';
-import { usePolishStore, type DictionaryEntry } from '../state/polish';
+import { usePolishStore } from '../state/polish';
+import { ErrorLine } from './ErrorLine';
+
+/** Runs one dictionary action, clearing the last error first and showing this one if it fails. */
+type RunAction = (action: () => Promise<void>) => Promise<boolean>;
 
 export function DictionaryScreen() {
   const dictionary = usePolishStore((state) => state.dictionary);
   const addEntry = usePolishStore((state) => state.addEntry);
   const [term, setTerm] = useState('');
   const [hint, setHint] = useState('');
+  const [adding, setAdding] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const run: RunAction = async (action) => {
+    setError(null);
+    try {
+      await action();
+      return true;
+    } catch (failure) {
+      setError(failure instanceof Error ? failure.message : String(failure));
+      return false;
+    }
+  };
 
   return (
     <Screen header={<BackBar />}>
@@ -43,17 +62,28 @@ export function DictionaryScreen() {
             value={hint}
           />
           <Button
-            disabled={term.trim() === ''}
+            disabled={adding || term.trim() === ''}
             icon={Plus}
             onPress={() => {
-              addEntry(term.trim(), hint);
-              setTerm('');
-              setHint('');
+              // Disabled until the add settles, so a double tap cannot save the term twice.
+              setAdding(true);
+              void run(() => addEntry(term, hint)).then((added) => {
+                setAdding(false);
+                if (added) {
+                  setTerm('');
+                  setHint('');
+                }
+              });
             }}
             title="Add term"
             variant="primary"
           />
         </Card>
+        {error === null ? null : (
+          <View className="mt-4">
+            <ErrorLine message={error} />
+          </View>
+        )}
       </FadeIn>
 
       <FadeIn index={2}>
@@ -71,7 +101,7 @@ export function DictionaryScreen() {
               {dictionary.map((entry, index) => (
                 <Fragment key={entry.id}>
                   {index === 0 ? null : <View className="mx-4 h-px bg-line" />}
-                  <EntryRow entry={entry} />
+                  <EntryRow entry={entry} run={run} />
                 </Fragment>
               ))}
             </View>
@@ -82,7 +112,7 @@ export function DictionaryScreen() {
   );
 }
 
-function EntryRow({ entry }: { entry: DictionaryEntry }) {
+function EntryRow({ entry, run }: { entry: DictionaryEntry; run: RunAction }) {
   const setEntryEnabled = usePolishStore((state) => state.setEntryEnabled);
   const removeEntry = usePolishStore((state) => state.removeEntry);
 
@@ -99,13 +129,13 @@ function EntryRow({ entry }: { entry: DictionaryEntry }) {
         accessibilityRole="button"
         className="size-9 items-center justify-center rounded-full"
         hitSlop={6}
-        onPress={() => removeEntry(entry.id)}
+        onPress={() => void run(() => removeEntry(entry.id))}
       >
         <Trash2 color={colors.textTertiary} size={17} strokeWidth={1.8} />
       </Pressable>
       <Switch
         label={`Use ${entry.term}`}
-        onValueChange={(enabled) => setEntryEnabled(entry.id, enabled)}
+        onValueChange={(enabled) => void run(() => setEntryEnabled(entry.id, enabled))}
         value={entry.enabled}
       />
     </View>

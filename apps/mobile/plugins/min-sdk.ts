@@ -16,7 +16,9 @@ const MIN_SDK = '33';
 
 const withMinSdk: ConfigPlugin = (config) =>
   withGradleProperties(config, (mod) => {
-    const properties = mod.modResults.filter((item) => item.type !== 'property' || item.key !== KEY);
+    const properties = mod.modResults.filter(
+      (item) => item.type !== 'property' || item.key !== KEY,
+    );
     properties.push({ type: 'property', key: KEY, value: MIN_SDK });
     mod.modResults = properties;
     return mod;

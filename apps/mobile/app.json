@@ -29,7 +29,8 @@
       ],
       "expo-secure-store",
       "./plugins/arm64-release.ts",
-      "./plugins/min-sdk.ts"
+      "./plugins/min-sdk.ts",
+      "expo-sqlite"
     ],
     "experiments": {
       "typedRoutes": true

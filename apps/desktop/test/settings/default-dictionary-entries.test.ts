@@ -2,10 +2,15 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import type { AppSettings } from '@toph/desktop-contracts';
+import type { DictionaryEntry } from '@toph/dictation-core';
 
-import type { DictionaryEntry } from '../../src/main/db/schema.ts';
-import { seedDefaultDictionaryEntriesIfNeeded } from '../../src/main/settings/default-dictionary-entries.ts';
-import { maxEnabledDictionaryEntries } from '../../src/main/settings/writing-settings-validation.ts';
+import { registerTsExtensionResolver } from '../helpers/ts-extension-resolver.ts';
+
+registerTsExtensionResolver();
+
+const { maxEnabledDictionaryEntries } = await import('@toph/dictation-core');
+const { seedDefaultDictionaryEntriesIfNeeded } =
+  await import('../../src/main/settings/default-dictionary-entries.ts');
 
 const baseSettings: AppSettings = {
   version: 1,

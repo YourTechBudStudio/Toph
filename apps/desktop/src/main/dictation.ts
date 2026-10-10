@@ -1,16 +1,18 @@
 import { existsSync } from 'node:fs';
 
 import type { ActiveInputDeviceFallback, PasteAttempt } from '@toph/desktop-contracts';
-import type { SessionTranscriptionCoordinator } from '@toph/dictation-core';
+import type {
+  PolishService,
+  SessionOutputService,
+  SessionPolishCoordinator,
+  SessionTranscriptionCoordinator,
+} from '@toph/dictation-core';
 
 import type { TranscriptionDiagnostics } from './diagnostics/transcription-diagnostics';
 import { resolveDictationRetryStrategy } from './dictation-retry-strategy';
 import type { RawAudioRecorder } from './managers/audio-recorder';
 import type { ClipboardManager } from './managers/clipboard';
 import type { WindowManager } from './managers/windows';
-import type { SessionOutputService } from './outputs/session-output-service';
-import type { PolishService } from './polish/polish-service';
-import type { SessionPolishCoordinator } from './polish/session-polish-coordinator';
 import type { ProviderService } from './providers/provider-service';
 import type { SessionSegmentationService } from './segmentation/session-segmentation-service';
 import { isStreamingVadBusyError } from './segmentation/streaming-vad-runtime';

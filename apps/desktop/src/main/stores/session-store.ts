@@ -9,8 +9,6 @@ import { drizzle, type BetterSQLite3Database } from 'drizzle-orm/better-sqlite3'
 import { migrate } from 'drizzle-orm/better-sqlite3/migrator';
 
 import { MAX_POLISH_RULE_PRESETS, type DashboardStats } from '@toph/desktop-contracts';
-import type { PlannedTranscriptionBatch, TimelineRegionDraft } from '@toph/dictation-core';
-
 import {
   batchTranscripts,
   batchSourceRanges,
@@ -21,16 +19,22 @@ import {
   sessionOutputs,
   timelineRegions,
   transcriptionBatches,
+  retainableSessionStatuses,
+  retainedSessionCount,
+  shouldUpgradeRulePresetBody,
   type BatchTranscript,
   type DictionaryEntry,
+  type OrderedBatchTranscript,
+  type PlannedTranscriptionBatch,
   type PolishRulePreset,
   type ProviderUsageEvent,
   type RecordingSession,
   type SessionOutput,
+  type TimelineRegionDraft,
   type TranscriptionBatch,
-} from '../db/schema';
+} from '@toph/dictation-core';
+
 import type { TophDataPaths } from '../paths';
-import { shouldUpgradeRulePresetBody } from '../polish/rule-preset-upgrade';
 
 export interface RecordingSessionStore {
   createRecordingSession: (options: {
@@ -170,29 +174,12 @@ export interface RecordingSessionStore {
   close: () => void;
 }
 
-/** A batch transcript in spoken order, with the identity the incremental polish path needs. */
-export interface OrderedBatchTranscript {
-  batchId: string;
-  sequence: number;
-  text: string;
-}
-
 export interface RetainedSessionRecord {
   session: RecordingSession;
   selectedOutput: SessionOutput | null;
   failedBatches: TranscriptionBatch[];
   rawAudioAvailable: boolean;
 }
-
-const retainedSessionCount = 10;
-const retainableSessionStatuses = [
-  'recorded',
-  'segmented',
-  'completed',
-  'failed',
-  'no_speech',
-  'recording_failed',
-] as const;
 
 function createSessionId() {
   return `session_${Date.now()}_${randomUUID()}`;

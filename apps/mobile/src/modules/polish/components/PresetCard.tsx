@@ -2,8 +2,9 @@ import { router } from 'expo-router';
 import { Check, PencilLine } from 'lucide-react-native';
 import { Pressable, Text, View } from 'react-native';
 
+import type { PolishRulePreset } from '@toph/dictation-core';
+
 import { cn, colors, PressableScale } from '../../../ui';
-import type { RulePreset } from '../state/presets';
 
 /** One rule preset as a choosable card, with a way into its rules. */
 export function PresetCard({
@@ -14,7 +15,7 @@ export function PresetCard({
   disabled,
   onChoose,
 }: {
-  preset: RulePreset;
+  preset: PolishRulePreset;
   index: number;
   active: boolean;
   editable: boolean;

@@ -25,15 +25,15 @@ The renderer remains state-driven. It receives snapshots and invokes actions thr
 - `apps/desktop/src/main/providers/provider-service.ts`: connections, credentials, readiness, routing, and client resolution for every provider.
 - `apps/desktop/src/main/providers/credential-storage.ts`: the on-disk credentials file, one entry per provider.
 - `apps/desktop/src/main/providers/<provider>/`: one folder per provider, holding its definition, auth and clients.
-- `apps/desktop/src/main/outputs/session-output-service.ts`: raw transcript assembly and persisted session outputs.
-- `apps/desktop/src/main/polish/polish-service.ts`: optional LLM-based transcript polishing.
+- `packages/dictation-core/src/outputs/session-output-service.ts`: raw transcript assembly and persisted session outputs.
+- `packages/dictation-core/src/polish/`: optional LLM-based transcript polishing, rule presets and the incremental session polish coordinator.
 - `packages/dictation-core/src/usage/`: provider usage and cost metadata shapes.
-- `packages/dictation-core/src/index.ts`: Node-free dictation logic shared by desktop and mobile (segmentation planning, transcription coordination, the OpenAI API-key client and connection check, settings normalisation). It owns no I/O; the host app passes in storage, audio bytes, and the platform.
+- `packages/dictation-core/src/index.ts`: Node-free dictation logic shared by desktop and mobile (segmentation planning, transcription coordination, polishing, session outputs, the database schema, the OpenAI API-key and inference clients, settings normalisation). It owns no I/O; the host app passes in storage, audio bytes, and the platform.
 - `packages/desktop-contracts/src/index.ts`: renderer-facing app state, IPC channels, settings, provider, output, and capture contracts.
 
 ## Mobile
 
-The Android app transcribes with the same segmentation, batching, upload, retry and joining behaviour as desktop; desktop governs shared behaviour. It does not yet polish or persist sessions.
+The Android app transcribes with the same segmentation, batching, upload, retry and joining behaviour as desktop; desktop governs shared behaviour. It also polishes through the core's session polish coordinator, records each session in its own SQLite database, and keeps the newest sessions under the same retention rule as desktop.
 
 - `apps/mobile/modules/toph-voice/`: a local Expo native module in Kotlin. It only captures audio, scores frames with Silero, and cuts batch WAVs on request; it makes no segmentation decisions.
 - `apps/mobile/src/modules/dictation/engine/`: React-free TypeScript that runs one dictation. It feeds native frame scores through the shared core's segmentation and transcription coordinator, so every decision about regions, batches, retries and joined text is the core's.
@@ -45,7 +45,7 @@ Kotlin cannot share TypeScript, so a few desktop details are mirrored in `toph-v
 
 ## Data And Contracts
 
-Database implementation details live in `docs/architecture/database-schema.md`. The schema itself lives in `apps/desktop/src/main/db/schema.ts`.
+Database implementation details live in `docs/architecture/database-schema.md`. The schema itself lives in `packages/dictation-core/src/db/schema.ts`.
 
 Renderer-facing state is intentionally smaller than the persisted session model. The UI should show coherent recording, processing, polishing, failure, and history states without exposing internal timeline regions or provider batches as normal product concepts.
 

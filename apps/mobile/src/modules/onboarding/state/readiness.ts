@@ -1,6 +1,6 @@
 import { useKeyboardEnabled } from '../../keyboard';
 import { usePermission, usePermissionsChecked } from '../../permissions';
-import { usePresetChosen } from '../../polish';
+import { usePolishLoaded, usePresetChosen } from '../../polish';
 import { useProviderLoaded, useProviderReady } from '../../provider';
 
 export interface Readiness {
@@ -31,9 +31,10 @@ export function useReadiness(): Readiness {
 
 /** Whether the gate's stored and system inputs have been read, so it never decides from defaults. */
 export function useReadinessSettled(): boolean {
-  // Both hooks run on every render; `&&` between the calls would skip the second one and break
+  // Every hook runs on every render; `&&` between the calls would skip the later ones and break
   // React's hook order once the provider finishes loading.
   const providerLoaded = useProviderLoaded();
   const permissionsChecked = usePermissionsChecked();
-  return providerLoaded && permissionsChecked;
+  const polishLoaded = usePolishLoaded();
+  return providerLoaded && permissionsChecked && polishLoaded;
 }

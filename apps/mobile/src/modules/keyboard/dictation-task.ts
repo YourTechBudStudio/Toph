@@ -13,7 +13,8 @@ import {
   type DictationOutcome,
   type DictationRun,
 } from '../dictation';
-import { loadProvider, readTranscriptionConfig } from '../provider';
+import { loadPolish } from '../polish';
+import { loadProvider, readProviderConfig } from '../provider';
 
 /**
  * Registers the task the voice keyboard starts at each mic tap. Call it at bundle load: the
@@ -43,8 +44,8 @@ export function registerKeyboardDictation(): void {
 }
 
 async function dictate(requestId: string): Promise<KeyboardResult> {
-  await loadProvider(); // without an Activity the app's _layout may never have run
-  const config = readTranscriptionConfig();
+  await Promise.all([loadProvider(), loadPolish()]); // without an Activity the app's _layout may never have run
+  const config = readProviderConfig();
   if (config === null) {
     return { kind: 'no_provider' };
   }
@@ -59,7 +60,10 @@ async function dictate(requestId: string): Promise<KeyboardResult> {
   }
   await TophKeyboard.captureStarted(requestId); // the keyboard switches from "Starting…" to "Listening…"
   await TophKeyboard.waitForStop(requestId);
-  return readable(await run.stop()); // never rejects; settles after mic, uploads and files are released
+  // Never rejects; settles after mic, uploads, polish and files are released, and the run is saved.
+  return readable(
+    await run.stop({ onPolishing: () => void TophKeyboard.polishingStarted(requestId) }),
+  );
 }
 
 /** The keyboard has two caption lines and a toast, so a failure keeps only its readable summary. */

@@ -8,6 +8,7 @@
     "android": "pnpm --workspace-root run icons:app && expo run:android --app-id studio.yourtechbud.toph.dev",
     "android:prebuild": "pnpm --workspace-root run icons:app && expo prebuild --platform android",
     "build": "expo export --platform android",
+    "db:generate": "drizzle-kit generate",
     "release:android": "pnpm --workspace-root run icons:app && expo run:android --variant release --app-id studio.yourtechbud.toph",
     "start": "expo start",
     "test": "node --import ./tests/helpers/register-ts-extension-resolver.mjs --test \"src/**/*.test.mjs\" \"tests/*.test.mjs\"",
@@ -17,6 +18,7 @@
     "@expo-google-fonts/sora": "0.4.2",
     "@expo-google-fonts/source-sans-3": "0.4.1",
     "@toph/dictation-core": "workspace:*",
+    "drizzle-orm": "^0.45.2",
     "expo": "~57.0.20",
     "expo-clipboard": "~57.0.2",
     "expo-constants": "~57.0.17",
@@ -29,6 +31,7 @@
     "expo-router": "~57.0.19",
     "expo-secure-store": "~57.0.4",
     "expo-splash-screen": "~57.0.8",
+    "expo-sqlite": "~57.0.4",
     "expo-status-bar": "~57.0.1",
     "expo-system-ui": "~57.0.3",
     "lucide-react-native": "1.41.0",
@@ -47,6 +50,9 @@
     "@react-native/metro-config": "0.86.3",
     "@types/node": "^26.1.1",
     "@types/react": "~19.2.2",
+    "babel-plugin-inline-import": "^3.0.0",
+    "babel-preset-expo": "~57.0.13",
+    "drizzle-kit": "^0.31.10",
     "tailwindcss": "4.3.3",
     "typescript": "~6.0.3"
   }

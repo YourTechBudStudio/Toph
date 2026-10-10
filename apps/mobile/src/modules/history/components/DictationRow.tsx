@@ -1,15 +1,12 @@
 import { router } from 'expo-router';
-import { Keyboard, Smartphone } from 'lucide-react-native';
 import { Text, View } from 'react-native';
 
-import { colors, PressableScale } from '../../../ui';
+import { PressableScale } from '../../../ui';
 import { formatClock, formatRelative } from '../format';
-import type { Dictation } from '../state/history';
+import { dictationFallbackText, type Dictation } from '../state/dictation-view';
 
-/** One past dictation in a list: its text first, then when, how long, and where it came from. */
+/** One past dictation in a list: its text first, then when, how long, and whether it failed. */
 export function DictationRow({ dictation, now }: { dictation: Dictation; now: number }) {
-  const SourceIcon = dictation.source === 'keyboard' ? Keyboard : Smartphone;
-
   return (
     <PressableScale
       accessibilityHint="Opens the raw and polished text"
@@ -19,12 +16,18 @@ export function DictationRow({ dictation, now }: { dictation: Dictation; now: nu
       className="px-5 py-4"
     >
       <Text className="font-body text-[15px] leading-5.5 text-text-primary" numberOfLines={2}>
-        {dictation.polished ?? dictation.raw}
+        {dictation.polished ?? dictation.raw ?? dictationFallbackText(dictation)}
       </Text>
       <View className="mt-2.5 flex-row items-center gap-2">
-        <SourceIcon color={colors.textTertiary} size={13} strokeWidth={2} />
+        {dictation.status === 'failed' ? (
+          // Without it, a polish failure would look the same as polish being off.
+          <Text className="font-body-semibold text-xs text-accent-red">
+            {dictation.raw === null ? 'Failed' : 'Not polished'}
+          </Text>
+        ) : null}
         <Text className="font-body-medium text-xs text-text-tertiary">
-          {formatRelative(dictation.createdAt, now)} · {formatClock(dictation.durationMs)}
+          {formatRelative(dictation.createdAt, now)} ·{' '}
+          {dictation.durationMs === null ? '—' : formatClock(dictation.durationMs)}
         </Text>
       </View>
     </PressableScale>

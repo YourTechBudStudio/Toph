@@ -1,18 +1,10 @@
-import { Keyboard, Smartphone } from 'lucide-react-native';
 import { Text, View } from 'react-native';
 
-import {
-  BackBar,
-  Card,
-  colors,
-  CopyButton,
-  FadeIn,
-  PageTitle,
-  Screen,
-  SectionLabel,
-} from '../../../ui';
+import { BackBar, Card, CopyButton, FadeIn, PageTitle, Screen, SectionLabel } from '../../../ui';
+import { usePresetTitle } from '../../polish';
 import { countWords, formatClock, formatRelative, wordsPerMinute } from '../format';
-import { useDictation, type Dictation } from '../state/history';
+import { dictationFallbackText, type Dictation } from '../state/dictation-view';
+import { useDictation } from '../state/history';
 import { useNow } from '../state/now';
 
 export function DictationDetailScreen({ id }: { id: string }) {
@@ -35,9 +27,8 @@ export function DictationDetailScreen({ id }: { id: string }) {
 
 function DictationDetail({ dictation }: { dictation: Dictation }) {
   const now = useNow();
-  const final = dictation.polished ?? dictation.raw;
-  const pace = wordsPerMinute(dictation.raw, dictation.durationMs);
-  const SourceIcon = dictation.source === 'keyboard' ? Keyboard : Smartphone;
+  const { raw, durationMs } = dictation;
+  const pace = raw === null || durationMs === null ? null : wordsPerMinute(raw, durationMs);
   const when = new Date(dictation.createdAt).toLocaleTimeString([], {
     hour: 'numeric',
     minute: '2-digit',
@@ -46,13 +37,7 @@ function DictationDetail({ dictation }: { dictation: Dictation }) {
   return (
     <Screen header={<BackBar />}>
       <FadeIn index={0}>
-        <View className="flex-row items-center gap-2">
-          <SourceIcon color={colors.spark} size={14} strokeWidth={2.2} />
-          <Text className="font-body-bold text-xs tracking-[1.6px] text-spark uppercase">
-            {dictation.source === 'keyboard' ? 'From the keyboard' : 'From the app'}
-          </Text>
-        </View>
-        <Text className="mt-2 font-display text-[32px] leading-9.5 tracking-[-1px] text-text-primary">
+        <Text className="font-display text-[32px] leading-9.5 tracking-[-1px] text-text-primary">
           {formatRelative(dictation.createdAt, now)}
         </Text>
         <Text className="mt-1 font-body text-base text-text-secondary">at {when}</Text>
@@ -60,8 +45,11 @@ function DictationDetail({ dictation }: { dictation: Dictation }) {
 
       <FadeIn index={1}>
         <View className="mt-7 flex-row gap-3">
-          <Stat label="Length" value={formatClock(dictation.durationMs)} />
-          <Stat label="Words" value={String(countWords(final))} />
+          <Stat label="Length" value={durationMs === null ? '—' : formatClock(durationMs)} />
+          <Stat
+            label="Words"
+            value={String(countWords(dictation.polished ?? dictation.raw ?? ''))}
+          />
           <Stat
             label="Pace"
             value={pace === null ? '—' : `${String(pace)}`}
@@ -70,45 +58,92 @@ function DictationDetail({ dictation }: { dictation: Dictation }) {
         </View>
       </FadeIn>
 
-      <FadeIn index={2}>
-        <View className="mt-9">
-          <SectionLabel>Polished</SectionLabel>
-          {dictation.polished === null ? (
+      {dictation.status === 'done' ? null : (
+        <FadeIn index={2}>
+          <View className="mt-9">
+            <StatusCard dictation={dictation} />
+          </View>
+        </FadeIn>
+      )}
+
+      {dictation.status === 'done' ? (
+        <FadeIn index={3}>
+          <View className="mt-9">
+            <SectionLabel>Polished</SectionLabel>
+            <PolishedCard polished={dictation.polished} rulePresetId={dictation.rulePresetId} />
+          </View>
+        </FadeIn>
+      ) : null}
+
+      {raw === null ? null : (
+        <FadeIn index={4}>
+          <View className="mt-7">
+            <SectionLabel>Raw transcript</SectionLabel>
             <Card>
-              <Text className="font-body text-[15px] leading-6 text-text-tertiary">
-                Polish was off for this one. What you said is what you got.
+              <Text selectable className="font-body text-[15px] leading-6 text-text-secondary">
+                {raw}
               </Text>
-            </Card>
-          ) : (
-            <Card tone="blue">
-              <Text selectable className="font-body text-[17px] leading-6.75 text-text-primary">
-                {dictation.polished}
-              </Text>
-              <View className="mt-5 flex-row items-center justify-between">
-                <Text className="font-body-semibold text-[13px] text-accent-blue">
-                  {dictation.presetTitle} preset
-                </Text>
-                <CopyButton text={dictation.polished} what="polished text" />
+              <View className="mt-5 flex-row justify-end">
+                <CopyButton text={raw} what="raw transcript" />
               </View>
             </Card>
-          )}
-        </View>
-      </FadeIn>
-
-      <FadeIn index={3}>
-        <View className="mt-7">
-          <SectionLabel>Raw transcript</SectionLabel>
-          <Card>
-            <Text selectable className="font-body text-[15px] leading-6 text-text-secondary">
-              {dictation.raw}
-            </Text>
-            <View className="mt-5 flex-row justify-end">
-              <CopyButton text={dictation.raw} what="raw transcript" />
-            </View>
-          </Card>
-        </View>
-      </FadeIn>
+          </View>
+        </FadeIn>
+      )}
     </Screen>
+  );
+}
+
+/** Why a dictation has no final text: its error, or that no speech came through. */
+function StatusCard({ dictation }: { dictation: Dictation }) {
+  const failed = dictation.status === 'failed';
+  return (
+    <Card>
+      <Text
+        selectable
+        className={
+          failed
+            ? 'font-body text-[15px] leading-6 text-accent-red'
+            : 'font-body text-[15px] leading-6 text-text-tertiary'
+        }
+      >
+        {dictation.errorMessage ?? dictationFallbackText(dictation)}
+      </Text>
+    </Card>
+  );
+}
+
+function PolishedCard({
+  polished,
+  rulePresetId,
+}: {
+  polished: string | null;
+  rulePresetId: string | null;
+}) {
+  const presetTitle = usePresetTitle(rulePresetId);
+
+  if (polished === null) {
+    return (
+      <Card>
+        <Text className="font-body text-[15px] leading-6 text-text-tertiary">
+          Polish was off for this one. What you said is what you got.
+        </Text>
+      </Card>
+    );
+  }
+
+  return (
+    <Card tone="blue">
+      <Text selectable className="font-body text-[17px] leading-6.75 text-text-primary">
+        {polished}
+      </Text>
+      <View className="mt-5 flex-row items-center justify-between">
+        <Text className="font-body-semibold text-[13px] text-accent-blue">
+          {presetTitle === null ? 'Polished' : `${presetTitle} preset`}
+        </Text>
+        <CopyButton text={polished} what="polished text" />
+      </View>
+    </Card>
   );
 }
 

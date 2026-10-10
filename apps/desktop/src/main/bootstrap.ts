@@ -9,12 +9,20 @@ import type { autoUpdater as electronAutoUpdater } from 'electron-updater';
 import type { DictationSessionStatus } from '@toph/desktop-contracts';
 import {
   createDefaultAppSettings,
+  createPolishService,
+  createSessionOutputService,
+  createSessionPolishCoordinator,
   createSessionTranscriptionCoordinator,
+  defaultPolishRulePresets,
+  ensureDictionaryEnabledLimit,
+  normalizeDictionaryEntryDraft,
+  normalizeRulePresetDraft,
+  type DictionaryEntry,
+  type PolishRulePreset,
 } from '@toph/dictation-core';
 
 import macAppIconPath from '../../../../assets/app-icons/icon-mac.png?asset';
 import appIconPath from '../../../../assets/app-icons/icon.png?asset';
-import type { DictionaryEntry, PolishRulePreset } from './db/schema';
 import { createTranscriptionDiagnostics } from './diagnostics/transcription-diagnostics';
 import { createDictationController } from './dictation';
 import { buildSessionErrorReport, sanitizeErrorMessage } from './history/error-report';
@@ -24,11 +32,7 @@ import { createClipboardManager } from './managers/clipboard';
 import { createPermissionManager } from './managers/permissions';
 import { createShortcutManager } from './managers/shortcuts';
 import { createWindowManager } from './managers/windows';
-import { createSessionOutputService } from './outputs/session-output-service';
 import { resolveTophDataPaths } from './paths';
-import { defaultPolishRulePresets } from './polish/builtin-rules';
-import { createPolishService } from './polish/polish-service';
-import { createSessionPolishCoordinator } from './polish/session-polish-coordinator';
 import { createPricingService } from './pricing/pricing-service';
 import { openAiSubProviderDefinition } from './providers/openai-sub/definition';
 import { openAiProviderDefinition } from './providers/openai/definition';
@@ -38,11 +42,6 @@ import { createSessionSegmentationService } from './segmentation/session-segment
 import { createDefaultStreamingVadRuntime } from './segmentation/streaming-vad-runtime';
 import { createAppSettingsStore } from './settings/app-settings-store';
 import { seedDefaultDictionaryEntriesIfNeeded } from './settings/default-dictionary-entries';
-import {
-  ensureDictionaryEnabledLimit,
-  normalizeDictionaryEntryDraft,
-  normalizeRulePresetDraft,
-} from './settings/writing-settings-validation';
 import { createDesktopStateStore } from './state';
 import { createRecordingSessionStore } from './stores/session-store';
 import { createDesktopTrayController } from './tray';

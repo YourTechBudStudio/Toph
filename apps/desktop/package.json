@@ -22,7 +22,6 @@
     "test:diagnostics": "node --experimental-strip-types --test test/diagnostics/*.test.ts",
     "test:dictation": "node --experimental-strip-types --test test/dictation-*.test.ts",
     "test:paths": "node --experimental-strip-types --test test/paths.test.ts",
-    "test:polish": "node --experimental-strip-types --test test/polish/*.test.ts",
     "test:pricing": "node --experimental-strip-types --test test/pricing/*.test.ts",
     "test:providers": "node --experimental-strip-types --test test/providers/*.test.ts",
     "test:segmentation": "node --experimental-strip-types --test test/segmentation/*.test.ts",
