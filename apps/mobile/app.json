@@ -2,7 +2,7 @@
   "expo": {
     "name": "Toph",
     "slug": "toph",
-    "version": "0.0.8",
+    "version": "0.1.0",
     "icon": "../../assets/logo.png",
     "scheme": "toph",
     "userInterfaceStyle": "dark",

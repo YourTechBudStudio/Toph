@@ -54,7 +54,17 @@ for (const packageJsonPath of workspacePackageJsonPaths) {
   writePackageJson(packageJsonPath, packageJson);
 }
 
-console.log(`Synced ${workspacePackageJsonPaths.length} workspace package versions to ${version}.`);
+const expoAppJsonPaths = workspacePackageJsonPaths
+  .map((packageJsonPath) => path.join(path.dirname(packageJsonPath), 'app.json'))
+  .filter((appJsonPath) => fs.existsSync(appJsonPath));
+
+for (const appJsonPath of expoAppJsonPaths) {
+  syncExpoAppVersion(appJsonPath);
+}
+
+console.log(
+  `Synced ${workspacePackageJsonPaths.length} workspace package versions and ${expoAppJsonPaths.length} Expo app versions to ${version}.`,
+);
 
 function getWorkspacePackageJsonPaths() {
   return getWorkspacePackagePatterns().flatMap((pattern) => {
@@ -115,6 +125,27 @@ function readPackageJson(packageJsonPath) {
 
 function writePackageJson(packageJsonPath, packageJson) {
   fs.writeFileSync(packageJsonPath, `${JSON.stringify(packageJson, null, 2)}\n`);
+}
+
+// Replaces only the version string so the formatter's layout of app.json is preserved.
+function syncExpoAppVersion(appJsonPath) {
+  const source = fs.readFileSync(appJsonPath, 'utf8');
+  const currentVersion = JSON.parse(source).expo?.version;
+
+  if (currentVersion === undefined || currentVersion === version) {
+    return;
+  }
+
+  const updated = source.replace(
+    `"version": ${JSON.stringify(currentVersion)}`,
+    `"version": ${JSON.stringify(version)}`,
+  );
+
+  if (JSON.parse(updated).expo.version !== version) {
+    fail(`Could not update expo.version in ${path.relative(repoRoot, appJsonPath)}.`);
+  }
+
+  fs.writeFileSync(appJsonPath, updated);
 }
 
 function fail(message) {

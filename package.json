@@ -1,6 +1,6 @@
 {
   "name": "toph",
-  "version": "0.0.8",
+  "version": "0.1.0",
   "private": true,
   "scripts": {
     "build": "pnpm --filter @toph/desktop build && pnpm --filter @toph/mobile build",
