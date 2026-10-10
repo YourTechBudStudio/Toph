@@ -448,7 +448,7 @@ export async function bootstrap(options: {
   const shortcuts = createShortcutManager({
     stateStore,
     config: {
-      launcherScriptPath: join(__dirname, '../../../../scripts/toph-desktop.sh'),
+      launcherScriptPath: join(mainBundleDir, '../../../../scripts/toph-desktop.sh'),
       toggleCaptureFlag: options.toggleCaptureFlag,
       ruleSwitcherFlag: options.ruleSwitcherFlag,
     },
